@@ -549,7 +549,44 @@ end
 
 -- Helper function to refresh options easily from elsewhere in your code
 function ns.RefreshOptions()
-    local options = ns.GetAuraTrackerOptions()
-    ns.UpdateBarOptions(options)
     LibStub("AceConfigRegistry-3.0"):NotifyChange(addonName)
 end
+
+-- ==========================================================
+-- SETTINGS PANEL SHIM
+-- A lightweight object that lets other parts of the addon
+-- open/close the config dialog and check talent restrictions.
+-- ==========================================================
+
+local AceConfigDialog = LibStub("AceConfigDialog-3.0")
+
+ns.AuraTracker = ns.AuraTracker or {}
+ns.AuraTracker.SettingsPanel = {
+    Show = function(self, barKey)
+        AceConfigDialog:Open(addonName)
+        -- If a specific bar was requested, try to navigate to it
+        if barKey then
+            AceConfigDialog:SelectGroup(addonName, barKey)
+        end
+    end,
+
+    Hide = function(self)
+        local frame = AceConfigDialog.OpenFrames and AceConfigDialog.OpenFrames[addonName]
+        if frame then frame:Hide() end
+    end,
+
+    CheckTalentRestriction = function(self, talentName)
+        if not talentName or talentName == "" or talentName == "NONE" then
+            return true
+        end
+        for tab = 1, GetNumTalentTabs() do
+            for i = 1, GetNumTalents(tab) do
+                local name, _, _, _, rank = GetTalentInfo(tab, i)
+                if name == talentName and rank and rank > 0 then
+                    return true
+                end
+            end
+        end
+        return false
+    end,
+}

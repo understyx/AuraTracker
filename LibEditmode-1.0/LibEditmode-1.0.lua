@@ -121,7 +121,7 @@ function Lib:Register(frame, opts)
 
     mover.text:SetText(opts.label or frame:GetName() or "Mover")
 
-: SetWidth/Height
+    -- SetWidth/Height
     if opts.width and opts.height then
         mover:SetWidth(opts.width)
         mover:SetHeight(opts.height)

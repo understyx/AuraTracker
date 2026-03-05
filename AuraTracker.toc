@@ -8,6 +8,9 @@
 
 Libraries\Load_Libraries.xml
 
+LibFramepool-1.0\LibFramepool-1.0.lua
+LibEditmode-1.0\LibEditmode-1.0.xml
+
 Config.lua
 
 TrackedItem.lua

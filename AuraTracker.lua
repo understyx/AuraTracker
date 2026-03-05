@@ -5,10 +5,13 @@ local Config = ns.AuraTracker.Config
 local TrackedItem = ns.AuraTracker.TrackedItem
 local Icon = ns.AuraTracker.Icon
 local Bar = ns.AuraTracker.Bar
-local SettingsPanel = ns.AuraTracker.SettingsPanel
+
+-- Library references
+local LibFramePool = LibStub("LibFramePool-1.0")
+local LibEditmode  = LibStub("LibEditmode-1.0")
 
 -- Create module via Ace3
-local AuraTracker = LibStub("AceAddon-3.0"):NewAddon("AuraTracker", "AceEvent-3.0")
+local AuraTracker = LibStub("AceAddon-3.0"):NewAddon("AuraTracker", "AceEvent-3.0", "AceConsole-3.0")
 ns.AuraTracker.Controller = AuraTracker
 
 -- Local state
@@ -37,7 +40,19 @@ function AuraTracker:OnInitialize()
     
     playerGUID = UnitGUID("player")
     
-    ns:FramePool_RegisterFrameFactory(Icon.POOL_KEY, Icon.CreateFrame)
+    LibFramePool:CreatePool(Icon.POOL_KEY, Icon.CreateFrame)
+
+    -- Register configuration options with AceConfig
+    LibStub("AceConfig-3.0"):RegisterOptionsTable(addonName, function()
+        local options = ns.GetAuraTrackerOptions()
+        ns.UpdateBarOptions(options)
+        return options
+    end)
+    LibStub("AceConfigDialog-3.0"):AddToBlizOptions(addonName, "Aura Tracker")
+
+    -- Register slash commands
+    self:RegisterChatCommand("auratracker", "OnSlashCommand")
+    self:RegisterChatCommand("at", "OnSlashCommand")
 end
 
 function AuraTracker:OnEnable()
@@ -83,7 +98,7 @@ function AuraTracker:GetAllBars()
 end
 
 function AuraTracker:GetDB()
-    return self.db.profile.auraTracker
+    return self.db.profile
 end
 
 function AuraTracker:GetBarDB(barKey)
@@ -149,23 +164,28 @@ function AuraTracker:CreateBar(barKey)
     self.bars[barKey] = bar
     self.items[barKey] = {}
     
-    -- Register mover with click callback for settings panel
-    if ns.RegisterMovableFrame then
-        local SettingsPanel = ns.AuraTracker.SettingsPanel
-        local mover = ns:RegisterMovableFrame(
-            bar:GetFrame(),
-            db,
-            "AT: " .. (db.name or barKey),
-            nil,
-            "AuraTracker",
-            function()
-                if SettingsPanel then
-                    SettingsPanel:Show(barKey)
-                end
-            end
-        )
-        bar.mover = mover
-    end
+    -- Register mover via LibEditmode
+    local mover = LibEditmode:Register(bar:GetFrame(), {
+        label = "AT: " .. (db.name or barKey),
+        syncSize = true,
+        initialPoint = {
+            db.point or "CENTER",
+            UIParent,
+            db.point or "CENTER",
+            db.x or 0,
+            db.y or 0,
+        },
+        onMove = function(point, relTo, relPoint, x, y)
+            db.point = point
+            db.x = x
+            db.y = y
+        end,
+        onClick = function()
+            local SP = ns.AuraTracker.SettingsPanel
+            if SP then SP:Show(barKey) end
+        end,
+    })
+    bar.mover = mover
     
     return bar
 end
@@ -177,13 +197,11 @@ function AuraTracker:DeleteBar(barKey)
     -- Release all icons back to pool
     for _, icon in ipairs(bar:GetIcons()) do
         icon:Destroy()
-        ns:ReleaseFrame(icon:GetFrame())
+        LibFramePool:Release(icon:GetFrame())
     end
     
     -- Unregister mover
-    if ns.UnregisterMover then
-        ns:UnregisterMover(bar:GetFrame())
-    end
+    LibEditmode:Unregister(bar:GetFrame())
     
     bar:Destroy()
     self.bars[barKey] = nil
@@ -204,7 +222,7 @@ function AuraTracker:RebuildBar(barKey)
     -- Release existing icons
     for _, icon in ipairs(bar:GetIcons()) do
         icon:Destroy()
-        ns:ReleaseFrame(icon:GetFrame())
+        LibFramePool:Release(icon:GetFrame())
     end
     bar:ClearIcons()
     wipe(self.items[barKey])
@@ -297,7 +315,7 @@ function AuraTracker:CreateCooldownIcon(barKey, spellId, order, styleOptions)
     if not item:GetName() then return nil end
     
     -- Acquire frame from pool
-    local frame = ns:AcquireFrame(Icon.POOL_KEY, bar:GetFrame())
+    local frame = LibFramePool:Acquire(Icon.POOL_KEY, bar:GetFrame())
     
     -- Create Icon wrapper
     local displayMode = Config:GetDefaultDisplayMode(Config.TrackType.COOLDOWN)
@@ -328,7 +346,7 @@ function AuraTracker:CreateAuraIcon(barKey, spellId, filterKey, auraId, order, s
     if not item:GetName() then return nil end
     
     -- Acquire frame from pool
-    local frame = ns:AcquireFrame(Icon.POOL_KEY, bar:GetFrame())
+    local frame = LibFramePool:Acquire(Icon.POOL_KEY, bar:GetFrame())
     
     -- Use provided displayMode or fall back to default
     local finalDisplayMode = displayMode or Config:GetDefaultDisplayMode(Config.TrackType.AURA, filterKey)
@@ -633,6 +651,50 @@ function AuraTracker:OnDragEnd()
     self:HideDropZones()
 end
 
+local function CreateDropZoneFrame(bar, barKey, handler, clickCallback)
+    local dropZone = CreateFrame("Frame", nil, bar:GetFrame())
+    dropZone:SetAllPoints(bar:GetFrame())
+    dropZone:SetFrameLevel(bar:GetFrame():GetFrameLevel() + 10)
+    dropZone:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 1,
+    })
+    dropZone:SetBackdropColor(0, 0.5, 1, 0.3)
+    dropZone:SetBackdropBorderColor(0, 0.8, 1, 0.8)
+
+    local label = dropZone:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    label:SetPoint("CENTER")
+    label:SetText("Drop Spell Here")
+    dropZone.label = label
+
+    dropZone:EnableMouse(true)
+
+    -- Handle spell drops from spell book / action bar
+    dropZone:SetScript("OnReceiveDrag", function()
+        local cursorType, id, subType = GetCursorInfo()
+        local isShift = IsShiftKeyDown()
+        ClearCursor()
+        handler(cursorType, id, subType, isShift)
+    end)
+
+    dropZone:SetScript("OnMouseUp", function(_, button)
+        if button == "LeftButton" then
+            -- Check if we received a drag
+            local cursorType, id, subType = GetCursorInfo()
+            if cursorType == "spell" then
+                local isShift = IsShiftKeyDown()
+                ClearCursor()
+                handler(cursorType, id, subType, isShift)
+            else
+                clickCallback()
+            end
+        end
+    end)
+
+    return dropZone
+end
+
 function AuraTracker:ShowDropZones()
     for barKey, bar in pairs(self.bars) do
         if not self.dropZones then
@@ -640,22 +702,16 @@ function AuraTracker:ShowDropZones()
         end
         
         if not self.dropZones[barKey] then
-            local dropZone = ns.DropZone:Attach(
-                bar:GetFrame(),
+            local dropZone = CreateDropZoneFrame(
+                bar,
+                barKey,
                 function(cursorType, id, subType, isShift)
                     self:HandleDrop(barKey, cursorType, id, subType, isShift)
                 end,
-                {
-                    text = "Track Spell or Buff",
-                    shiftText = "Track as TARGET DEBUFF",
-                }
-            )
-            dropZone:EnableMouse(true)
-            dropZone:SetScript("OnMouseUp", function(_, button)
-                if button == "LeftButton" then
+                function()
                     self:OnBarClick(barKey)
                 end
-            end)
+            )
             self.dropZones[barKey] = dropZone
         end
         
@@ -667,7 +723,8 @@ function AuraTracker:HideDropZones()
     if not self.dropZones then return end
     
     for barKey, dropZone in pairs(self.dropZones) do
-        ns.DropZone:Release(dropZone)
+        dropZone:Hide()
+        dropZone:SetParent(nil)
         self.dropZones[barKey] = nil
     end
 end
@@ -849,15 +906,19 @@ end
 
 function AuraTracker:OnEditModeToggle(enabled)
     if not enabled then
-        local SettingsPanel = ns.AuraTracker.SettingsPanel
-        if SettingsPanel then
-            SettingsPanel:Hide()
-        end
+        local SP = ns.AuraTracker.SettingsPanel
+        if SP then SP:Hide() end
     end
 end
 
+function AuraTracker:OnBarClick(barKey)
+    local SP = ns.AuraTracker.SettingsPanel
+    if SP then SP:Show(barKey) end
+end
 
-
+function AuraTracker:OnSlashCommand(input)
+    LibStub("AceConfigDialog-3.0"):Open(addonName)
+end
 
 -- ==========================================================
 -- CLASS/TALENT RESTRICTION CHECK
@@ -879,7 +940,8 @@ function AuraTracker:ShouldShowBar(barKey)
 
     -- Check talent restriction
     if db.talentRestriction and db.talentRestriction ~= "NONE" then
-        if not SettingsPanel:CheckTalentRestriction(db.talentRestriction) then
+        local SP = ns.AuraTracker.SettingsPanel
+        if SP and not SP:CheckTalentRestriction(db.talentRestriction) then
             return false
         end
     end
