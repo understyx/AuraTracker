@@ -1,0 +1,17 @@
+## Interface: 30300 
+## Title: AuraTracker
+## Author: Edgy
+## Version: 0.1
+## Notes: SimpleAuraTracker
+## SavedVariables: SimpleAuraTrackerDB
+
+
+Libraries\Load_Libraries.xml
+
+Config.lua
+
+TrackedItem.lua
+Icon.lua
+Bar.lua
+AuraTracker.lua
+Settings.lua
