@@ -190,7 +190,8 @@ end
 -- ==========================================================
 
 local function CreateAuraListOptions(barKey, barData)
-    -- Ensure orders are normalized before drawing
+    -- Ensure trackedItems exists and orders are normalized before drawing
+    barData.trackedItems = barData.trackedItems or {}
     NormalizeAuraOrders(barData)
 
     local sortedItems = {}
