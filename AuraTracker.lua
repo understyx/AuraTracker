@@ -263,18 +263,49 @@ function AuraTracker:GetBar(barKey)
     return self.bars[barKey]
 end
 
-function AuraTracker:RebuildBar(barKey)
+-- Release all icons belonging to a bar back to the frame pool and clear state.
+function AuraTracker:ReleaseBarIcons(barKey)
     local bar = self.bars[barKey]
-    local db = self:GetBarDB(barKey)
-    if not bar or not db then return end
-    
-    -- Release existing icons
+    if not bar then return end
     for _, icon in ipairs(bar:GetIcons()) do
         icon:Destroy()
         LibFramePool:Release(icon:GetFrame())
     end
     bar:ClearIcons()
-    wipe(self.items[barKey])
+    if self.items[barKey] then
+        wipe(self.items[barKey])
+    end
+end
+
+function AuraTracker:RebuildBar(barKey)
+    local db = self:GetBarDB(barKey)
+    if not db then return end
+
+    -- If the bar should not be shown (e.g. class restriction doesn't match),
+    -- tear down any live frame without touching the DB so settings are preserved.
+    if not self:ShouldShowBar(barKey) then
+        local bar = self.bars[barKey]
+        if bar then
+            self:ReleaseBarIcons(barKey)
+            LibEditmode:Unregister(bar:GetFrame())
+            bar:Destroy()
+            self.bars[barKey] = nil
+            self.items[barKey] = nil
+        end
+        return
+    end
+
+    -- Bar should be visible.  Create the frame if it doesn't exist yet
+    -- (e.g. restriction was just lifted).
+    if not self.bars[barKey] then
+        self:CreateBar(barKey)
+    end
+
+    local bar = self.bars[barKey]
+    if not bar then return end
+
+    -- Release existing icons
+    self:ReleaseBarIcons(barKey)
     
     -- Update bar settings
     bar:SetDirection(db.direction)
