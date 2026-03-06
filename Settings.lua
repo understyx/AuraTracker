@@ -152,6 +152,8 @@ end
 
 -- ==========================================================
 -- ICON EDITOR (single-icon settings)
+-- Injects editor args into an existing args table at the
+-- given order offset so they appear inline below the icon strip.
 -- ==========================================================
 
 local function GetSortedIconIndex(barData, targetSpellId)
@@ -169,66 +171,62 @@ local function GetSortedIconIndex(barData, targetSpellId)
     return nil, #sorted
 end
 
-local function CreateIconEditorOptions(barKey, barData, spellId)
+local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
     local data = barData.trackedItems[spellId]
-    if not data then return nil end
+    if not data then return end
 
     local name, icon = GetSpellNameByID(spellId)
     local isCooldown = (data.trackType == "cooldown")
     local currentIndex, totalIcons = GetSortedIconIndex(barData, spellId)
 
-    local args = {
-        back = {
-            type = "execute",
-            name = "< Back to Icons",
-            order = 0,
-            func = function()
-                editState.selectedAura = nil
-                NotifyChange()
-            end,
-        },
-        info = {
-            type = "description",
-            name = string.format("Configuring: |cFFFFFFFF%s|r  (ID: %d)", name, spellId),
-            fontSize = "medium",
-            order = 1,
-        },
-        iconPreview = {
-            type = "description",
-            name = "",
-            image = icon,
-            imageWidth = 32,
-            imageHeight = 32,
-            order = 2,
-            width = "full",
-        },
-        displayMode = {
-            type = "select",
-            name = "Visibility",
-            desc = "When should this icon be visible?",
-            -- Use context-appropriate labels depending on track type
-            values = isCooldown and L.COOLDOWN_DISPLAY_MODES or L.AURA_DISPLAY_MODES,
-            order = 10,
-            get = function() return data.displayMode or "always" end,
-            set = function(_, val)
-                data.displayMode = val
-                NotifyAndRebuild(barKey)
-            end,
-        },
+    args.editorHeader = {
+        type = "header",
+        name = string.format("Selected: %s  (ID: %d)", name, spellId),
+        order = orderBase,
+    }
+    args.editorIconPreview = {
+        type = "description",
+        name = "",
+        image = icon,
+        imageWidth = 32,
+        imageHeight = 32,
+        order = orderBase + 1,
+        width = 0.25,
+    }
+    args.editorDeselect = {
+        type = "execute",
+        name = "Deselect",
+        order = orderBase + 2,
+        width = "half",
+        func = function()
+            editState.selectedAura = nil
+            NotifyChange()
+        end,
+    }
+    args.editorDisplayMode = {
+        type = "select",
+        name = "Visibility",
+        desc = "When should this icon be visible?",
+        values = isCooldown and L.COOLDOWN_DISPLAY_MODES or L.AURA_DISPLAY_MODES,
+        order = orderBase + 10,
+        get = function() return data.displayMode or "always" end,
+        set = function(_, val)
+            data.displayMode = val
+            NotifyAndRebuild(barKey)
+        end,
     }
 
     -- Aura-only: source (unit + buff/debuff) and optional aura-ID override
     if not isCooldown then
-        args.auraSource = {
+        args.editorAuraSource = {
             type = "select",
             name = "Track From",
             desc = "Which unit and buff/debuff type to monitor.",
             values = L.AURA_SOURCES,
-            order = 11,
+            order = orderBase + 11,
             get = function() return data.type or "target_debuff" end,
             set = function(_, val)
                 data.type = val
-                -- Keep unit/filter in sync for runtime use
                 local fd = GetFilterData(val)
                 if fd then
                     data.unit   = fd.unit
@@ -237,11 +235,11 @@ local function CreateIconEditorOptions(barKey, barData, spellId)
                 NotifyAndRebuild(barKey)
             end,
         }
-        args.auraIdOverride = {
+        args.editorAuraIdOverride = {
             type = "input",
             name = "Aura ID Override",
             desc = "Override which spell ID is scanned as the aura. Leave blank to use the same ID as the spell.",
-            order = 12,
+            order = orderBase + 12,
             get = function()
                 return tostring(data.auraId or spellId)
             end,
@@ -254,30 +252,32 @@ local function CreateIconEditorOptions(barKey, barData, spellId)
     end
 
     -- Reorder controls
-    args.reorderHeader = { type = "header", name = "Order", order = 50 }
     if currentIndex and totalIcons > 1 then
-        args.position = {
-            type     = "range",
-            name     = "Position",
-            desc     = "Drag the slider to reorder this icon within the bar.",
-            min      = 1,
-            max      = totalIcons,
-            step     = 1,
-            order    = 51,
-            width    = "double",
-            get      = function() return currentIndex end,
-            set      = function(_, val)
-                MoveIconToPosition(barKey, barData, spellId, val)
-            end,
+        args.editorReorderHeader = { type = "header", name = "Order", order = orderBase + 50 }
+        args.editorMoveLeft = {
+            type     = "execute",
+            name     = "◀ Move Left",
+            order    = orderBase + 51,
+            width    = "half",
+            disabled = (currentIndex <= 1),
+            func     = function() MoveIconToPosition(barKey, barData, spellId, currentIndex - 1) end,
+        }
+        args.editorMoveRight = {
+            type     = "execute",
+            name     = "Move Right ▶",
+            order    = orderBase + 52,
+            width    = "half",
+            disabled = (currentIndex >= totalIcons),
+            func     = function() MoveIconToPosition(barKey, barData, spellId, currentIndex + 1) end,
         }
     end
 
-    args.dangerHeader = { type = "header", name = "", order = 99 }
-    args.delete = {
+    args.editorDangerHeader = { type = "header", name = "", order = orderBase + 99 }
+    args.editorDelete = {
         type = "execute",
         name = "Remove from Bar",
         desc = "Stop tracking this spell on this bar.",
-        order = 100,
+        order = orderBase + 100,
         confirm = true,
         confirmText = "Remove " .. name .. " from this bar?",
         func = function()
@@ -285,13 +285,6 @@ local function CreateIconEditorOptions(barKey, barData, spellId)
             editState.selectedAura = nil
             NotifyAndRebuild(barKey)
         end,
-    }
-
-    return {
-        type = "group",
-        name = "Edit: " .. name,
-        childGroups = "tab",
-        args = args,
     }
 end
 
@@ -302,11 +295,6 @@ end
 local function CreateIconListOptions(barKey, barData)
     barData.trackedItems = barData.trackedItems or {}
     NormalizeAuraOrders(barData)
-
-    -- If user clicked "Edit" on an icon, show the editor instead of the list
-    if editState.selectedAura and barData.trackedItems[editState.selectedAura] then
-        return CreateIconEditorOptions(barKey, barData, editState.selectedAura)
-    end
 
     -- Build sorted list
     local sortedItems = {}
@@ -436,11 +424,20 @@ local function CreateIconListOptions(barKey, barData)
                 width       = 0.20,
                 order       = 20 + i,
                 func        = function()
-                    editState.selectedAura = spellId
+                    if editState.selectedAura == spellId then
+                        editState.selectedAura = nil
+                    else
+                        editState.selectedAura = spellId
+                    end
                     NotifyChange()
                 end,
             }
         end
+    end
+
+    -- If an icon is selected, inject editor inline below the icon strip
+    if editState.selectedAura and barData.trackedItems[editState.selectedAura] then
+        InjectIconEditorArgs(args, barKey, barData, editState.selectedAura, 100)
     end
 
     return {
@@ -883,50 +880,10 @@ function ns.GetAuraTrackerOptions()
         name        = "Aura Tracker",
         childGroups = "tree",
         args        = {
-            general = {
-                type  = "group",
-                name  = "General",
-                order = 0,
-                args  = {
-                    intro = {
-                        type     = "description",
-                        name     = "Welcome to |cFF00BFFFAura Tracker|r.\n" ..
-                                   "Select a bar on the left to configure it, or create a new one below.\n" ..
-                                   "|cFFAAAAFF/auratracker|r or |cFFAAAAFF/at|r opens this panel.\n" ..
-                                   "In Edit Mode, |cFFFFFF00right-click|r a bar to open its settings directly.",
-                        fontSize = "medium",
-                        order    = 1,
-                    },
-                    createBar = {
-                        type  = "input",
-                        name  = "New Bar ID  (press Enter)",
-                        desc  = "Enter a unique identifier (e.g. \"MyDebuffs\") and press Enter to create a new bar.",
-                        order = 2,
-                        width = "full",
-                        get   = function() return "" end,
-                        set   = function(_, val)
-                            if not (val and val ~= "") then return end
-                            if not (ns.AuraTracker and ns.AuraTracker.Controller) then
-                                print("|cFFFF0000Aura Tracker:|r Not initialized yet.")
-                                return
-                            end
-                            local bars = ns.AuraTracker.Controller:GetBars()
-                            if bars[val] then
-                                print("|cFFFF0000Aura Tracker:|r Bar '" .. val .. "' already exists.")
-                            else
-                                ns.AuraTracker.Controller:CreateBar(val)
-                                NotifyChange()
-                                print("|cFF00FF00Aura Tracker:|r Bar '" .. val .. "' created.")
-                            end
-                        end,
-                    },
-                },
-            },
-
             -- Mappings page (always shown, even before any bars exist)
             mappings = CreateMappingsOptions(),
 
-            -- Parent group that holds all individual bar groups
+            -- Parent group that holds all individual bar groups + new-bar creation
             bars = {
                 type        = "group",
                 name        = "Bars",
@@ -962,6 +919,31 @@ function ns.UpdateBarOptions(options)
 
     -- Refresh mappings page (db may have changed)
     options.args.mappings = CreateMappingsOptions()
+
+    -- "New Bar" creation input at the top of the Bars group
+    options.args.bars.args["__createBar"] = {
+        type  = "input",
+        name  = "New Bar ID  (press Enter)",
+        desc  = "Enter a unique identifier (e.g. \"MyDebuffs\") and press Enter to create a new bar.",
+        order = 0,
+        width = "full",
+        get   = function() return "" end,
+        set   = function(_, val)
+            if not (val and val ~= "") then return end
+            if not (ns.AuraTracker and ns.AuraTracker.Controller) then
+                print("|cFFFF0000Aura Tracker:|r Not initialized yet.")
+                return
+            end
+            local allBars = ns.AuraTracker.Controller:GetBars()
+            if allBars[val] then
+                print("|cFFFF0000Aura Tracker:|r Bar '" .. val .. "' already exists.")
+            else
+                ns.AuraTracker.Controller:CreateBar(val)
+                NotifyChange()
+                print("|cFF00FF00Aura Tracker:|r Bar '" .. val .. "' created.")
+            end
+        end,
+    }
 
     -- Re-populate bar entries under the Bars parent group
     local order = 1
