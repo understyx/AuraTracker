@@ -144,17 +144,33 @@ end
 -- ICON EDITOR (single-icon settings)
 -- ==========================================================
 
+local function GetSortedIconIndex(barData, targetSpellId)
+    NormalizeAuraOrders(barData)
+    local sorted = {}
+    for sid, d in pairs(barData.trackedItems) do
+        table.insert(sorted, { spellId = sid, order = d.order or 999 })
+    end
+    table.sort(sorted, function(a, b) return a.order < b.order end)
+    for i, entry in ipairs(sorted) do
+        if entry.spellId == targetSpellId then
+            return i, #sorted
+        end
+    end
+    return nil, #sorted
+end
+
 local function CreateIconEditorOptions(barKey, barData, spellId)
     local data = barData.trackedItems[spellId]
     if not data then return nil end
 
     local name, icon = GetSpellNameByID(spellId)
     local isCooldown = (data.trackType == "cooldown")
+    local currentIndex, totalIcons = GetSortedIconIndex(barData, spellId)
 
     local args = {
         back = {
             type = "execute",
-            name = "< Back to List",
+            name = "< Back to Icons",
             order = 0,
             func = function()
                 editState.selectedAura = nil
@@ -227,6 +243,28 @@ local function CreateIconEditorOptions(barKey, barData, spellId)
         }
     end
 
+    -- Reorder controls
+    args.reorderHeader = { type = "header", name = "Order", order = 50 }
+    if currentIndex then
+        args.moveUp = {
+            type     = "execute",
+            name     = "▲ Move Up",
+            order    = 51,
+            width    = "half",
+            disabled = (currentIndex <= 1),
+            func     = function() SwapAuraOrder(barKey, barData, currentIndex, -1) end,
+        }
+        args.moveDown = {
+            type     = "execute",
+            name     = "▼ Move Down",
+            order    = 52,
+            width    = "half",
+            disabled = (currentIndex >= totalIcons),
+            func     = function() SwapAuraOrder(barKey, barData, currentIndex, 1) end,
+        }
+    end
+
+    args.dangerHeader = { type = "header", name = "", order = 99 }
     args.delete = {
         type = "execute",
         name = "Remove from Bar",
@@ -370,47 +408,38 @@ local function CreateIconListOptions(barKey, barData)
     else
         for i, item in ipairs(sortedItems) do
             local spellId     = item.spellId
-            local isCooldown  = (item.data.trackType == "cooldown")
             local spellName, spellIcon = GetSpellNameByID(spellId)
             local typeLabel   = GetTrackTypeLabel(item.data.trackType, item.data.type)
 
-            args["row_" .. spellId] = {
-                type   = "group",
-                name   = "",
-                inline = true,
-                order  = 20 + i,
-                args   = {
-                    up = {
-                        type     = "execute",
-                        name     = "▲",
-                        width    = 0.1,
-                        order    = 1,
-                        disabled = (i == 1),
-                        func     = function() SwapAuraOrder(barKey, barData, i, -1) end,
-                    },
-                    down = {
-                        type     = "execute",
-                        name     = "▼",
-                        width    = 0.1,
-                        order    = 2,
-                        disabled = (i == #sortedItems),
-                        func     = function() SwapAuraOrder(barKey, barData, i, 1) end,
-                    },
-                    edit = {
-                        type        = "execute",
-                        name        = spellName .. "  " .. typeLabel,
-                        desc        = "Click to edit settings for this icon.",
-                        image       = spellIcon,
-                        imageWidth  = 24,
-                        imageHeight = 24,
-                        width       = "normal",
-                        order       = 3,
-                        func        = function()
-                            editState.selectedAura = spellId
-                            NotifyChange()
-                        end,
-                    },
-                },
+            -- Compact icon button – click to configure
+            args["icon_" .. spellId] = {
+                type        = "execute",
+                name        = "",
+                desc        = spellName .. "  " .. typeLabel .. "\nClick to configure",
+                image       = spellIcon,
+                imageWidth  = 36,
+                imageHeight = 36,
+                width       = 0.20,
+                order       = 20 + i * 2 - 1,
+                func        = function()
+                    editState.selectedAura = spellId
+                    NotifyChange()
+                end,
+            }
+            -- Small delete button next to the icon
+            args["del_" .. spellId] = {
+                type        = "execute",
+                name        = "✕",
+                desc        = "Remove " .. spellName,
+                width       = 0.10,
+                order       = 20 + i * 2,
+                confirm     = true,
+                confirmText = "Remove " .. spellName .. " from this bar?",
+                func        = function()
+                    barData.trackedItems[spellId] = nil
+                    editState.selectedAura = nil
+                    NotifyAndRebuild(barKey)
+                end,
             }
         end
     end
@@ -485,18 +514,6 @@ local function CreateBarSettings(barKey, barData)
                     get    = function() return barData.classRestriction or "NONE" end,
                     set    = function(_, val)
                         barData.classRestriction = val
-                        NotifyAndRebuild(barKey)
-                    end,
-                },
-                talent = {
-                    type  = "input",
-                    name  = "Show with Talent",
-                    desc  = "Only show this bar when the player has at least one rank in the named talent (exact name, case-sensitive). Leave blank for no restriction.",
-                    order = 12,
-                    width = "full",
-                    get   = function() return tostring(barData.talentRestriction or "") end,
-                    set   = function(_, val)
-                        barData.talentRestriction = (val ~= "") and val or nil
                         NotifyAndRebuild(barKey)
                     end,
                 },
@@ -587,7 +604,7 @@ local function CreateBarSettings(barKey, barData)
                     min      = 8, max = 32, step = 1,
                     order    = 12,
                     width    = "double",
-                    get      = function() return barData.textSize end,
+                    get      = function() return barData.textSize or 12 end,
                     set      = function(_, val)
                         barData.textSize = val
                         NotifyAndRebuild(barKey)
