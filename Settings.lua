@@ -920,7 +920,14 @@ function ns.GetAuraTrackerOptions()
             -- Mappings page (always shown, even before any bars exist)
             mappings = CreateMappingsOptions(),
 
-            -- Individual bar groups are injected by UpdateBarOptions below
+            -- Parent group that holds all individual bar groups
+            bars = {
+                type        = "group",
+                name        = "Bars",
+                order       = 10,
+                childGroups = "tree",
+                args        = {},
+            },
         },
     }
 end
@@ -931,35 +938,33 @@ function ns.UpdateBarOptions(options)
     if not options then return end
     options.args = options.args or {}
 
+    -- Ensure the Bars parent group and its args table always exist
+    options.args.bars = options.args.bars or {}
+    options.args.bars.args = options.args.bars.args or {}
+
     if not (ns.AuraTracker and ns.AuraTracker.Controller) then
-        for key in pairs(options.args) do
-            if key ~= "general" and key ~= "mappings" then
-                options.args[key] = nil
-            end
-        end
+        options.args.bars.args = {}
         return options
     end
 
     local bars = ns.AuraTracker.Controller:GetBars()
 
-    -- Clear stale bar entries
-    for key in pairs(options.args) do
-        if key ~= "general" and key ~= "mappings" then
-            options.args[key] = nil
-        end
+    -- Clear stale bar entries from the Bars sub-group
+    for key in pairs(options.args.bars.args) do
+        options.args.bars.args[key] = nil
     end
 
     -- Refresh mappings page (db may have changed)
     options.args.mappings = CreateMappingsOptions()
 
-    -- Re-populate bar entries
-    local order = 10
+    -- Re-populate bar entries under the Bars parent group
+    local order = 1
     for key, barData in pairs(bars) do
         if editState.selectedBar == key and not barData then
             editState.selectedBar  = nil
             editState.selectedAura = nil
         end
-        options.args[key] = {
+        options.args.bars.args[key] = {
             type        = "group",
             name        = barData.name or key,
             order       = order,
@@ -987,9 +992,15 @@ local AceConfigDialog = LibStub("AceConfigDialog-3.0")
 ns.AuraTracker = ns.AuraTracker or {}
 ns.AuraTracker.SettingsPanel = {
     Show = function(self, barKey)
+        AceConfigDialog:SetDefaultSize(addonName, 820, 600)
         AceConfigDialog:Open(addonName)
+        -- Raise the minimum resize so child elements never overspill the frame
+        local f = AceConfigDialog.OpenFrames and AceConfigDialog.OpenFrames[addonName]
+        if f and f.frame then
+            f.frame:SetMinResize(700, 500)
+        end
         if barKey then
-            AceConfigDialog:SelectGroup(addonName, barKey)
+            AceConfigDialog:SelectGroup(addonName, "bars", barKey)
         end
     end,
 
