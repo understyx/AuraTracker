@@ -322,7 +322,7 @@ function AuraTracker:RebuildAllBars()
     if not db or not db.enabled then return end
     
     for barKey, barSettings in pairs(db.bars) do
-        if barSettings.enabled then
+        if self:ShouldShowBar(barKey) then
             self:CreateBar(barKey)
             self:RebuildBar(barKey)
         end

@@ -97,6 +97,25 @@ end
 -- Module-level constant to avoid creating a new table on every getter call
 local DEFAULT_TEXT_COLOR = { r = 1, g = 1, b = 1, a = 1 }
 
+-- Returns the tree-view label for a bar: "|cFFrrggbbClassName:|r name" or "All: name".
+local function GetBarDisplayName(barData, key)
+    local classKey = barData.classRestriction or "NONE"
+    local barName  = barData.name or key
+    if classKey == "NONE" then
+        return "All: " .. barName
+    end
+    local classLabel = L.CLASSES[classKey] or classKey
+    local color = RAID_CLASS_COLORS and RAID_CLASS_COLORS[classKey]
+    if color then
+        local hex = string.format("%02X%02X%02X",
+            math.floor((color.r or 0) * 255),
+            math.floor((color.g or 0) * 255),
+            math.floor((color.b or 0) * 255))
+        return "|cFF" .. hex .. classLabel .. ":|r " .. barName
+    end
+    return classLabel .. ": " .. barName
+end
+
 -- Looks up a filter-data table {unit, filter} from Config given a lowercase filterKey
 -- (e.g. "target_debuff"). Returns nil if not found.
 local function GetFilterData(filterKey)
@@ -954,7 +973,7 @@ function ns.UpdateBarOptions(options)
         end
         options.args.bars.args[key] = {
             type        = "group",
-            name        = barData.name or key,
+            name        = GetBarDisplayName(barData, key),
             order       = order,
             childGroups = "tab",
             args        = CreateBarSettings(key, barData),
