@@ -934,8 +934,8 @@ function ns.UpdateBarOptions(options)
                 print("|cFFFF0000Aura Tracker:|r Not initialized yet.")
                 return
             end
-            local allBars = ns.AuraTracker.Controller:GetBars()
-            if allBars[val] then
+            local existingBars = ns.AuraTracker.Controller:GetBars()
+            if existingBars[val] then
                 print("|cFFFF0000Aura Tracker:|r Bar '" .. val .. "' already exists.")
             else
                 ns.AuraTracker.Controller:CreateBar(val)
