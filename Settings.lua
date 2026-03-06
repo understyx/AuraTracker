@@ -121,22 +121,31 @@ local function NormalizeAuraOrders(barData)
     end
 end
 
-local function SwapAuraOrder(barKey, barData, currentIndex, direction)
-    if not barData then return end
+local function MoveIconToPosition(barKey, barData, spellId, newPos)
+    if not barData or not barData.trackedItems then return end
     NormalizeAuraOrders(barData)
     local sorted = {}
-    for spellId, data in pairs(barData.trackedItems) do
-        table.insert(sorted, { spellId = spellId, order = data.order })
+    for sid, d in pairs(barData.trackedItems) do
+        table.insert(sorted, { spellId = sid, order = d.order or 999 })
     end
     table.sort(sorted, function(a, b) return a.order < b.order end)
-    if currentIndex < 1 or currentIndex > #sorted then return end
-    local targetIndex = currentIndex + direction
-    if targetIndex < 1 or targetIndex > #sorted then return end
-    local itemA = sorted[currentIndex]
-    local itemB = sorted[targetIndex]
-    local temp = itemA.order
-    barData.trackedItems[itemA.spellId].order = itemB.order
-    barData.trackedItems[itemB.spellId].order = temp
+    -- Find current position
+    local currentPos
+    for i, entry in ipairs(sorted) do
+        if entry.spellId == spellId then
+            currentPos = i
+            break
+        end
+    end
+    if not currentPos or currentPos == newPos then return end
+    newPos = math.max(1, math.min(newPos, #sorted))
+    -- Remove from current and insert at new position
+    local item = table.remove(sorted, currentPos)
+    table.insert(sorted, newPos, item)
+    -- Renumber all orders
+    for i, entry in ipairs(sorted) do
+        barData.trackedItems[entry.spellId].order = i
+    end
     NotifyAndRebuild(barKey)
 end
 
@@ -245,22 +254,20 @@ local function CreateIconEditorOptions(barKey, barData, spellId)
 
     -- Reorder controls
     args.reorderHeader = { type = "header", name = "Order", order = 50 }
-    if currentIndex then
-        args.moveUp = {
-            type     = "execute",
-            name     = "▲ Move Up",
+    if currentIndex and totalIcons > 1 then
+        args.position = {
+            type     = "range",
+            name     = "Position",
+            desc     = "Drag the slider to reorder this icon within the bar.",
+            min      = 1,
+            max      = totalIcons,
+            step     = 1,
             order    = 51,
-            width    = "half",
-            disabled = (currentIndex <= 1),
-            func     = function() SwapAuraOrder(barKey, barData, currentIndex, -1) end,
-        }
-        args.moveDown = {
-            type     = "execute",
-            name     = "▼ Move Down",
-            order    = 52,
-            width    = "half",
-            disabled = (currentIndex >= totalIcons),
-            func     = function() SwapAuraOrder(barKey, barData, currentIndex, 1) end,
+            width    = "double",
+            get      = function() return currentIndex end,
+            set      = function(_, val)
+                MoveIconToPosition(barKey, barData, spellId, val)
+            end,
         }
     end
 
@@ -406,6 +413,12 @@ local function CreateIconListOptions(barKey, barData)
             width = "full",
         }
     else
+        args.listHint = {
+            type = "description",
+            name = "|cFFAAAAFFClick an icon to configure, reorder, or remove it.|r",
+            order = 11,
+            width = "full",
+        }
         for i, item in ipairs(sortedItems) do
             local spellId     = item.spellId
             local spellName, spellIcon = GetSpellNameByID(spellId)
@@ -420,25 +433,10 @@ local function CreateIconListOptions(barKey, barData)
                 imageWidth  = 36,
                 imageHeight = 36,
                 width       = 0.20,
-                order       = 20 + i * 2 - 1,
+                order       = 20 + i,
                 func        = function()
                     editState.selectedAura = spellId
                     NotifyChange()
-                end,
-            }
-            -- Small delete button next to the icon
-            args["del_" .. spellId] = {
-                type        = "execute",
-                name        = "✕",
-                desc        = "Remove " .. spellName,
-                width       = 0.10,
-                order       = 20 + i * 2,
-                confirm     = true,
-                confirmText = "Remove " .. spellName .. " from this bar?",
-                func        = function()
-                    barData.trackedItems[spellId] = nil
-                    editState.selectedAura = nil
-                    NotifyAndRebuild(barKey)
                 end,
             }
         end
