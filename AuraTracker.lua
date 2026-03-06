@@ -1014,7 +1014,8 @@ function AuraTracker:OnBarClick(barKey)
 end
 
 function AuraTracker:OnSlashCommand(input)
-    LibStub("AceConfigDialog-3.0"):Open(addonName)
+    local SP = ns.AuraTracker.SettingsPanel
+    if SP then SP:Show() end
 end
 
 -- ==========================================================
