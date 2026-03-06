@@ -500,7 +500,7 @@ local function CreateBarSettings(barKey, barData)
                         NotifyAndRebuild(barKey)
                     end,
                 },
-                dangerHeader = { type = "header", name = "", order = 100 },
+                dangerHeader = { type = "header", name = "Danger Zone", order = 100 },
                 deleteBar = {
                     type        = "execute",
                     name        = "Delete Bar",
