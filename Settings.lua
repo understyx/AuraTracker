@@ -121,88 +121,112 @@ local function NormalizeAuraOrders(barData)
     end
 end
 
-local function SwapAuraOrder(barKey, barData, currentIndex, direction)
-    if not barData then return end
+local function MoveIconToPosition(barKey, barData, spellId, newPos)
+    if not barData or not barData.trackedItems then return end
     NormalizeAuraOrders(barData)
     local sorted = {}
-    for spellId, data in pairs(barData.trackedItems) do
-        table.insert(sorted, { spellId = spellId, order = data.order })
+    for sid, d in pairs(barData.trackedItems) do
+        table.insert(sorted, { spellId = sid, order = d.order or 999 })
     end
     table.sort(sorted, function(a, b) return a.order < b.order end)
-    if currentIndex < 1 or currentIndex > #sorted then return end
-    local targetIndex = currentIndex + direction
-    if targetIndex < 1 or targetIndex > #sorted then return end
-    local itemA = sorted[currentIndex]
-    local itemB = sorted[targetIndex]
-    local temp = itemA.order
-    barData.trackedItems[itemA.spellId].order = itemB.order
-    barData.trackedItems[itemB.spellId].order = temp
+    -- Find current position
+    local currentPos
+    for i, entry in ipairs(sorted) do
+        if entry.spellId == spellId then
+            currentPos = i
+            break
+        end
+    end
+    if not currentPos then return end
+    newPos = math.max(1, math.min(newPos, #sorted))
+    if currentPos == newPos then return end
+    -- Remove from current and insert at new position
+    local item = table.remove(sorted, currentPos)
+    table.insert(sorted, newPos, item)
+    -- Renumber all orders
+    for i, entry in ipairs(sorted) do
+        barData.trackedItems[entry.spellId].order = i
+    end
     NotifyAndRebuild(barKey)
 end
 
 -- ==========================================================
 -- ICON EDITOR (single-icon settings)
+-- Injects editor args into an existing args table at the
+-- given order offset so they appear inline below the icon strip.
 -- ==========================================================
 
-local function CreateIconEditorOptions(barKey, barData, spellId)
+local function GetSortedIconIndex(barData, targetSpellId)
+    NormalizeAuraOrders(barData)
+    local sorted = {}
+    for sid, d in pairs(barData.trackedItems) do
+        table.insert(sorted, { spellId = sid, order = d.order or 999 })
+    end
+    table.sort(sorted, function(a, b) return a.order < b.order end)
+    for i, entry in ipairs(sorted) do
+        if entry.spellId == targetSpellId then
+            return i, #sorted
+        end
+    end
+    return nil, #sorted
+end
+
+local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
     local data = barData.trackedItems[spellId]
-    if not data then return nil end
+    if not data then return end
 
     local name, icon = GetSpellNameByID(spellId)
     local isCooldown = (data.trackType == "cooldown")
+    local currentIndex, totalIcons = GetSortedIconIndex(barData, spellId)
 
-    local args = {
-        back = {
-            type = "execute",
-            name = "< Back to List",
-            order = 0,
-            func = function()
-                editState.selectedAura = nil
-                NotifyChange()
-            end,
-        },
-        info = {
-            type = "description",
-            name = string.format("Configuring: |cFFFFFFFF%s|r  (ID: %d)", name, spellId),
-            fontSize = "medium",
-            order = 1,
-        },
-        iconPreview = {
-            type = "description",
-            name = "",
-            image = icon,
-            imageWidth = 32,
-            imageHeight = 32,
-            order = 2,
-            width = "full",
-        },
-        displayMode = {
-            type = "select",
-            name = "Visibility",
-            desc = "When should this icon be visible?",
-            -- Use context-appropriate labels depending on track type
-            values = isCooldown and L.COOLDOWN_DISPLAY_MODES or L.AURA_DISPLAY_MODES,
-            order = 10,
-            get = function() return data.displayMode or "always" end,
-            set = function(_, val)
-                data.displayMode = val
-                NotifyAndRebuild(barKey)
-            end,
-        },
+    args.editorHeader = {
+        type = "header",
+        name = string.format("Selected: %s  (ID: %d)", name, spellId),
+        order = orderBase,
+    }
+    args.editorIconPreview = {
+        type = "description",
+        name = "",
+        image = icon,
+        imageWidth = 32,
+        imageHeight = 32,
+        order = orderBase + 1,
+        width = 0.25,
+    }
+    args.editorDeselect = {
+        type = "execute",
+        name = "Deselect",
+        order = orderBase + 2,
+        width = "half",
+        func = function()
+            editState.selectedAura = nil
+            NotifyChange()
+        end,
+    }
+    args.editorDisplayMode = {
+        type = "select",
+        name = "Visibility",
+        desc = "When should this icon be visible?",
+        values = isCooldown and L.COOLDOWN_DISPLAY_MODES or L.AURA_DISPLAY_MODES,
+        order = orderBase + 10,
+        get = function() return data.displayMode or "always" end,
+        set = function(_, val)
+            data.displayMode = val
+            NotifyAndRebuild(barKey)
+        end,
     }
 
     -- Aura-only: source (unit + buff/debuff) and optional aura-ID override
     if not isCooldown then
-        args.auraSource = {
+        args.editorAuraSource = {
             type = "select",
             name = "Track From",
             desc = "Which unit and buff/debuff type to monitor.",
             values = L.AURA_SOURCES,
-            order = 11,
+            order = orderBase + 11,
             get = function() return data.type or "target_debuff" end,
             set = function(_, val)
                 data.type = val
-                -- Keep unit/filter in sync for runtime use
                 local fd = GetFilterData(val)
                 if fd then
                     data.unit   = fd.unit
@@ -211,11 +235,11 @@ local function CreateIconEditorOptions(barKey, barData, spellId)
                 NotifyAndRebuild(barKey)
             end,
         }
-        args.auraIdOverride = {
+        args.editorAuraIdOverride = {
             type = "input",
             name = "Aura ID Override",
             desc = "Override which spell ID is scanned as the aura. Leave blank to use the same ID as the spell.",
-            order = 12,
+            order = orderBase + 12,
             get = function()
                 return tostring(data.auraId or spellId)
             end,
@@ -227,11 +251,33 @@ local function CreateIconEditorOptions(barKey, barData, spellId)
         }
     end
 
-    args.delete = {
+    -- Reorder controls
+    if currentIndex and totalIcons > 1 then
+        args.editorReorderHeader = { type = "header", name = "Order", order = orderBase + 50 }
+        args.editorMoveLeft = {
+            type     = "execute",
+            name     = "◀ Move Left",
+            order    = orderBase + 51,
+            width    = "half",
+            disabled = (currentIndex <= 1),
+            func     = function() MoveIconToPosition(barKey, barData, spellId, currentIndex - 1) end,
+        }
+        args.editorMoveRight = {
+            type     = "execute",
+            name     = "Move Right ▶",
+            order    = orderBase + 52,
+            width    = "half",
+            disabled = (currentIndex >= totalIcons),
+            func     = function() MoveIconToPosition(barKey, barData, spellId, currentIndex + 1) end,
+        }
+    end
+
+    args.editorDangerHeader = { type = "header", name = "", order = orderBase + 99 }
+    args.editorDelete = {
         type = "execute",
         name = "Remove from Bar",
         desc = "Stop tracking this spell on this bar.",
-        order = 100,
+        order = orderBase + 100,
         confirm = true,
         confirmText = "Remove " .. name .. " from this bar?",
         func = function()
@@ -239,13 +285,6 @@ local function CreateIconEditorOptions(barKey, barData, spellId)
             editState.selectedAura = nil
             NotifyAndRebuild(barKey)
         end,
-    }
-
-    return {
-        type = "group",
-        name = "Edit: " .. name,
-        childGroups = "tab",
-        args = args,
     }
 end
 
@@ -256,11 +295,6 @@ end
 local function CreateIconListOptions(barKey, barData)
     barData.trackedItems = barData.trackedItems or {}
     NormalizeAuraOrders(barData)
-
-    -- If user clicked "Edit" on an icon, show the editor instead of the list
-    if editState.selectedAura and barData.trackedItems[editState.selectedAura] then
-        return CreateIconEditorOptions(barKey, barData, editState.selectedAura)
-    end
 
     -- Build sorted list
     local sortedItems = {}
@@ -368,51 +402,42 @@ local function CreateIconListOptions(barKey, barData)
             width = "full",
         }
     else
+        args.listHint = {
+            type = "description",
+            name = "|cFFAAAAFFClick an icon to configure, reorder, or remove it.|r",
+            order = 11,
+            width = "full",
+        }
         for i, item in ipairs(sortedItems) do
             local spellId     = item.spellId
-            local isCooldown  = (item.data.trackType == "cooldown")
             local spellName, spellIcon = GetSpellNameByID(spellId)
             local typeLabel   = GetTrackTypeLabel(item.data.trackType, item.data.type)
 
-            args["row_" .. spellId] = {
-                type   = "group",
-                name   = "",
-                inline = true,
-                order  = 20 + i,
-                args   = {
-                    up = {
-                        type     = "execute",
-                        name     = "▲",
-                        width    = 0.1,
-                        order    = 1,
-                        disabled = (i == 1),
-                        func     = function() SwapAuraOrder(barKey, barData, i, -1) end,
-                    },
-                    down = {
-                        type     = "execute",
-                        name     = "▼",
-                        width    = 0.1,
-                        order    = 2,
-                        disabled = (i == #sortedItems),
-                        func     = function() SwapAuraOrder(barKey, barData, i, 1) end,
-                    },
-                    edit = {
-                        type        = "execute",
-                        name        = spellName .. "  " .. typeLabel,
-                        desc        = "Click to edit settings for this icon.",
-                        image       = spellIcon,
-                        imageWidth  = 24,
-                        imageHeight = 24,
-                        width       = "normal",
-                        order       = 3,
-                        func        = function()
-                            editState.selectedAura = spellId
-                            NotifyChange()
-                        end,
-                    },
-                },
+            -- Compact icon button – click to configure
+            args["icon_" .. spellId] = {
+                type        = "execute",
+                name        = "",
+                desc        = spellName .. "  " .. typeLabel .. "\nClick to configure",
+                image       = spellIcon,
+                imageWidth  = 36,
+                imageHeight = 36,
+                width       = 0.20,
+                order       = 20 + i,
+                func        = function()
+                    if editState.selectedAura == spellId then
+                        editState.selectedAura = nil
+                    else
+                        editState.selectedAura = spellId
+                    end
+                    NotifyChange()
+                end,
             }
         end
+    end
+
+    -- If an icon is selected, inject editor inline below the icon strip
+    if editState.selectedAura and barData.trackedItems[editState.selectedAura] then
+        InjectIconEditorArgs(args, barKey, barData, editState.selectedAura, 100)
     end
 
     return {
@@ -429,92 +454,154 @@ end
 
 local function CreateBarSettings(barKey, barData)
     return {
-        name = {
-            type  = "input",
-            name  = "Bar Name",
-            desc  = "Display name shown on the edit-mode mover.",
-            order = 1,
-            width = "full",
-            get   = function() return barData.name end,
-            set   = function(_, val)
-                barData.name = val
-                NotifyChange()
-            end,
-        },
-
-        layout = {
-            type   = "group",
-            name   = "Layout",
-            inline = true,
-            order  = 2,
-            args   = {
+        -- ==============================================
+        -- TAB 1: General
+        -- ==============================================
+        general = {
+            type        = "group",
+            name        = "General",
+            order       = 1,
+            args        = {
+                name = {
+                    type  = "input",
+                    name  = "Bar Name",
+                    desc  = "Display name shown on the edit-mode mover.",
+                    order = 1,
+                    width = "full",
+                    get   = function() return barData.name end,
+                    set   = function(_, val)
+                        barData.name = val
+                        NotifyChange()
+                    end,
+                },
                 direction = {
                     type   = "select",
                     name   = "Direction",
                     desc   = "Icon layout direction.",
                     values = L.DIRECTIONS,
-                    order  = 1,
-                    width  = "half",
+                    order  = 2,
+                    width  = "normal",
                     get    = function() return barData.direction or "HORIZONTAL" end,
                     set    = function(_, val)
                         barData.direction = val
                         NotifyAndRebuild(barKey)
                     end,
                 },
-                iconSize = {
-                    type  = "range",
-                    name  = "Icon Size",
-                    min   = 10, max = 100, step = 1,
-                    order = 2,
-                    width = "half",
-                    get   = function() return barData.iconSize end,
-                    set   = function(_, val)
-                        barData.iconSize = val
-                        NotifyAndRebuild(barKey)
-                    end,
-                },
-                spacing = {
-                    type  = "range",
-                    name  = "Spacing",
-                    min   = 0, max = 50, step = 1,
+                ignoreGCD = {
+                    type  = "toggle",
+                    name  = "Ignore GCD",
+                    desc  = "Treat the global cooldown as \"ready\" so icons don't flicker on every cast.",
                     order = 3,
-                    width = "half",
-                    get   = function() return barData.spacing end,
+                    width = "full",
+                    get   = function() return barData.ignoreGCD ~= false end,
                     set   = function(_, val)
-                        barData.spacing = val
+                        barData.ignoreGCD = val
                         NotifyAndRebuild(barKey)
                     end,
                 },
-                scale = {
-                    type  = "range",
-                    name  = "Scale",
-                    desc  = "Overall scale of the bar frame (does not affect saved position).",
-                    min   = 0.25, max = 3.0, step = 0.05,
-                    order = 4,
-                    width = "half",
-                    get   = function() return barData.scale or 1.0 end,
-                    set   = function(_, val)
-                        barData.scale = val
+                restrictionsHeader = { type = "header", name = "Restrictions", order = 10 },
+                class = {
+                    type   = "select",
+                    name   = "Show for Class",
+                    desc   = "Only show this bar when playing the selected class.",
+                    values = L.CLASSES,
+                    order  = 11,
+                    width  = "normal",
+                    get    = function() return barData.classRestriction or "NONE" end,
+                    set    = function(_, val)
+                        barData.classRestriction = val
                         NotifyAndRebuild(barKey)
+                    end,
+                },
+                dangerHeader = { type = "header", name = "Danger Zone", order = 100 },
+                deleteBar = {
+                    type        = "execute",
+                    name        = "Delete Bar",
+                    desc        = "Permanently removes this bar and all its tracked icons.",
+                    order       = 101,
+                    confirm     = true,
+                    confirmText = "Delete bar \"" .. (barData.name or barKey) .. "\" and all its icons?",
+                    func        = function()
+                        if ns.AuraTracker and ns.AuraTracker.Controller then
+                            ns.AuraTracker.Controller:DeleteBar(barKey)
+                            if editState.selectedBar == barKey then
+                                editState.selectedBar  = nil
+                                editState.selectedAura = nil
+                            end
+                            NotifyChange()
+                        end
                     end,
                 },
             },
         },
 
-        text = {
-            type   = "group",
-            name   = "Text",
-            inline = true,
-            order  = 3,
-            args   = {
-                textSize = {
-                    type  = "range",
-                    name  = "Font Size",
-                    min   = 8, max = 32, step = 1,
-                    order = 1,
-                    width = "half",
-                    get   = function() return barData.textSize end,
+        -- ==============================================
+        -- TAB 2: Appearance
+        -- ==============================================
+        appearance = {
+            type        = "group",
+            name        = "Appearance",
+            order       = 2,
+            args        = {
+                sizeHeader = { type = "header", name = "Size & Spacing", order = 1 },
+                iconSize = {
+                    type     = "range",
+                    name     = "Icon Size",
+                    min      = 10, max = 100, step = 1,
+                    order    = 2,
+                    width    = "double",
+                    get      = function() return barData.iconSize end,
+                    set      = function(_, val)
+                        barData.iconSize = val
+                        NotifyAndRebuild(barKey)
+                    end,
+                },
+                spacing = {
+                    type     = "range",
+                    name     = "Spacing",
+                    min      = 0, max = 50, step = 1,
+                    order    = 3,
+                    width    = "double",
+                    get      = function() return barData.spacing end,
+                    set      = function(_, val)
+                        barData.spacing = val
+                        NotifyAndRebuild(barKey)
+                    end,
+                },
+                scale = {
+                    type     = "range",
+                    name     = "Scale",
+                    desc     = "Overall scale of the bar frame (does not affect saved position).",
+                    min      = 0.25, max = 3.0, step = 0.05,
+                    order    = 4,
+                    width    = "double",
+                    get      = function() return barData.scale or 1.0 end,
+                    set      = function(_, val)
+                        barData.scale = val
+                        NotifyAndRebuild(barKey)
+                    end,
+                },
+                textHeader = { type = "header", name = "Text", order = 10 },
+                showCooldownText = {
+                    type  = "toggle",
+                    name  = "Show Cooldown Timer",
+                    desc  = "Show remaining cooldown time as text on the icon.",
+                    order = 11,
+                    width = "full",
+                    get   = function() return barData.showCooldownText ~= false end,
                     set   = function(_, val)
+                        barData.showCooldownText = val
+                        NotifyAndRebuild(barKey)
+                    end,
+                },
+                textSize = {
+                    type     = "range",
+                    name     = "Font Size",
+                    min      = 8, max = 32, step = 1,
+                    order    = 12,
+                    width    = "double",
+                    get      = function() return barData.textSize or 12 end,
+                    set      = function(_, val)
                         barData.textSize = val
                         NotifyAndRebuild(barKey)
                     end,
@@ -523,8 +610,8 @@ local function CreateBarSettings(barKey, barData)
                     type     = "color",
                     name     = "Text Color",
                     hasAlpha = true,
-                    order    = 2,
-                    width    = "half",
+                    order    = 13,
+                    width    = "normal",
                     get      = function()
                         local c = barData.textColor or DEFAULT_TEXT_COLOR
                         return c.r, c.g, c.b, c.a
@@ -538,97 +625,13 @@ local function CreateBarSettings(barKey, barData)
                         NotifyAndRebuild(barKey)
                     end,
                 },
-                showCooldownText = {
-                    type  = "toggle",
-                    name  = "Show Cooldown Timer",
-                    desc  = "Show remaining cooldown time as text on the icon.",
-                    order = 3,
-                    width = "full",
-                    get   = function() return barData.showCooldownText ~= false end,
-                    set   = function(_, val)
-                        barData.showCooldownText = val
-                        NotifyAndRebuild(barKey)
-                    end,
-                },
             },
         },
 
-        behavior = {
-            type   = "group",
-            name   = "Behavior",
-            inline = true,
-            order  = 4,
-            args   = {
-                ignoreGCD = {
-                    type  = "toggle",
-                    name  = "Ignore GCD",
-                    desc  = "Treat the global cooldown as \"ready\" so icons don't flicker on every cast.",
-                    order = 1,
-                    width = "full",
-                    get   = function() return barData.ignoreGCD ~= false end,
-                    set   = function(_, val)
-                        barData.ignoreGCD = val
-                        NotifyAndRebuild(barKey)
-                    end,
-                },
-            },
-        },
-
-        restrictions = {
-            type   = "group",
-            name   = "Restrictions",
-            inline = true,
-            order  = 5,
-            args   = {
-                class = {
-                    type   = "select",
-                    name   = "Show for Class",
-                    desc   = "Only show this bar when playing the selected class.",
-                    values = L.CLASSES,
-                    order  = 1,
-                    width  = "full",
-                    get    = function() return barData.classRestriction or "NONE" end,
-                    set    = function(_, val)
-                        barData.classRestriction = val
-                        NotifyAndRebuild(barKey)
-                    end,
-                },
-                talent = {
-                    type  = "input",
-                    name  = "Show with Talent",
-                    desc  = "Only show this bar when the player has at least one rank in the named talent (exact name, case-sensitive). Leave blank for no restriction.",
-                    order = 2,
-                    width = "full",
-                    get   = function() return tostring(barData.talentRestriction or "") end,
-                    set   = function(_, val)
-                        barData.talentRestriction = (val ~= "") and val or nil
-                        NotifyAndRebuild(barKey)
-                    end,
-                },
-            },
-        },
-
-        -- Icon list injected as a sub-group (tree nav on the left)
+        -- ==============================================
+        -- TAB 3: Icons
+        -- ==============================================
         icons = CreateIconListOptions(barKey, barData),
-
-        deleteBar = {
-            type        = "execute",
-            name        = "Delete Bar",
-            desc        = "Permanently removes this bar and all its tracked icons.",
-            order       = 200,
-            confirm     = true,
-            confirmText = "Delete bar \"" .. (barData.name or barKey) .. "\" and all its icons?",
-            func        = function()
-                if ns.AuraTracker and ns.AuraTracker.Controller then
-                    ns.AuraTracker.Controller:DeleteBar(barKey)
-                    if editState.selectedBar == barKey then
-                        editState.selectedBar  = nil
-                        editState.selectedAura = nil
-                    end
-                    NotifyChange()
-                end
-            end,
-        },
     }
 end
 
@@ -877,50 +880,10 @@ function ns.GetAuraTrackerOptions()
         name        = "Aura Tracker",
         childGroups = "tree",
         args        = {
-            general = {
-                type  = "group",
-                name  = "General",
-                order = 0,
-                args  = {
-                    intro = {
-                        type     = "description",
-                        name     = "Welcome to |cFF00BFFFAura Tracker|r.\n" ..
-                                   "Select a bar on the left to configure it, or create a new one below.\n" ..
-                                   "|cFFAAAAFF/auratracker|r or |cFFAAAAFF/at|r opens this panel.\n" ..
-                                   "In Edit Mode, |cFFFFFF00right-click|r a bar to open its settings directly.",
-                        fontSize = "medium",
-                        order    = 1,
-                    },
-                    createBar = {
-                        type  = "input",
-                        name  = "New Bar ID  (press Enter)",
-                        desc  = "Enter a unique identifier (e.g. \"MyDebuffs\") and press Enter to create a new bar.",
-                        order = 2,
-                        width = "full",
-                        get   = function() return "" end,
-                        set   = function(_, val)
-                            if not (val and val ~= "") then return end
-                            if not (ns.AuraTracker and ns.AuraTracker.Controller) then
-                                print("|cFFFF0000Aura Tracker:|r Not initialized yet.")
-                                return
-                            end
-                            local bars = ns.AuraTracker.Controller:GetBars()
-                            if bars[val] then
-                                print("|cFFFF0000Aura Tracker:|r Bar '" .. val .. "' already exists.")
-                            else
-                                ns.AuraTracker.Controller:CreateBar(val)
-                                NotifyChange()
-                                print("|cFF00FF00Aura Tracker:|r Bar '" .. val .. "' created.")
-                            end
-                        end,
-                    },
-                },
-            },
-
             -- Mappings page (always shown, even before any bars exist)
             mappings = CreateMappingsOptions(),
 
-            -- Parent group that holds all individual bar groups
+            -- Parent group that holds all individual bar groups + new-bar creation
             bars = {
                 type        = "group",
                 name        = "Bars",
@@ -957,6 +920,31 @@ function ns.UpdateBarOptions(options)
     -- Refresh mappings page (db may have changed)
     options.args.mappings = CreateMappingsOptions()
 
+    -- "New Bar" creation input at the top of the Bars group
+    options.args.bars.args["__createBar"] = {
+        type  = "input",
+        name  = "New Bar ID  (press Enter)",
+        desc  = "Enter a unique identifier (e.g. \"MyDebuffs\") and press Enter to create a new bar.",
+        order = 0,
+        width = "full",
+        get   = function() return "" end,
+        set   = function(_, val)
+            if not (val and val ~= "") then return end
+            if not (ns.AuraTracker and ns.AuraTracker.Controller) then
+                print("|cFFFF0000Aura Tracker:|r Not initialized yet.")
+                return
+            end
+            local existingBars = ns.AuraTracker.Controller:GetBars()
+            if existingBars[val] then
+                print("|cFFFF0000Aura Tracker:|r Bar '" .. val .. "' already exists.")
+            else
+                ns.AuraTracker.Controller:CreateBar(val)
+                NotifyChange()
+                print("|cFF00FF00Aura Tracker:|r Bar '" .. val .. "' created.")
+            end
+        end,
+    }
+
     -- Re-populate bar entries under the Bars parent group
     local order = 1
     for key, barData in pairs(bars) do
@@ -992,12 +980,12 @@ local AceConfigDialog = LibStub("AceConfigDialog-3.0")
 ns.AuraTracker = ns.AuraTracker or {}
 ns.AuraTracker.SettingsPanel = {
     Show = function(self, barKey)
-        AceConfigDialog:SetDefaultSize(addonName, 820, 600)
+        AceConfigDialog:SetDefaultSize(addonName, 900, 650)
         AceConfigDialog:Open(addonName)
         -- Raise the minimum resize so child elements never overspill the frame
         local f = AceConfigDialog.OpenFrames and AceConfigDialog.OpenFrames[addonName]
         if f and f.frame then
-            f.frame:SetMinResize(700, 500)
+            f.frame:SetMinResize(750, 550)
         end
         if barKey then
             AceConfigDialog:SelectGroup(addonName, "bars", barKey)
