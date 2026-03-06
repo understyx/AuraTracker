@@ -34,10 +34,12 @@ function Bar:New(name, parent, options)
     self.direction = options.direction or "HORIZONTAL"
     self.spacing = options.spacing or 0
     self.iconSize = options.iconSize or 40
-    
+    self.scale = options.scale or 1.0
+
     -- Create container frame
     self.frame = CreateFrame("Frame", "AuraTracker_Bar_" .. name, parent or UIParent)
     self.frame:SetSize(self.iconSize, self.iconSize)
+    self.frame:SetScale(self.scale)
     
     local point = options.point or "CENTER"
     local x = options.x or 0
@@ -199,6 +201,11 @@ function Bar:SetIconSize(size)
     self.minWidth = size
     self.minHeight = size
     self.frame:SetSize(size, size)
+end
+
+function Bar:SetScale(scale)
+    self.scale = scale or 1.0
+    self.frame:SetScale(self.scale)
 end
 
 -- ==========================================================

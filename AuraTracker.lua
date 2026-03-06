@@ -18,6 +18,22 @@ ns.AuraTracker.Controller = AuraTracker
 local gcdStart, gcdDuration = nil, nil
 local playerGUID = nil
 
+-- Default configuration applied to newly created bars
+local BAR_DEFAULTS = {
+    enabled = true,
+    direction = "HORIZONTAL",
+    spacing = 2,
+    iconSize = 40,
+    scale = 1.0,
+    point = "CENTER",
+    x = 0,
+    y = -200,
+    textSize = 12,
+    showCooldownText = true,
+    ignoreGCD = true,
+    textColor = { r = 1, g = 1, b = 1, a = 1 },
+}
+
 -- ==========================================================
 -- LIFECYCLE
 -- ==========================================================
@@ -28,6 +44,7 @@ function AuraTracker:OnInitialize()
         profile = {
             enabled = true,
             bars = {},
+            customMappings = {},
         }
     }
     -- Initialize the standalone DB
@@ -61,7 +78,12 @@ function AuraTracker:OnEnable()
         self:Disable()
         return
     end
-    
+
+    -- Create a default bar on first use when no bars are configured
+    if not next(db.bars) then
+        self:CreateBar("auratracker")
+    end
+
     self:RebuildAllBars()
     self:CreateUpdateFrame()
     self:RegisterEvent("CHARACTER_POINTS_CHANGED", "OnTalentsChanged")
@@ -144,26 +166,47 @@ end
 -- ==========================================================
 
 function AuraTracker:CreateBar(barKey)
-    local db = self:GetBarDB(barKey)
-    if not db or not db.enabled then
-        return nil
-    end
     if self.bars[barKey] then
         return self.bars[barKey]
     end
-    
+
+    local profileDB = self:GetDB()
+    if not profileDB then return nil end
+
+    -- Create a default DB entry if one does not exist yet
+    if not profileDB.bars[barKey] then
+        local entry = {}
+        for k, v in pairs(BAR_DEFAULTS) do
+            -- Deep-copy textColor sub-table to avoid shared references
+            if k == "textColor" then
+                entry[k] = { r = v.r, g = v.g, b = v.b, a = v.a }
+            else
+                entry[k] = v
+            end
+        end
+        entry.name = barKey
+        entry.trackedItems = {}
+        profileDB.bars[barKey] = entry
+    end
+
+    local db = profileDB.bars[barKey]
+    if not db.enabled then
+        return nil
+    end
+
     local bar = Bar:New(barKey, UIParent, {
         direction = db.direction,
         spacing = db.spacing,
         iconSize = db.iconSize,
+        scale = db.scale,
         point = db.point,
         x = db.x,
         y = db.y,
     })
-    
+
     self.bars[barKey] = bar
     self.items[barKey] = {}
-    
+
     -- Register mover via LibEditmode
     local mover = LibEditmode:Register(bar:GetFrame(), {
         label = "AT: " .. (db.name or barKey),
@@ -180,33 +223,39 @@ function AuraTracker:CreateBar(barKey)
             db.x = x
             db.y = y
         end,
-        onClick = function()
+        onRightClick = function()
             local SP = ns.AuraTracker.SettingsPanel
             if SP then SP:Show(barKey) end
         end,
     })
     bar.mover = mover
-    
+
     return bar
 end
 
 function AuraTracker:DeleteBar(barKey)
     local bar = self.bars[barKey]
     if not bar then return false end
-    
+
     -- Release all icons back to pool
     for _, icon in ipairs(bar:GetIcons()) do
         icon:Destroy()
         LibFramePool:Release(icon:GetFrame())
     end
-    
+
     -- Unregister mover
     LibEditmode:Unregister(bar:GetFrame())
-    
+
     bar:Destroy()
     self.bars[barKey] = nil
     self.items[barKey] = nil
-    
+
+    -- Remove the DB entry so the bar is not recreated on reload
+    local profileDB = self:GetDB()
+    if profileDB and profileDB.bars then
+        profileDB.bars[barKey] = nil
+    end
+
     return true
 end
 
@@ -231,6 +280,7 @@ function AuraTracker:RebuildBar(barKey)
     bar:SetDirection(db.direction)
     bar:SetSpacing(db.spacing)
     bar:SetIconSize(db.iconSize)
+    bar:SetScale(db.scale or 1.0)
     bar:SetPosition(db.point, db.x, db.y)
     
     local styleOptions = {
@@ -245,7 +295,7 @@ function AuraTracker:RebuildBar(barKey)
         for spellId, data in pairs(db.trackedItems) do
             local order = type(data) == "table" and data.order or 999
             if data['trackType'] == Config.TrackType.COOLDOWN then
-                self:CreateCooldownIcon(barKey, spellId, order, styleOptions)
+                self:CreateCooldownIcon(barKey, spellId, order, styleOptions, data.displayMode)
             end
             if data['trackType'] == Config.TrackType.AURA then
                 local filterKey = data.type and string.upper(data.type) or "TARGET_DEBUFF"
@@ -280,9 +330,16 @@ function AuraTracker:RebuildAllBars()
 end
 
 function AuraTracker:DestroyAllBars()
-    for barKey in pairs(self.bars) do
-        self:DeleteBar(barKey)
+    for barKey, bar in pairs(self.bars) do
+        for _, icon in ipairs(bar:GetIcons()) do
+            icon:Destroy()
+            LibFramePool:Release(icon:GetFrame())
+        end
+        LibEditmode:Unregister(bar:GetFrame())
+        bar:Destroy()
     end
+    wipe(self.bars)
+    wipe(self.items)
 end
 
 function AuraTracker:SortBarIcons(barKey)
@@ -300,7 +357,7 @@ end
 -- ADDING / REMOVING TRACKED ITEMS
 -- ==========================================================
 
-function AuraTracker:CreateCooldownIcon(barKey, spellId, order, styleOptions)
+function AuraTracker:CreateCooldownIcon(barKey, spellId, order, styleOptions, displayMode)
     local bar = self.bars[barKey]
     local db = self:GetBarDB(barKey)
     if not bar or not db then return nil end
@@ -317,9 +374,9 @@ function AuraTracker:CreateCooldownIcon(barKey, spellId, order, styleOptions)
     -- Acquire frame from pool
     local frame = LibFramePool:Acquire(Icon.POOL_KEY, bar:GetFrame())
     
-    -- Create Icon wrapper
-    local displayMode = Config:GetDefaultDisplayMode(Config.TrackType.COOLDOWN)
-    local icon = Icon:New(frame, item, displayMode)
+    -- Create Icon wrapper (use stored displayMode, fall back to default)
+    local finalDisplayMode = displayMode or Config:GetDefaultDisplayMode(Config.TrackType.COOLDOWN)
+    local icon = Icon:New(frame, item, finalDisplayMode)
     icon.order = order
 
     icon:ApplyStyle(styleOptions)
@@ -448,8 +505,30 @@ function AuraTracker:RemoveAura(barKey, spellId)
 end
 
 -- ==========================================================
--- EVENT HANDLERS
+-- GLOBAL MAPPINGS
 -- ==========================================================
+
+-- Returns a mapping action table {trackType, auraId, filterKey} for a spellId,
+-- or nil if no mapping is defined. Custom (user) mappings take precedence over
+-- the built-in Config.SpellToAuraMap entries.
+function AuraTracker:GetDropAction(spellId)
+    local db = self:GetDB()
+    -- User-defined custom mappings take precedence
+    if db and db.customMappings then
+        local m = db.customMappings[spellId]
+        if m then return m end
+    end
+    -- Built-in static mapping: spell applies a different aura ID
+    local mappedAuraId = Config.SpellToAuraMap[spellId]
+    if mappedAuraId and mappedAuraId ~= spellId then
+        return {
+            trackType = Config.TrackType.AURA,
+            auraId = mappedAuraId,
+            filterKey = "TARGET_DEBUFF",
+        }
+    end
+    return nil
+end
 
 function AuraTracker:OnSpellUpdateCooldown()
     self:UpdateGCDState()
@@ -739,7 +818,25 @@ function AuraTracker:HandleDrop(barKey, cursorType, id, subType, isShift)
     if not spellId then return end
     
     local success, result
-    if isShift then
+
+    -- Apply global/custom mappings first; fall back to shift-key heuristic
+    local mapping = self:GetDropAction(spellId)
+    if mapping then
+        if mapping.trackType == Config.TrackType.AURA then
+            local fk = mapping.filterKey or "TARGET_DEBUFF"
+            success, result = self:AddAura(barKey, spellId, fk, mapping.auraId)
+            if success then
+                -- e.g. "target_debuff" → "target debuff"
+                local fkLabel = fk:lower():gsub("_", " ")
+                self:Print("Now tracking |cff00ff00" .. result .. "|r (" .. fkLabel .. ", mapped)")
+            end
+        else
+            success, result = self:AddCooldown(barKey, spellId)
+            if success then
+                self:Print("Now tracking |cff00ff00" .. result .. "|r cooldown (mapped)")
+            end
+        end
+    elseif isShift then
         success, result = self:AddAura(barKey, spellId, "TARGET_DEBUFF")
         if success then
             self:Print("Now tracking |cff00ff00" .. result .. "|r as target debuff")
