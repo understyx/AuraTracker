@@ -137,8 +137,9 @@ local function MoveIconToPosition(barKey, barData, spellId, newPos)
             break
         end
     end
-    if not currentPos or currentPos == newPos then return end
+    if not currentPos then return end
     newPos = math.max(1, math.min(newPos, #sorted))
+    if currentPos == newPos then return end
     -- Remove from current and insert at new position
     local item = table.remove(sorted, currentPos)
     table.insert(sorted, newPos, item)
