@@ -117,6 +117,7 @@ function Lib:Register(frame, opts)
     mover.targetFrame = frame
     mover.onMove = opts.onMove
     mover.onClick = opts.onClick
+    mover.onRightClick = opts.onRightClick
     mover.syncSize = opts.syncSize
 
     mover.text:SetText(opts.label or frame:GetName() or "Mover")
@@ -150,7 +151,15 @@ function Lib:Register(frame, opts)
         end)
     end)
 
-    mover:SetScript("OnMouseUp", function(self)
+    mover:SetScript("OnMouseUp", function(self, btn)
+        -- Right-click: open settings (no drag logic)
+        if btn == "RightButton" then
+            if self.onRightClick then
+                self.onRightClick(self)
+            end
+            return
+        end
+
         self:StopMovingOrSizing()
         self:SetScript("OnUpdate", nil)
 

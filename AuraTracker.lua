@@ -24,6 +24,7 @@ local BAR_DEFAULTS = {
     direction = "HORIZONTAL",
     spacing = 2,
     iconSize = 40,
+    scale = 1.0,
     point = "CENTER",
     x = 0,
     y = -200,
@@ -43,6 +44,7 @@ function AuraTracker:OnInitialize()
         profile = {
             enabled = true,
             bars = {},
+            customMappings = {},
         }
     }
     -- Initialize the standalone DB
@@ -196,6 +198,7 @@ function AuraTracker:CreateBar(barKey)
         direction = db.direction,
         spacing = db.spacing,
         iconSize = db.iconSize,
+        scale = db.scale,
         point = db.point,
         x = db.x,
         y = db.y,
@@ -220,7 +223,7 @@ function AuraTracker:CreateBar(barKey)
             db.x = x
             db.y = y
         end,
-        onClick = function()
+        onRightClick = function()
             local SP = ns.AuraTracker.SettingsPanel
             if SP then SP:Show(barKey) end
         end,
@@ -277,6 +280,7 @@ function AuraTracker:RebuildBar(barKey)
     bar:SetDirection(db.direction)
     bar:SetSpacing(db.spacing)
     bar:SetIconSize(db.iconSize)
+    bar:SetScale(db.scale or 1.0)
     bar:SetPosition(db.point, db.x, db.y)
     
     local styleOptions = {
@@ -291,7 +295,7 @@ function AuraTracker:RebuildBar(barKey)
         for spellId, data in pairs(db.trackedItems) do
             local order = type(data) == "table" and data.order or 999
             if data['trackType'] == Config.TrackType.COOLDOWN then
-                self:CreateCooldownIcon(barKey, spellId, order, styleOptions)
+                self:CreateCooldownIcon(barKey, spellId, order, styleOptions, data.displayMode)
             end
             if data['trackType'] == Config.TrackType.AURA then
                 local filterKey = data.type and string.upper(data.type) or "TARGET_DEBUFF"
@@ -353,7 +357,7 @@ end
 -- ADDING / REMOVING TRACKED ITEMS
 -- ==========================================================
 
-function AuraTracker:CreateCooldownIcon(barKey, spellId, order, styleOptions)
+function AuraTracker:CreateCooldownIcon(barKey, spellId, order, styleOptions, displayMode)
     local bar = self.bars[barKey]
     local db = self:GetBarDB(barKey)
     if not bar or not db then return nil end
@@ -370,9 +374,9 @@ function AuraTracker:CreateCooldownIcon(barKey, spellId, order, styleOptions)
     -- Acquire frame from pool
     local frame = LibFramePool:Acquire(Icon.POOL_KEY, bar:GetFrame())
     
-    -- Create Icon wrapper
-    local displayMode = Config:GetDefaultDisplayMode(Config.TrackType.COOLDOWN)
-    local icon = Icon:New(frame, item, displayMode)
+    -- Create Icon wrapper (use stored displayMode, fall back to default)
+    local finalDisplayMode = displayMode or Config:GetDefaultDisplayMode(Config.TrackType.COOLDOWN)
+    local icon = Icon:New(frame, item, finalDisplayMode)
     icon.order = order
 
     icon:ApplyStyle(styleOptions)
@@ -501,8 +505,30 @@ function AuraTracker:RemoveAura(barKey, spellId)
 end
 
 -- ==========================================================
--- EVENT HANDLERS
+-- GLOBAL MAPPINGS
 -- ==========================================================
+
+-- Returns a mapping action table {trackType, auraId, filterKey} for a spellId,
+-- or nil if no mapping is defined. Custom (user) mappings take precedence over
+-- the built-in Config.SpellToAuraMap entries.
+function AuraTracker:GetDropAction(spellId)
+    local db = self:GetDB()
+    -- User-defined custom mappings take precedence
+    if db and db.customMappings then
+        local m = db.customMappings[spellId]
+        if m then return m end
+    end
+    -- Built-in static mapping: spell applies a different aura ID
+    local mappedAuraId = Config.SpellToAuraMap[spellId]
+    if mappedAuraId and mappedAuraId ~= spellId then
+        return {
+            trackType = Config.TrackType.AURA,
+            auraId = mappedAuraId,
+            filterKey = "TARGET_DEBUFF",
+        }
+    end
+    return nil
+end
 
 function AuraTracker:OnSpellUpdateCooldown()
     self:UpdateGCDState()
@@ -792,7 +818,25 @@ function AuraTracker:HandleDrop(barKey, cursorType, id, subType, isShift)
     if not spellId then return end
     
     local success, result
-    if isShift then
+
+    -- Apply global/custom mappings first; fall back to shift-key heuristic
+    local mapping = self:GetDropAction(spellId)
+    if mapping then
+        if mapping.trackType == Config.TrackType.AURA then
+            local fk = mapping.filterKey or "TARGET_DEBUFF"
+            success, result = self:AddAura(barKey, spellId, fk, mapping.auraId)
+            if success then
+                -- e.g. "target_debuff" → "target debuff"
+                local fkLabel = fk:lower():gsub("_", " ")
+                self:Print("Now tracking |cff00ff00" .. result .. "|r (" .. fkLabel .. ", mapped)")
+            end
+        else
+            success, result = self:AddCooldown(barKey, spellId)
+            if success then
+                self:Print("Now tracking |cff00ff00" .. result .. "|r cooldown (mapped)")
+            end
+        end
+    elseif isShift then
         success, result = self:AddAura(barKey, spellId, "TARGET_DEBUFF")
         if success then
             self:Print("Now tracking |cff00ff00" .. result .. "|r as target debuff")
