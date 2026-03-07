@@ -1,4 +1,4 @@
-local MAJOR, MINOR = "LibEditmode-1.0", 2
+local MAJOR, MINOR = "LibEditmode-1.0", 3
 local Lib = LibStub:NewLibrary(MAJOR, MINOR)
 if not Lib then return end
 
@@ -9,6 +9,8 @@ Lib.callbacks = Lib.callbacks or LibStub("CallbackHandler-1.0"):New(Lib)
 Lib.Movers = Lib.Movers or {}
 Lib.EditMode = Lib.EditMode or false
 Lib.Grid = Lib.Grid or nil
+-- Per-addon/subkey edit-mode state.  Keyed by "addonName" or "addonName:subKey".
+Lib.EditModeStates = Lib.EditModeStates or {}
 
 
 local function CreateGrid()
@@ -85,6 +87,18 @@ end
 
 -------------------------------------------------
 
+local SNAP_SIZE = 32
+
+local function SnapPosition(mover)
+    local point, relTo, relPoint, x, y = mover:GetPoint()
+    if not x or not y then return end
+    -- Round to nearest multiple of SNAP_SIZE using standard rounding.
+    x = math.floor((x / SNAP_SIZE) + 0.5) * SNAP_SIZE
+    y = math.floor((y / SNAP_SIZE) + 0.5) * SNAP_SIZE
+    mover:ClearAllPoints()
+    mover:SetPoint(point, relTo, relPoint, x, y)
+end
+
 local function UpdatePosition(mover)
     local point, relTo, relPoint, x, y = mover:GetPoint()
 
@@ -119,6 +133,8 @@ function Lib:Register(frame, opts)
     mover.onClick = opts.onClick
     mover.onRightClick = opts.onRightClick
     mover.syncSize = opts.syncSize
+    mover.addonName = opts.addonName
+    mover.subKey = opts.subKey
 
     mover.text:SetText(opts.label or frame:GetName() or "Mover")
 
@@ -166,6 +182,7 @@ function Lib:Register(frame, opts)
         if not self.isDragging and self.onClick then
             self.onClick(self)
         else
+            if self.isDragging then SnapPosition(self) end
             UpdatePosition(self)
         end
 
@@ -182,12 +199,19 @@ function Lib:Register(frame, opts)
         end
     end
 
-    -- Initial state check
-    if Lib.EditMode then 
+    -- Initial state check: show if global edit mode or the mover's own addon
+    -- edit-mode scope is currently active.
+    local shouldShow = Lib.EditMode
+    if not shouldShow and mover.addonName then
+        local stateKey = mover.subKey and (mover.addonName .. ":" .. mover.subKey) or mover.addonName
+        shouldShow = Lib.EditModeStates[stateKey] == true
+    end
+
+    if shouldShow then
         UpdateMoverStrata(mover)
-        mover:Show() 
-    else 
-        mover:Hide() 
+        mover:Show()
+    else
+        mover:Hide()
     end
     
     table.insert(Lib.Movers, mover)
@@ -206,33 +230,95 @@ function Lib:Unregister(frame)
     end
 end
 
-function Lib:SetEditMode(state)
-    if Lib.EditMode == state then return end
-    Lib.EditMode = state
+function Lib:SetEditMode(state, addonName, subKey)
+    if addonName then
+        -- --------------------------------------------------------
+        -- Per-addon (or per-addon+subKey) edit mode.
+        -- Only movers whose addonName (and optionally subKey) match
+        -- are shown or hidden; the global EditMode flag is left
+        -- unchanged unless there are no registered addonName-filtered
+        -- movers at all.
+        -- --------------------------------------------------------
+        local stateKey = subKey and (addonName .. ":" .. subKey) or addonName
+        if Lib.EditModeStates[stateKey] == state then return end
+        Lib.EditModeStates[stateKey] = state
 
-    if state then
-        CreateGrid()
-        Lib.Grid:Show()
-        Lib.callbacks:Fire("LibEditmode_OnEditModeEnter")
-    else
-        if Lib.Grid then
-            Lib.Grid:Hide()
+        for _, mover in ipairs(Lib.Movers) do
+            local matches
+            if subKey then
+                matches = mover.addonName == addonName and mover.subKey == subKey
+            else
+                matches = mover.addonName == addonName
+            end
+
+            if matches then
+                if state then
+                    UpdateMoverStrata(mover)
+                    mover:Show()
+                else
+                    mover:Hide()
+                end
+            end
         end
-        Lib.callbacks:Fire("LibEditmode_OnEditModeExit")
-    end
 
-    for _, mover in ipairs(Lib.Movers) do
-        if state then
-            UpdateMoverStrata(mover)
-            mover:Show()
+        -- Update the global grid based on whether any addon has edit mode active.
+        local anyActive = false
+        for _, v in pairs(Lib.EditModeStates) do
+            if v then anyActive = true; break end
+        end
+        -- Also consider the raw global flag.
+        if Lib.EditMode then anyActive = true end
+
+        if anyActive then
+            CreateGrid()
+            Lib.Grid:Show()
         else
-            mover:Hide()
+            if Lib.Grid then Lib.Grid:Hide() end
+        end
+
+        Lib.callbacks:Fire(state and "LibEditmode_OnEditModeEnter" or "LibEditmode_OnEditModeExit")
+    else
+        -- --------------------------------------------------------
+        -- Global edit mode – original behaviour.
+        -- --------------------------------------------------------
+        if Lib.EditMode == state then return end
+        Lib.EditMode = state
+
+        if state then
+            CreateGrid()
+            Lib.Grid:Show()
+            Lib.callbacks:Fire("LibEditmode_OnEditModeEnter")
+        else
+            if Lib.Grid then
+                Lib.Grid:Hide()
+            end
+            Lib.callbacks:Fire("LibEditmode_OnEditModeExit")
+        end
+
+        for _, mover in ipairs(Lib.Movers) do
+            if state then
+                UpdateMoverStrata(mover)
+                mover:Show()
+            else
+                mover:Hide()
+            end
         end
     end
 end
 
-function Lib:ToggleEditMode()
-    Lib:SetEditMode(not Lib.EditMode)
+--- Returns whether edit mode is currently active for the given addonName
+--- (and optional subKey).  Pass no arguments to query the global state.
+function Lib:IsEditModeActive(addonName, subKey)
+    if addonName then
+        local stateKey = subKey and (addonName .. ":" .. subKey) or addonName
+        return Lib.EditModeStates[stateKey] == true
+    end
+    return Lib.EditMode
+end
+
+function Lib:ToggleEditMode(addonName, subKey)
+    local current = self:IsEditModeActive(addonName, subKey)
+    self:SetEditMode(not current, addonName, subKey)
 end
 
 

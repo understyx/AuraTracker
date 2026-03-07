@@ -1,6 +1,12 @@
 local addonName, ns = ...
 
 -- ==========================================================
+-- LIBRARY REFERENCES
+-- ==========================================================
+
+local LibEditmode = LibStub("LibEditmode-1.0", true)
+
+-- ==========================================================
 -- CONSTANTS & LABELS
 -- ==========================================================
 
@@ -938,6 +944,20 @@ function ns.UpdateBarOptions(options)
 
     -- Refresh mappings page (db may have changed)
     options.args.mappings = CreateMappingsOptions()
+
+    -- "Move Bars" edit-mode toggle button
+    options.args.bars.args["__editMode"] = {
+        type  = "execute",
+        name  = "Toggle Move Bars",
+        desc  = "Toggle edit mode to drag bars to new positions on screen.",
+        order = -1,
+        width = "normal",
+        func  = function()
+            if LibEditmode then
+                LibEditmode:ToggleEditMode("AuraTracker")
+            end
+        end,
+    }
 
     -- "New Bar" creation input at the top of the Bars group
     options.args.bars.args["__createBar"] = {

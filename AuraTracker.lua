@@ -104,6 +104,7 @@ function AuraTracker:OnEnable()
     hooksecurefunc("BuffFrame_Update", function()
         self:HookBuffButtons()
     end)
+
 end
 
 function AuraTracker:OnDisable()
@@ -211,6 +212,8 @@ function AuraTracker:CreateBar(barKey)
     local mover = LibEditmode:Register(bar:GetFrame(), {
         label = "AT: " .. (db.name or barKey),
         syncSize = true,
+        addonName = "AuraTracker",
+        subKey = barKey,
         initialPoint = {
             db.point or "CENTER",
             UIParent,
@@ -1032,12 +1035,6 @@ end
 -- EDIT MODE INTEGRATION
 -- ==========================================================
 
-function AuraTracker:OnEditModeToggle(enabled)
-    if not enabled then
-        local SP = ns.AuraTracker.SettingsPanel
-        if SP then SP:Hide() end
-    end
-end
 
 function AuraTracker:OnBarClick(barKey)
     local SP = ns.AuraTracker.SettingsPanel
@@ -1045,6 +1042,18 @@ function AuraTracker:OnBarClick(barKey)
 end
 
 function AuraTracker:OnSlashCommand(input)
+    local cmd = strtrim(string.lower(input or ""))
+
+    if cmd == "editmode" or cmd == "move" then
+        LibEditmode:ToggleEditMode("AuraTracker")
+        if LibEditmode:IsEditModeActive("AuraTracker") then
+            self:Print("Edit mode |cFF00FF00enabled|r. Drag bars to reposition them. Type /at editmode again to exit.")
+        else
+            self:Print("Edit mode |cFFFF4444disabled|r.")
+        end
+        return
+    end
+
     local SP = ns.AuraTracker.SettingsPanel
     if SP then SP:Show() end
 end
