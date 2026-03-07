@@ -572,7 +572,7 @@ local function CreateBarSettings(barKey, barData)
                     get      = function() return barData.iconSize end,
                     set      = function(_, val)
                         barData.iconSize = val
-                        NotifyAndRebuild(barKey)
+                        RebuildBar(barKey)
                     end,
                 },
                 spacing = {
@@ -584,7 +584,7 @@ local function CreateBarSettings(barKey, barData)
                     get      = function() return barData.spacing end,
                     set      = function(_, val)
                         barData.spacing = val
-                        NotifyAndRebuild(barKey)
+                        RebuildBar(barKey)
                     end,
                 },
                 scale = {
@@ -597,7 +597,7 @@ local function CreateBarSettings(barKey, barData)
                     get      = function() return barData.scale or 1.0 end,
                     set      = function(_, val)
                         barData.scale = val
-                        NotifyAndRebuild(barKey)
+                        RebuildBar(barKey)
                     end,
                 },
                 textHeader = { type = "header", name = "Text", order = 10 },
@@ -610,7 +610,7 @@ local function CreateBarSettings(barKey, barData)
                     get   = function() return barData.showCooldownText ~= false end,
                     set   = function(_, val)
                         barData.showCooldownText = val
-                        NotifyAndRebuild(barKey)
+                        RebuildBar(barKey)
                     end,
                 },
                 textSize = {
@@ -622,7 +622,7 @@ local function CreateBarSettings(barKey, barData)
                     get      = function() return barData.textSize or 12 end,
                     set      = function(_, val)
                         barData.textSize = val
-                        NotifyAndRebuild(barKey)
+                        RebuildBar(barKey)
                     end,
                 },
                 textColor = {
@@ -641,7 +641,7 @@ local function CreateBarSettings(barKey, barData)
                         barData.textColor.g = g
                         barData.textColor.b = b
                         barData.textColor.a = a
-                        NotifyAndRebuild(barKey)
+                        RebuildBar(barKey)
                     end,
                 },
             },
