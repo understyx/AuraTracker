@@ -138,7 +138,7 @@ local function SyncMoverToFrame(mover)
     local point, relTo, relPoint, x, y = frame:GetPoint(1)
     if point and relTo and relTo ~= mover then
         mover:ClearAllPoints()
-        mover:SetPoint(point, relTo, relPoint, x, y)
+        mover:SetPoint(point, relTo, relPoint, x * scale, y * scale)
     end
 end
 
