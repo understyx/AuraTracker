@@ -9,8 +9,10 @@ ns.AuraTracker.Config = Config
 -- ==========================================================
 
 Config.TrackType = {
-    COOLDOWN = "cooldown",
-    AURA = "aura",
+    COOLDOWN    = "cooldown",
+    AURA        = "aura",
+    ITEM        = "item",          -- Future: track item cooldowns (e.g. potions, trinkets)
+    INTERNAL_CD = "internal_cd",   -- Future: custom internal cooldown trackers (e.g. Lock and Load ICD)
 }
 
 Config.DisplayMode = {
@@ -51,6 +53,13 @@ Config.DefaultDisplayMode = {
 
 Config.GCD_SPELL_ID = 61304
 Config.GCD_THRESHOLD = 1.6
+
+-- Spells that should be tracked as both a cooldown and an aura simultaneously.
+-- The UI can show both states (e.g., cooldown sweep + debuff duration).
+-- Future: Implement dual-display mode in Icon.lua for these spells.
+Config.DualTrackSpells = {
+    -- [spellId] = { auraId = auraId, filterKey = "TARGET_DEBUFF" },
+}
 
 -- ==========================================================
 -- FUNCTIONS
