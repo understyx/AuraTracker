@@ -343,7 +343,24 @@ function AuraTracker:RebuildBar(barKey)
     self:SortBarIcons(barKey)
     
     bar:UpdateLayout()
-    
+
+    -- Sync the mover to the bar's current size and position so that the
+    -- mover exactly overlays the bar frame when edit mode is entered.
+    -- The mover is sized only once at registration (before UpdateLayout runs),
+    -- so it must be re-synced here after the bar has been fully laid out.
+    if bar.mover then
+        local frame = bar:GetFrame()
+        bar.mover:SetSize(frame:GetWidth(), frame:GetHeight())
+        bar.mover:ClearAllPoints()
+        bar.mover:SetPoint(
+            db.point or "CENTER",
+            UIParent,
+            db.point or "CENTER",
+            db.x or 0,
+            db.y or 0
+        )
+    end
+
     -- Initial update
     self:UpdateAllCooldowns()
     self:UpdateAllAuras()
