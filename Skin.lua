@@ -352,11 +352,14 @@ local function SkinOneTab(tab)
         tab._flatBorderFrame = bf
     end
 
-    -- Replace SetText so it no longer calls PanelTemplates_TabResize
+    -- Replace SetText so it no longer calls PanelTemplates_TabResize.
+    -- Note: _SetText was saved by CreateTab (AceGUIContainer-TabGroup line 120).
     if not tab._flatSetTextInstalled then
         tab._flatSetTextInstalled = true
         tab.SetText = function(self, text)
-            self:_SetText(text)
+            if self._SetText then
+                self:_SetText(text)
+            end
         end
     end
 
@@ -398,7 +401,8 @@ skinners["TabGroup"] = function(widget)
         widget._tabSkinHooked = true
 
         widget.BuildTabs = function(self)
-            local hastitle = (self.titletext:GetText() and self.titletext:GetText() ~= "")
+            local titleText = self.titletext:GetText()
+            local hastitle = (titleText and titleText ~= "")
             local tablist = self.tablist
             local tabs = self.tabs
 
