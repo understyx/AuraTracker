@@ -341,12 +341,34 @@ function AuraTracker:RebuildBar(barKey)
     
     -- Sort icons by order
     self:SortBarIcons(barKey)
-    
-    bar:UpdateLayout()
-    
-    -- Initial update
+
+    -- Run the initial update first so icons transition from pool-hidden state
+    -- to their correct shown/hidden state.  UpdateAllCooldowns/Auras call
+    -- icon:Refresh() which shows icons and then calls bar:UpdateLayout() when
+    -- visibility changes.  Only after this do we know the bar's true pixel
+    -- dimensions for syncing the mover.
     self:UpdateAllCooldowns()
     self:UpdateAllAuras()
+
+    -- Sync the mover to the bar's final size and position.  This must come
+    -- AFTER the initial update calls above because UpdateLayout only counts
+    -- visible icons -- icons start hidden in pool state and are only shown by
+    -- the Refresh() calls inside UpdateAllCooldowns/Auras.  Reading the frame
+    -- dimensions before Refresh() would give the bare minimum (iconSize x
+    -- iconSize) instead of the full bar width.
+    if bar.mover then
+        local frame = bar:GetFrame()
+        local scale = frame:GetScale()
+        bar.mover:SetSize(frame:GetWidth() * scale, frame:GetHeight() * scale)
+        bar.mover:ClearAllPoints()
+        bar.mover:SetPoint(
+            db.point or "CENTER",
+            UIParent,
+            db.point or "CENTER",
+            db.x or 0,
+            db.y or 0
+        )
+    end
 end
 
 function AuraTracker:RebuildAllBars()

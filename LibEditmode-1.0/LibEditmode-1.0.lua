@@ -122,6 +122,26 @@ local function UpdateMoverStrata(mover)
     mover:SetFrameLevel(level + 5) 
 end
 
+-- Sync the mover's size and anchor to match its target frame's current
+-- dimensions and position.  This must be called after the target frame has
+-- been fully laid out (e.g. after Bar:UpdateLayout()) so that the mover
+-- exactly overlays the bar in edit mode.
+local function SyncMoverToFrame(mover)
+    if not mover.syncSize or not mover.targetFrame then return end
+    local frame = mover.targetFrame
+    local w, h = frame:GetWidth(), frame:GetHeight()
+    if not w or not h or w <= 0 or h <= 0 then return end
+    local scale = frame:GetScale()
+    mover:SetSize(w * scale, h * scale)
+    -- Re-anchor the mover to the same point/offset as the target frame so
+    -- that they perfectly overlap when edit mode is entered.
+    local point, relTo, relPoint, x, y = frame:GetPoint(1)
+    if point and relTo and relTo ~= mover then
+        mover:ClearAllPoints()
+        mover:SetPoint(point, relTo, relPoint, x * scale, y * scale)
+    end
+end
+
 
 function Lib:Register(frame, opts)
     if not frame or not opts then return end
@@ -194,8 +214,9 @@ function Lib:Register(frame, opts)
     if mover.syncSize and mover.targetFrame then
         local w, h = mover.targetFrame:GetWidth(), mover.targetFrame:GetHeight()
         if w and h then
-            mover:SetWidth(w)
-            mover:SetHeight(h)
+            local scale = mover.targetFrame:GetScale()
+            mover:SetWidth(w * scale)
+            mover:SetHeight(h * scale)
         end
     end
 
@@ -253,6 +274,7 @@ function Lib:SetEditMode(state, addonName, subKey)
 
             if matches then
                 if state then
+                    SyncMoverToFrame(mover)
                     UpdateMoverStrata(mover)
                     mover:Show()
                 else
@@ -297,6 +319,7 @@ function Lib:SetEditMode(state, addonName, subKey)
 
         for _, mover in ipairs(Lib.Movers) do
             if state then
+                SyncMoverToFrame(mover)
                 UpdateMoverStrata(mover)
                 mover:Show()
             else
