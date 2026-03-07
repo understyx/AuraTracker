@@ -15,7 +15,9 @@ local IsSpellKnown, IsShiftKeyDown = IsSpellKnown, IsShiftKeyDown
 local GetCursorPosition, GetMouseFocus = GetCursorPosition, GetMouseFocus
 local CreateFrame = CreateFrame
 local math_abs, math_max = math.abs, math.max
-local tonumber, tostring = tonumber, tostring
+local string_upper, string_lower = string.upper, string.lower
+local table_sort = table.sort
+local tonumber, tostring, strtrim = tonumber, tostring, strtrim
 
 -- Library references
 local LibFramePool = LibStub("LibFramePool-1.0")
@@ -333,7 +335,7 @@ function AuraTracker:RebuildBar(barKey)
             if data.trackType == Config.TrackType.COOLDOWN then
                 self:CreateCooldownIcon(barKey, spellId, order, styleOptions, data.displayMode)
             elseif data.trackType == Config.TrackType.AURA then
-                local filterKey = data.type and string.upper(data.type) or "TARGET_DEBUFF"
+                local filterKey = data.type and string_upper(data.type) or "TARGET_DEBUFF"
                 self:CreateAuraIcon(barKey, spellId, filterKey, data.auraId, order, styleOptions, data.displayMode)
             end
         end
@@ -391,7 +393,7 @@ function AuraTracker:SortBarIcons(barKey)
     local bar = self.bars[barKey]
     if not bar then return end
     
-    table.sort(bar:GetIcons(), function(a, b)
+    table_sort(bar:GetIcons(), function(a, b)
         local orderA = a.order or 999
         local orderB = b.order or 999
         return orderA < orderB
@@ -432,7 +434,7 @@ function AuraTracker:CreateAuraIcon(barKey, spellId, filterKey, auraId, order, s
     local bar = self.bars[barKey]
     if not bar then return nil end
     
-    filterKey = filterKey and string.upper(filterKey:gsub(" ", "_")) or "TARGET_DEBUFF"
+    filterKey = filterKey and string_upper(filterKey:gsub(" ", "_")) or "TARGET_DEBUFF"
     
     local item = TrackedItem:New(spellId, Config.TrackType.AURA, {
         auraId = auraId,
@@ -969,7 +971,7 @@ function AuraTracker:OnBarClick(barKey)
 end
 
 function AuraTracker:OnSlashCommand(input)
-    local cmd = strtrim(string.lower(input or ""))
+    local cmd = strtrim(string_lower(input or ""))
 
     if cmd == "editmode" or cmd == "move" then
         LibEditmode:ToggleEditMode("AuraTracker")

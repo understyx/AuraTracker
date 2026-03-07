@@ -915,7 +915,6 @@ function ns.GetAuraTrackerOptions()
 end
 
 -- Populates/refreshes bar groups in the options table.
--- Populates/refreshes bar groups in the options table.
 function ns.UpdateBarOptions(options)
     if not options then return end
     options.args = options.args or {}
