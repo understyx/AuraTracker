@@ -1,8 +1,11 @@
 local addonName, ns = ...
 
--- ==========================================================
--- LIBRARY REFERENCES
--- ==========================================================
+local pairs, ipairs, next = pairs, ipairs, next
+local tonumber, tostring = tonumber, tostring
+local table_insert, table_sort, table_remove = table.insert, table.sort, table.remove
+local math_max, math_min, math_floor = math.max, math.min, math.floor
+local string_format, string_upper = string.format, string.upper
+local GetSpellInfo = GetSpellInfo
 
 local LibEditmode = LibStub("LibEditmode-1.0", true)
 
@@ -52,16 +55,13 @@ local L = {
 -- SESSION STATE  (UI-only; not persisted)
 -- ==========================================================
 
--- Per-bar editing state: which icon is selected for editing
 local editState = {
     selectedBar  = nil,
     selectedAura = nil,
 }
 
--- Per-bar add-form state: what the user has chosen before submitting
 local addState = {}
 
--- Mapping-page state
 local mappingEditState = {
     selectedSpell = nil,
 }
@@ -75,8 +75,6 @@ local function GetSpellNameByID(spellId)
     return name or "Unknown Spell", icon
 end
 
--- Returns a colored short label for displaying an icon's track type in a list row.
--- For auras, includes the filter key in human-readable form.
 local function GetTrackTypeLabel(trackType, filterKey)
     if trackType == "aura" then
         local src = filterKey and L.AURA_SOURCES[filterKey] or "aura"
@@ -100,10 +98,16 @@ local function NotifyAndRebuild(barKey)
     NotifyChange()
 end
 
--- Module-level constant to avoid creating a new table on every getter call
 local DEFAULT_TEXT_COLOR = { r = 1, g = 1, b = 1, a = 1 }
 
--- Returns the tree-view label for a bar: "|cFFrrggbbClassName:|r name" or "All: name".
+local function GetNextOrder(trackedItems)
+    local maxOrder = 0
+    for _, d in pairs(trackedItems) do
+        maxOrder = math_max(maxOrder, d.order or 0)
+    end
+    return maxOrder + 1
+end
+
 local function GetBarDisplayName(barData, key)
     local classKey = barData.classRestriction or "NONE"
     local barName  = barData.name or key
@@ -113,21 +117,19 @@ local function GetBarDisplayName(barData, key)
     local classLabel = L.CLASSES[classKey] or classKey
     local color = RAID_CLASS_COLORS and RAID_CLASS_COLORS[classKey]
     if color then
-        local hex = string.format("%02X%02X%02X",
-            math.floor((color.r or 0) * 255),
-            math.floor((color.g or 0) * 255),
-            math.floor((color.b or 0) * 255))
+        local hex = string_format("%02X%02X%02X",
+            math_floor((color.r or 0) * 255),
+            math_floor((color.g or 0) * 255),
+            math_floor((color.b or 0) * 255))
         return "|cFF" .. hex .. classLabel .. ":|r " .. barName
     end
     return classLabel .. ": " .. barName
 end
 
--- Looks up a filter-data table {unit, filter} from Config given a lowercase filterKey
--- (e.g. "target_debuff"). Returns nil if not found.
 local function GetFilterData(filterKey)
     local Config = ns.AuraTracker and ns.AuraTracker.Config
     if not Config or not filterKey then return nil end
-    return Config:GetAuraFilter(string.upper(filterKey))
+    return Config:GetAuraFilter(string_upper(filterKey))
 end
 
 -- ==========================================================
@@ -138,9 +140,9 @@ local function NormalizeAuraOrders(barData)
     if not barData.trackedItems then return end
     local sorted = {}
     for spellId, data in pairs(barData.trackedItems) do
-        table.insert(sorted, { id = spellId, order = data.order or 999 })
+        table_insert(sorted, { id = spellId, order = data.order or 999 })
     end
-    table.sort(sorted, function(a, b) return a.order < b.order end)
+    table_sort(sorted, function(a, b) return a.order < b.order end)
     for i, item in ipairs(sorted) do
         barData.trackedItems[item.id].order = i
     end
@@ -151,9 +153,9 @@ local function MoveIconToPosition(barKey, barData, spellId, newPos)
     NormalizeAuraOrders(barData)
     local sorted = {}
     for sid, d in pairs(barData.trackedItems) do
-        table.insert(sorted, { spellId = sid, order = d.order or 999 })
+        table_insert(sorted, { spellId = sid, order = d.order or 999 })
     end
-    table.sort(sorted, function(a, b) return a.order < b.order end)
+    table_sort(sorted, function(a, b) return a.order < b.order end)
     -- Find current position
     local currentPos
     for i, entry in ipairs(sorted) do
@@ -163,11 +165,11 @@ local function MoveIconToPosition(barKey, barData, spellId, newPos)
         end
     end
     if not currentPos then return end
-    newPos = math.max(1, math.min(newPos, #sorted))
+    newPos = math_max(1, math_min(newPos, #sorted))
     if currentPos == newPos then return end
     -- Remove from current and insert at new position
-    local item = table.remove(sorted, currentPos)
-    table.insert(sorted, newPos, item)
+    local item = table_remove(sorted, currentPos)
+    table_insert(sorted, newPos, item)
     -- Renumber all orders
     for i, entry in ipairs(sorted) do
         barData.trackedItems[entry.spellId].order = i
@@ -176,18 +178,16 @@ local function MoveIconToPosition(barKey, barData, spellId, newPos)
 end
 
 -- ==========================================================
--- ICON EDITOR (single-icon settings)
--- Injects editor args into an existing args table at the
--- given order offset so they appear inline below the icon strip.
+-- ICON EDITOR
 -- ==========================================================
 
 local function GetSortedIconIndex(barData, targetSpellId)
     NormalizeAuraOrders(barData)
     local sorted = {}
     for sid, d in pairs(barData.trackedItems) do
-        table.insert(sorted, { spellId = sid, order = d.order or 999 })
+        table_insert(sorted, { spellId = sid, order = d.order or 999 })
     end
-    table.sort(sorted, function(a, b) return a.order < b.order end)
+    table_sort(sorted, function(a, b) return a.order < b.order end)
     for i, entry in ipairs(sorted) do
         if entry.spellId == targetSpellId then
             return i, #sorted
@@ -206,7 +206,7 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
 
     args.editorHeader = {
         type = "header",
-        name = string.format("Selected: %s  (ID: %d)", name, spellId),
+        name = string_format("Selected: %s  (ID: %d)", name, spellId),
         order = orderBase,
     }
     args.editorIconPreview = {
@@ -314,22 +314,19 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
 end
 
 -- ==========================================================
--- ICON LIST  (add + reorder + click-to-edit)
+-- ICON LIST
 -- ==========================================================
 
 local function CreateIconListOptions(barKey, barData)
     barData.trackedItems = barData.trackedItems or {}
     NormalizeAuraOrders(barData)
 
-    -- Build sorted list
     local sortedItems = {}
     for spellId, data in pairs(barData.trackedItems) do
-        table.insert(sortedItems, { spellId = spellId, data = data, order = data.order or 999 })
+        table_insert(sortedItems, { spellId = spellId, data = data, order = data.order or 999 })
     end
-    table.sort(sortedItems, function(a, b) return a.order < b.order end)
+    table_sort(sortedItems, function(a, b) return a.order < b.order end)
 
-    -- Per-bar add-form state. The `or` ensures the table is created once and then
-    -- reused on every subsequent rebuild, preserving the user's last selection.
     addState[barKey] = addState[barKey] or { trackType = "cooldown", filterKey = "target_debuff" }
     local st = addState[barKey]
 
@@ -386,14 +383,11 @@ local function CreateIconListOptions(barKey, barData)
                     return
                 end
 
-                local maxOrder = 0
-                for _, d in pairs(barData.trackedItems) do
-                    maxOrder = math.max(maxOrder, d.order or 0)
-                end
+                local nextOrder = GetNextOrder(barData.trackedItems)
 
                 if st.trackType == "cooldown" then
                     barData.trackedItems[spellId] = {
-                        order       = maxOrder + 1,
+                        order       = nextOrder,
                         trackType   = "cooldown",
                         displayMode = "always",
                     }
@@ -401,7 +395,7 @@ local function CreateIconListOptions(barKey, barData)
                     local fk = st.filterKey or "target_debuff"
                     local fd = GetFilterData(fk)
                     barData.trackedItems[spellId] = {
-                        order       = maxOrder + 1,
+                        order       = nextOrder,
                         trackType   = "aura",
                         auraId      = spellId,
                         type        = fk,
@@ -692,7 +686,7 @@ local function CreateMappingsOptions()
                     },
                     info = {
                         type     = "description",
-                        name     = string.format("Mapping for |cFFFFFFFF%s|r  (Spell ID: %d)", spellName, spellId),
+                        name     = string_format("Mapping for |cFFFFFFFF%s|r  (Spell ID: %d)", spellName, spellId),
                         fontSize = "medium",
                         order    = 1,
                     },
@@ -878,7 +872,7 @@ local function CreateMappingsOptions()
                 local aName        = GetSpellNameByID(auraId)
                 args["builtin_" .. spellId] = {
                     type     = "description",
-                    name     = string.format("|T%s:16:16|t |cFFFFFFFF%s|r  →  %s (aura)", sIcon or "", sName, aName),
+                    name     = string_format("|T%s:16:16|t |cFFFFFFFF%s|r  →  %s (aura)", sIcon or "", sName, aName),
                     order    = 51 + i,
                     width    = "full",
                 }
@@ -921,12 +915,10 @@ function ns.GetAuraTrackerOptions()
 end
 
 -- Populates/refreshes bar groups in the options table.
--- Called each time the options are requested (via the AceConfig callback).
 function ns.UpdateBarOptions(options)
     if not options then return end
     options.args = options.args or {}
 
-    -- Ensure the Bars parent group and its args table always exist
     options.args.bars = options.args.bars or {}
     options.args.bars.args = options.args.bars.args or {}
 
@@ -937,15 +929,12 @@ function ns.UpdateBarOptions(options)
 
     local bars = ns.AuraTracker.Controller:GetBars()
 
-    -- Clear stale bar entries from the Bars sub-group
     for key in pairs(options.args.bars.args) do
         options.args.bars.args[key] = nil
     end
 
-    -- Refresh mappings page (db may have changed)
     options.args.mappings = CreateMappingsOptions()
 
-    -- "Move Bars" edit-mode toggle button
     options.args.bars.args["__editMode"] = {
         type  = "execute",
         name  = "Toggle Move Bars",
@@ -959,7 +948,6 @@ function ns.UpdateBarOptions(options)
         end,
     }
 
-    -- "New Bar" creation input at the top of the Bars group
     options.args.bars.args["__createBar"] = {
         type  = "input",
         name  = "New Bar ID  (press Enter)",
@@ -984,7 +972,6 @@ function ns.UpdateBarOptions(options)
         end,
     }
 
-    -- Re-populate bar entries under the Bars parent group
     local order = 1
     for key, barData in pairs(bars) do
         if editState.selectedBar == key and not barData then
@@ -1004,14 +991,12 @@ function ns.UpdateBarOptions(options)
     return options
 end
 
--- Convenience: trigger a full options refresh from anywhere
 function ns.RefreshOptions()
     NotifyChange()
 end
 
 -- ==========================================================
 -- SETTINGS PANEL SHIM
--- A lightweight object for other parts of the addon to use.
 -- ==========================================================
 
 local AceConfigDialog = LibStub("AceConfigDialog-3.0")
@@ -1021,7 +1006,6 @@ ns.AuraTracker.SettingsPanel = {
     Show = function(self, barKey)
         AceConfigDialog:SetDefaultSize(addonName, 900, 650)
         AceConfigDialog:Open(addonName)
-        -- Raise the minimum resize so child elements never overspill the frame
         local f = AceConfigDialog.OpenFrames and AceConfigDialog.OpenFrames[addonName]
         if f and f.frame then
             f.frame:SetMinResize(750, 550)
@@ -1040,7 +1024,11 @@ ns.AuraTracker.SettingsPanel = {
         if not talentName or talentName == "" or talentName == "NONE" then
             return true
         end
-        for tab = 1, GetNumTalentTabs() do
+        local numTabs = GetNumTalentTabs()
+        if numTabs == 0 then
+            return true
+        end
+        for tab = 1, numTabs do
             for i = 1, GetNumTalents(tab) do
                 local name, _, _, _, rank = GetTalentInfo(tab, i)
                 if name == talentName and rank and rank > 0 then

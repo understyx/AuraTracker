@@ -2,17 +2,15 @@ local _, ns = ...
 ns.AuraTracker = ns.AuraTracker or {}
 
 local Config = ns.AuraTracker.Config
+local CreateFrame = CreateFrame
+local math_floor, math_max = math.floor, math.max
+local string_format = string.format
+
 local Icon = {}
 Icon.__index = Icon
 ns.AuraTracker.Icon = Icon
 
--- Pool key for frame recycling
 Icon.POOL_KEY = "AuraTrackerIcons"
-
---[[
-    Icon is the visual representation of a TrackedItem.
-    It owns a frame and knows how to render state.
-]]
 
 -- ==========================================================
 -- FRAME FACTORY (for pool)
@@ -38,7 +36,6 @@ function Icon.CreateFrame(parent)
     f.stackText:SetFont([[Fonts\FRIZQT__.ttf]], 10, "OUTLINE")
     f.stackText:SetPoint("BOTTOMRIGHT", -2, 2)
     
-    
     return f
 end
 
@@ -54,12 +51,10 @@ function Icon:New(frame, trackedItem, displayMode)
     self.displayMode = displayMode or Config.DisplayMode.ALWAYS
     self.showCooldownText = true
     
-    -- Initialize frame with trackedItem data
     if trackedItem then
         self.frame.icon:SetTexture(trackedItem:GetTexture())
     end
     
-    -- Reset state
     self.frame.icon:SetDesaturated(false)
     self.frame:SetAlpha(1)
     self.frame.cooldown:Hide()
@@ -160,7 +155,6 @@ function Icon:Refresh()
         self.frame:Hide()
     end
     
-    -- Return true if visibility changed (for layout update)
     return wasShown ~= shouldShow
 end
 
@@ -197,7 +191,7 @@ function Icon:RenderInactive()
     self.frame.text:SetText("")
 end
 
-function Icon:UpdateCooldownText(now)
+function Icon:UpdateCooldownText()
     if not self.showCooldownText or not self.trackedItem then
         self.frame.text:SetText("")
         return
@@ -213,12 +207,12 @@ end
 
 function Icon:FormatTime(seconds)
     if seconds >= 60 then
-        return string.format("%dm", math.floor(seconds / 60))
+        return string_format("%dm", math_floor(seconds / 60))
     end
     if seconds >= 10 then
-        return tostring(math.floor(seconds))
+        return tostring(math_floor(seconds))
     end
-    return string.format("%.1f", seconds)
+    return string_format("%.1f", seconds)
 end
 
 -- ==========================================================
@@ -239,7 +233,6 @@ function Icon:ApplyStyle(styleOptions)
         "OUTLINE"
     )
 
-    -- Reuse existing border or create once
     if not self.frame.border then
         local border = CreateFrame("Frame", nil, self.frame)
         border:SetPoint("TOPLEFT", -1, 1)
