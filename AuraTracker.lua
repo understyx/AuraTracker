@@ -131,6 +131,7 @@ function AuraTracker:OnEnable()
     hooksecurefunc("AuraButton_Update", function(buttonName, index, filter)
         DragDrop:HookAuraButtonByName(buttonName, index, filter)
     end)
+    DragDrop:HookTooltipAuraDetection()
 
 end
 

@@ -208,6 +208,14 @@ local FILTER_KEY_MAP = {
     HARMFUL = "PLAYER_DEBUFF",
 }
 
+-- Reverse lookup from Config.AuraFilter: "unit|filter" → filterKey
+-- Supports all units (player, target, focus) so addon frames for any
+-- unit type can be hooked automatically.
+local UNIT_FILTER_TO_KEY = {}
+for key, data in pairs(Config.AuraFilter) do
+    UNIT_FILTER_TO_KEY[data.unit .. "|" .. data.filter] = key
+end
+
 function DragDrop:HookAuraButtonByName(buttonName, index, filter)
     local button = _G[buttonName .. index]
     if not button or button._auraTrackerHooked then return end
@@ -226,6 +234,23 @@ function DragDrop:HookBuffButtons()
     for i = 1, 16 do
         self:HookAuraButtonByName("DebuffButton", i, "HARMFUL")
     end
+end
+
+-- Hook GameTooltip:SetUnitAura to detect aura frames created by any addon
+-- (ElvUI, TukUI, etc.). When a user hovers over an aura button that shows
+-- a UnitAura tooltip, we apply our drag handlers so it can be dragged onto
+-- AuraTracker bars.
+function DragDrop:HookTooltipAuraDetection()
+    hooksecurefunc(GameTooltip, "SetUnitAura", function(_, unit, index, filter)
+        local frame = GetMouseFocus()
+        if not frame or frame._auraTrackerHooked then return end
+
+        local filterKey = UNIT_FILTER_TO_KEY[unit .. "|" .. filter]
+        if not filterKey then return end
+
+        self:HookAuraButton(frame, unit, filter, filterKey)
+        frame._auraTrackerHooked = true
+    end)
 end
 
 function DragDrop:GetDragFrame()
