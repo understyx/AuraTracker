@@ -88,7 +88,7 @@ local function CreateDropZoneFrame(bar, handler, clickCallback, auraDropHandler)
                 ClearCursor()
                 handler(cursorType, id, subType, isShift)
             elseif auraDropHandler and auraDropHandler() then
-                -- Buff/debuff drag-and-drop handled
+                -- Aura drag from buff frame (no cursor item); handled before clickCallback
             else
                 clickCallback()
             end
