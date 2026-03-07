@@ -948,21 +948,13 @@ function ns.UpdateBarOptions(options)
     -- "Move Bars" edit-mode toggle button
     options.args.bars.args["__editMode"] = {
         type  = "execute",
-        name  = function()
-            if LibEditmode and LibEditmode:IsEditModeActive("AuraTracker") then
-                return "|cFFFF4444Stop Moving Bars|r"
-            end
-            return "Move Bars"
-        end,
+        name  = "Toggle Move Bars",
         desc  = "Toggle edit mode to drag bars to new positions on screen.",
         order = -1,
         width = "normal",
         func  = function()
             if LibEditmode then
                 LibEditmode:ToggleEditMode("AuraTracker")
-                -- Defer so AceConfigDialog finishes reading user.rootframe
-                -- before the dialog is rebuilt (immediate call causes nil crash).
-                C_Timer.After(0.01, NotifyChange)
             end
         end,
     }
