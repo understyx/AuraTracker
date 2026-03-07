@@ -3,6 +3,7 @@ ns.AuraTracker = ns.AuraTracker or {}
 
 local Config = ns.AuraTracker.Config
 local CreateFrame = CreateFrame
+local GetTime = GetTime
 local math_floor, math_max = math.floor, math.max
 local string_format = string.format
 
@@ -141,12 +142,17 @@ function Icon:Refresh()
         return false
     end
     
+    -- Update texture in case it changed (e.g., exclusive group)
+    self.frame.icon:SetTexture(self.trackedItem:GetTexture())
+    
     local shouldShow = self:ShouldShow()
     local wasShown = self.frame:IsShown()
     
     if shouldShow then
         self.frame:Show()
-        if self.trackedItem:IsActive() then
+        if self.trackedItem:GetTrackType() == Config.TrackType.COOLDOWN_AURA then
+            self:RenderDualTrack()
+        elseif self.trackedItem:IsActive() then
             self:RenderActive()
         else
             self:RenderInactive()
@@ -191,9 +197,83 @@ function Icon:RenderInactive()
     self.frame.text:SetText("")
 end
 
+function Icon:RenderDualTrack()
+    local item = self.trackedItem
+
+    if item:IsOnCooldown() then
+        -- On cooldown: desaturated icon, show CD sweep
+        self.frame:SetAlpha(1)
+        self.frame.icon:SetDesaturated(true)
+        local duration = item:GetDuration()
+        local expiration = item:GetExpiration()
+        if duration and duration > 0 and expiration and expiration > 0 then
+            self.frame.cooldown:SetCooldown(expiration - duration, duration)
+            self.frame.cooldown:Show()
+        else
+            self.frame.cooldown:Hide()
+        end
+        local stacks = item:GetAuraStacks()
+        if stacks and stacks > 1 then
+            self.frame.stackText:SetText(stacks)
+            self.frame.stackText:Show()
+        else
+            self.frame.stackText:Hide()
+        end
+    elseif item:IsAuraActive() then
+        -- Ready + aura active: full color, show aura sweep + stacks
+        self.frame:SetAlpha(1)
+        self.frame.icon:SetDesaturated(false)
+        local auraDur = item:GetAuraDuration()
+        local auraExp = item:GetAuraExpiration()
+        if auraDur and auraDur > 0 and auraExp and auraExp > 0 then
+            self.frame.cooldown:SetCooldown(auraExp - auraDur, auraDur)
+            self.frame.cooldown:Show()
+        else
+            self.frame.cooldown:Hide()
+        end
+        local stacks = item:GetAuraStacks()
+        if stacks and stacks > 1 then
+            self.frame.stackText:SetText(stacks)
+            self.frame.stackText:Show()
+        else
+            self.frame.stackText:Hide()
+        end
+    else
+        -- Ready + no aura: full color, no sweep
+        self.frame:SetAlpha(1)
+        self.frame.icon:SetDesaturated(false)
+        self.frame.cooldown:Hide()
+        self.frame.stackText:Hide()
+        self.frame.text:SetText("")
+    end
+end
+
 function Icon:UpdateCooldownText()
     if not self.showCooldownText or not self.trackedItem then
         self.frame.text:SetText("")
+        return
+    end
+    
+    local item = self.trackedItem
+    
+    if item:GetTrackType() == Config.TrackType.COOLDOWN_AURA then
+        if item:IsOnCooldown() then
+            local remaining = item:GetRemaining()
+            if remaining > 0 then
+                self.frame.text:SetText(self:FormatTime(remaining))
+            else
+                self.frame.text:SetText("")
+            end
+        elseif item:IsAuraActive() then
+            local remaining = item:GetAuraExpiration() - GetTime()
+            if remaining > 0 then
+                self.frame.text:SetText(self:FormatTime(remaining))
+            else
+                self.frame.text:SetText("")
+            end
+        else
+            self.frame.text:SetText("")
+        end
         return
     end
     

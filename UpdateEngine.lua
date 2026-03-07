@@ -87,10 +87,15 @@ function UpdateEngine:UpdateAllCooldowns()
 
             for _, icon in ipairs(bar:GetIcons()) do
                 local item = icon:GetTrackedItem()
-                if item and item:GetTrackType() == Config.TrackType.COOLDOWN then
-                    local changed = item:Update(gcdStart, gcdDuration, db.ignoreGCD)
-                    local visChanged = icon:Refresh()
-                    needsLayout = needsLayout or visChanged
+                if item then
+                    local tt = item:GetTrackType()
+                    if tt == Config.TrackType.COOLDOWN
+                    or tt == Config.TrackType.ITEM
+                    or tt == Config.TrackType.COOLDOWN_AURA then
+                        local changed = item:Update(gcdStart, gcdDuration, db.ignoreGCD)
+                        local visChanged = icon:Refresh()
+                        needsLayout = needsLayout or visChanged
+                    end
                 end
             end
 
@@ -110,10 +115,14 @@ function UpdateEngine:UpdateAllAuras()
 
             for _, icon in ipairs(bar:GetIcons()) do
                 local item = icon:GetTrackedItem()
-                if item and item:GetTrackType() == Config.TrackType.AURA then
-                    local changed = item:Update()
-                    local visChanged = icon:Refresh()
-                    needsLayout = needsLayout or visChanged
+                if item then
+                    local tt = item:GetTrackType()
+                    if tt == Config.TrackType.AURA
+                    or tt == Config.TrackType.COOLDOWN_AURA then
+                        local changed = item:Update()
+                        local visChanged = icon:Refresh()
+                        needsLayout = needsLayout or visChanged
+                    end
                 end
             end
 
@@ -133,12 +142,16 @@ function UpdateEngine:UpdateAurasForUnit(unit)
 
             for _, icon in ipairs(bar:GetIcons()) do
                 local item = icon:GetTrackedItem()
-                if item and item:GetTrackType() == Config.TrackType.AURA then
-                    -- Only update if this item tracks the specified unit
-                    if item.unit == unit then
-                        local changed = item:Update()
-                        local visChanged = icon:Refresh()
-                        needsLayout = needsLayout or visChanged
+                if item then
+                    local tt = item:GetTrackType()
+                    if tt == Config.TrackType.AURA
+                    or tt == Config.TrackType.COOLDOWN_AURA then
+                        -- Only update if this item tracks the specified unit
+                        if item.unit == unit then
+                            local changed = item:Update()
+                            local visChanged = icon:Refresh()
+                            needsLayout = needsLayout or visChanged
+                        end
                     end
                 end
             end
@@ -183,7 +196,10 @@ function UpdateEngine:RefreshBar(barKey)
         icon:ApplyStyle(styleOptions)
         local item = icon:GetTrackedItem()
         if item then
-            if item:GetTrackType() == Config.TrackType.COOLDOWN then
+            local tt = item:GetTrackType()
+            if tt == Config.TrackType.COOLDOWN
+            or tt == Config.TrackType.ITEM
+            or tt == Config.TrackType.COOLDOWN_AURA then
                 item:Update(gcdStart, gcdDuration, db.ignoreGCD)
             else
                 item:Update()

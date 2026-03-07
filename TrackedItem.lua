@@ -3,6 +3,7 @@ ns.AuraTracker = ns.AuraTracker or {}
 
 local Config = ns.AuraTracker.Config
 local GetSpellInfo, GetSpellCooldown = GetSpellInfo, GetSpellCooldown
+local GetItemInfo, GetItemCooldown = GetItemInfo, GetItemCooldown
 local GetTime, UnitAura = GetTime, UnitAura
 local math_abs = math.abs
 
@@ -24,6 +25,7 @@ function TrackedItem:New(id, trackType, options)
     
     self.auraId = options.auraId or Config:GetMappedAuraId(id)
     self.filterKey = options.filterKey
+    self.onlyMine = options.onlyMine or false
     
     local filterData = Config:GetAuraFilter(self.filterKey)
     if filterData then
@@ -31,15 +33,37 @@ function TrackedItem:New(id, trackType, options)
         self.filter = filterData.filter
     end
     
-    local name, _, texture = GetSpellInfo(self.auraId or id)
-    self.name = name
-    self.texture = texture
+    -- Auto-detect exclusive group for aura-tracking types
+    if trackType == Config.TrackType.AURA or trackType == Config.TrackType.COOLDOWN_AURA then
+        self.exclusiveGroup = options.exclusiveGroup or Config:GetExclusiveGroup(id)
+    end
+    
+    -- Get name/texture based on track type
+    if trackType == Config.TrackType.ITEM then
+        local itemName, _, _, _, _, _, _, _, _, itemTexture = GetItemInfo(id)
+        self.name = itemName
+        self.texture = itemTexture
+    else
+        local name, _, texture = GetSpellInfo(self.auraId or id)
+        self.name = name
+        self.texture = texture
+    end
+    self.originalTexture = self.texture
 
     self.active = false
     self.duration = 0
     self.expiration = 0
     self.stacks = 0
     self.actualCooldownEnd = nil
+    
+    -- Dual-track state
+    if trackType == Config.TrackType.COOLDOWN_AURA then
+        self.onCooldown = false
+        self.auraActive = false
+        self.auraDuration = 0
+        self.auraExpiration = 0
+        self.auraStacks = 0
+    end
     
     return self
 end
@@ -93,6 +117,10 @@ function TrackedItem:Update(gcdStart, gcdDuration, ignoreGCD)
         return self:UpdateCooldown(gcdStart, gcdDuration, ignoreGCD)
     elseif self.trackType == Config.TrackType.AURA then
         return self:UpdateAura()
+    elseif self.trackType == Config.TrackType.ITEM then
+        return self:UpdateItem()
+    elseif self.trackType == Config.TrackType.COOLDOWN_AURA then
+        return self:UpdateCooldownAura(gcdStart, gcdDuration, ignoreGCD)
     end
     return false
 end
@@ -151,8 +179,17 @@ function TrackedItem:UpdateAura()
     local wasActive = self.active
     local prevStacks = self.stacks
 
+    local filter = self.filter
+    if self.onlyMine and filter then
+        filter = filter .. "|PLAYER"
+    end
+
+    if self.exclusiveGroup then
+        return self:UpdateAuraExclusive(filter, wasActive, prevStacks)
+    end
+
     local name, _, _, count, _, duration, expiration =
-        UnitAura(self.unit, self.name, nil, self.filter)
+        UnitAura(self.unit, self.name, nil, filter)
 
     if name then
         self.active = true
@@ -167,4 +204,155 @@ function TrackedItem:UpdateAura()
     end
 
     return wasActive ~= self.active or prevStacks ~= self.stacks
+end
+
+function TrackedItem:UpdateAuraExclusive(filter, wasActive, prevStacks)
+    local group = self.exclusiveGroup
+    local unit = self.unit
+
+    self.active = false
+    self.duration = 0
+    self.expiration = 0
+    self.stacks = 0
+
+    for i = 1, 40 do
+        local name, _, _, count, _, duration, expiration, _, _, _, spellId =
+            UnitAura(unit, i, filter)
+        if not name then break end
+
+        if group.spells[spellId] then
+            self.active = true
+            self.duration = duration or 0
+            self.expiration = expiration or 0
+            self.stacks = count or 0
+            local _, _, tex = GetSpellInfo(spellId)
+            if tex then self.texture = tex end
+            break
+        end
+    end
+
+    if not self.active then
+        self.texture = self.originalTexture
+    end
+
+    return wasActive ~= self.active or prevStacks ~= self.stacks
+end
+
+function TrackedItem:UpdateItem()
+    local wasActive = self.active
+    local start, duration, enabled = GetItemCooldown(self.id)
+
+    if not start or enabled ~= 1 then
+        self.active = false
+        self.duration = 0
+        self.expiration = 0
+        return wasActive ~= self.active
+    end
+
+    if duration == 0 then
+        self.active = true
+        self.duration = 0
+        self.expiration = 0
+        return wasActive ~= self.active
+    end
+
+    self.active = false
+    self.duration = duration
+    self.expiration = start + duration
+
+    return wasActive ~= self.active
+end
+
+function TrackedItem:UpdateCooldownAura(gcdStart, gcdDuration, ignoreGCD)
+    local changed = false
+    local wasActive = self.active
+    local wasOnCD = self.onCooldown
+    local wasAuraActive = self.auraActive
+    local prevStacks = self.auraStacks
+
+    -- Cooldown part
+    local start, duration, enabled = GetSpellCooldown(self.id)
+    local now = GetTime()
+
+    if start and enabled == 1 and duration > 0 then
+        local isGCD = false
+        if gcdStart and gcdDuration then
+            isGCD = math_abs(start - gcdStart) < 0.05 and math_abs(duration - gcdDuration) < 0.05
+        end
+        if ignoreGCD and isGCD then
+            self.onCooldown = false
+        else
+            self.onCooldown = true
+            self.duration = duration
+            self.expiration = start + duration
+        end
+    else
+        self.onCooldown = false
+    end
+
+    -- Aura part
+    local filter = self.filter
+    if self.onlyMine and filter then
+        filter = filter .. "|PLAYER"
+    end
+
+    local aName, _, _, count, _, auraDuration, auraExpiration =
+        UnitAura(self.unit, self.name, nil, filter)
+
+    if aName then
+        self.auraActive = true
+        self.auraDuration = auraDuration or 0
+        self.auraExpiration = auraExpiration or 0
+        self.auraStacks = count or 0
+    else
+        self.auraActive = false
+        self.auraDuration = 0
+        self.auraExpiration = 0
+        self.auraStacks = 0
+    end
+
+    -- Combined state: "active" = ready to use (not on CD)
+    self.active = not self.onCooldown
+
+    -- Set display values based on priority
+    if not self.onCooldown and self.auraActive then
+        self.duration = self.auraDuration
+        self.expiration = self.auraExpiration
+        self.stacks = self.auraStacks
+    elseif not self.onCooldown then
+        self.duration = 0
+        self.expiration = 0
+        self.stacks = 0
+    else
+        self.stacks = self.auraStacks
+    end
+
+    changed = wasActive ~= self.active or wasOnCD ~= self.onCooldown
+        or wasAuraActive ~= self.auraActive or prevStacks ~= self.auraStacks
+
+    return changed
+end
+
+-- ==========================================================
+-- DUAL-TRACK GETTERS
+-- ==========================================================
+
+function TrackedItem:IsOnCooldown()
+    return self.onCooldown or false
+end
+
+function TrackedItem:IsAuraActive()
+    return self.auraActive or false
+end
+
+function TrackedItem:GetAuraDuration()
+    return self.auraDuration or 0
+end
+
+function TrackedItem:GetAuraExpiration()
+    return self.auraExpiration or 0
+end
+
+function TrackedItem:GetAuraStacks()
+    return self.auraStacks or 0
 end

@@ -10,8 +10,10 @@ local GetSpellInfo = GetSpellInfo
 -- ==========================================================
 
 local TRACK_TYPES = {
-    ["cooldown"] = "Cooldown",
-    ["aura"]     = "Aura",
+    ["cooldown"]      = "Cooldown",
+    ["aura"]          = "Aura",
+    ["item"]          = "Item",
+    ["cooldown_aura"] = "Cooldown + Aura",
 }
 
 local AURA_SOURCES = {
@@ -32,6 +34,13 @@ local function GetTrackTypeLabel(trackType, filterKey)
     if trackType == "aura" then
         local src = filterKey and AURA_SOURCES[filterKey] or "aura"
         return "|cFFAAFFAA" .. src .. "|r"
+    end
+    if trackType == "item" then
+        return "|cFFFFD700item|r"
+    end
+    if trackType == "cooldown_aura" then
+        local src = filterKey and AURA_SOURCES[filterKey] or "aura"
+        return "|cFFAAD4FFcooldown|r + |cFFAAFFAA" .. src .. "|r"
     end
     return "|cFFAAD4FFcooldown|r"
 end
@@ -111,7 +120,7 @@ function ns.CreateMappingsOptions()
                         desc   = "Which unit and buff/debuff type to monitor when tracking as aura.",
                         values = AURA_SOURCES,
                         order  = 11,
-                        hidden = function() return m.trackType ~= "aura" end,
+                        hidden = function() return m.trackType ~= "aura" and m.trackType ~= "cooldown_aura" end,
                         get    = function() return m.filterKey or "target_debuff" end,
                         set    = function(_, val)
                             m.filterKey = val
@@ -123,7 +132,7 @@ function ns.CreateMappingsOptions()
                         name  = "Aura ID Override",
                         desc  = "Override which spell ID is scanned as the aura. Leave blank to use the same ID.",
                         order = 12,
-                        hidden = function() return m.trackType ~= "aura" end,
+                        hidden = function() return m.trackType ~= "aura" and m.trackType ~= "cooldown_aura" end,
                         get   = function() return tostring(m.auraId or spellId) end,
                         set   = function(_, val)
                             local n = tonumber(val)

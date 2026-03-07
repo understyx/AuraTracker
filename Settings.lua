@@ -5,7 +5,7 @@ local tonumber, tostring = tonumber, tostring
 local table_insert, table_sort, table_remove = table.insert, table.sort, table.remove
 local math_max, math_min, math_floor = math.max, math.min, math.floor
 local string_format, string_upper = string.format, string.upper
-local GetSpellInfo = GetSpellInfo
+local GetSpellInfo, GetItemInfo = GetSpellInfo, GetItemInfo
 
 local LibEditmode = LibStub("LibEditmode-1.0", true)
 
@@ -46,8 +46,15 @@ local L = {
         ["missing_only"] = "Show When Missing",
     },
     TRACK_TYPES = {
-        ["cooldown"] = "Cooldown",
-        ["aura"]     = "Aura",
+        ["cooldown"]      = "Cooldown",
+        ["aura"]          = "Aura",
+        ["item"]          = "Item",
+        ["cooldown_aura"] = "Cooldown + Aura",
+    },
+    DUAL_DISPLAY_MODES = {
+        ["always"]       = "Always Show",
+        ["active_only"]  = "Show When Ready",
+        ["missing_only"] = "Show When Unavailable",
     },
 }
 
@@ -71,10 +78,29 @@ local function GetSpellNameByID(spellId)
     return name or "Unknown Spell", icon
 end
 
+local function GetItemNameByID(itemId)
+    local name, _, _, _, _, _, _, _, _, texture = GetItemInfo(itemId)
+    return name or "Unknown Item", texture
+end
+
+local function GetTrackedNameAndIcon(id, trackType)
+    if trackType == "item" then
+        return GetItemNameByID(id)
+    end
+    return GetSpellNameByID(id)
+end
+
 local function GetTrackTypeLabel(trackType, filterKey)
     if trackType == "aura" then
         local src = filterKey and L.AURA_SOURCES[filterKey] or "aura"
         return "|cFFAAFFAA" .. src .. "|r"
+    end
+    if trackType == "item" then
+        return "|cFFFFD700item|r"
+    end
+    if trackType == "cooldown_aura" then
+        local src = filterKey and L.AURA_SOURCES[filterKey] or "aura"
+        return "|cFFAAD4FFcooldown|r + |cFFAAFFAA" .. src .. "|r"
     end
     return "|cFFAAD4FFcooldown|r"
 end
@@ -196,8 +222,12 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
     local data = barData.trackedItems[spellId]
     if not data then return end
 
-    local name, icon = GetSpellNameByID(spellId)
+    local name, icon = GetTrackedNameAndIcon(spellId, data.trackType)
     local isCooldown = (data.trackType == "cooldown")
+    local isItem = (data.trackType == "item")
+    local isAura = (data.trackType == "aura")
+    local isCooldownAura = (data.trackType == "cooldown_aura")
+    local hasAuraOptions = isAura or isCooldownAura
     local currentIndex, totalIcons = GetSortedIconIndex(barData, spellId)
 
     args.editorHeader = {
@@ -224,11 +254,19 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
             NotifyChange()
         end,
     }
+    local displayValues
+    if isCooldownAura then
+        displayValues = L.DUAL_DISPLAY_MODES
+    elseif isCooldown or isItem then
+        displayValues = L.COOLDOWN_DISPLAY_MODES
+    else
+        displayValues = L.AURA_DISPLAY_MODES
+    end
     args.editorDisplayMode = {
         type = "select",
         name = "Visibility",
         desc = "When should this icon be visible?",
-        values = isCooldown and L.COOLDOWN_DISPLAY_MODES or L.AURA_DISPLAY_MODES,
+        values = displayValues,
         order = orderBase + 10,
         get = function() return data.displayMode or "always" end,
         set = function(_, val)
@@ -237,8 +275,8 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
         end,
     }
 
-    -- Aura-only: source (unit + buff/debuff) and optional aura-ID override
-    if not isCooldown then
+    -- Aura options: source, aura-ID override, "only mine" toggle
+    if hasAuraOptions then
         args.editorAuraSource = {
             type = "select",
             name = "Track From",
@@ -267,6 +305,18 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
             set = function(_, val)
                 local n = tonumber(val)
                 data.auraId = (n and n ~= spellId) and n or nil
+                NotifyAndRebuild(barKey)
+            end,
+        }
+        args.editorOnlyMine = {
+            type = "toggle",
+            name = "Only Mine",
+            desc = "Only track auras cast by you. Uncheck to track auras from any player (e.g. Improved Scorch from another mage).",
+            order = orderBase + 13,
+            width = "full",
+            get = function() return data.onlyMine or false end,
+            set = function(_, val)
+                data.onlyMine = val
                 NotifyAndRebuild(barKey)
             end,
         }
@@ -327,12 +377,12 @@ local function CreateIconListOptions(barKey, barData)
     local st = addState[barKey]
 
     local args = {
-        addHeader = { type = "header", name = "Add Spell", order = 1 },
+        addHeader = { type = "header", name = "Add Tracked Entry", order = 1 },
 
         addTrackType = {
             type = "select",
             name = "Track As",
-            desc = "Whether to track this spell's cooldown or the aura it applies.",
+            desc = "Whether to track a cooldown, aura, item, or combined cooldown + aura.",
             values = L.TRACK_TYPES,
             order = 2,
             width = "half",
@@ -350,7 +400,7 @@ local function CreateIconListOptions(barKey, barData)
             values = L.AURA_SOURCES,
             order = 3,
             width = "half",
-            hidden = function() return st.trackType ~= "aura" end,
+            hidden = function() return st.trackType ~= "aura" and st.trackType ~= "cooldown_aura" end,
             get = function() return st.filterKey end,
             set = function(_, v)
                 st.filterKey = v
@@ -360,40 +410,84 @@ local function CreateIconListOptions(barKey, barData)
 
         addSpellId = {
             type = "input",
-            name = "Spell ID  (press Enter to add)",
-            desc = "Enter the numeric Spell ID and press Enter.",
+            name = function()
+                if st.trackType == "item" then
+                    return "Item ID  (press Enter to add)"
+                end
+                return "Spell ID  (press Enter to add)"
+            end,
+            desc = function()
+                if st.trackType == "item" then
+                    return "Enter the numeric Item ID and press Enter."
+                end
+                return "Enter the numeric Spell ID and press Enter."
+            end,
             order = 4,
             width = "full",
             get = function() return "" end,
             set = function(_, val)
-                local spellId = tonumber(val)
-                if not spellId then return end
+                local id = tonumber(val)
+                if not id then return end
 
-                if barData.trackedItems[spellId] then
-                    print("|cFFFF0000Aura Tracker:|r This spell is already on this bar.")
-                    return
-                end
-                local spellName = GetSpellInfo(spellId)
-                if not spellName then
-                    print("|cFFFF0000Aura Tracker:|r Spell ID " .. spellId .. " not found.")
+                if barData.trackedItems[id] then
+                    print("|cFFFF0000Aura Tracker:|r This entry is already on this bar.")
                     return
                 end
 
                 local nextOrder = GetNextOrder(barData.trackedItems)
 
-                if st.trackType == "cooldown" then
-                    barData.trackedItems[spellId] = {
+                if st.trackType == "item" then
+                    local itemName = GetItemInfo(id)
+                    if not itemName then
+                        print("|cFFFF0000Aura Tracker:|r Item ID " .. id .. " not found.")
+                        return
+                    end
+                    barData.trackedItems[id] = {
+                        order       = nextOrder,
+                        trackType   = "item",
+                        displayMode = "always",
+                    }
+                elseif st.trackType == "cooldown" then
+                    local spellName = GetSpellInfo(id)
+                    if not spellName then
+                        print("|cFFFF0000Aura Tracker:|r Spell ID " .. id .. " not found.")
+                        return
+                    end
+                    barData.trackedItems[id] = {
                         order       = nextOrder,
                         trackType   = "cooldown",
                         displayMode = "always",
                     }
-                else
+                elseif st.trackType == "cooldown_aura" then
+                    local spellName = GetSpellInfo(id)
+                    if not spellName then
+                        print("|cFFFF0000Aura Tracker:|r Spell ID " .. id .. " not found.")
+                        return
+                    end
                     local fk = st.filterKey or "target_debuff"
                     local fd = GetFilterData(fk)
-                    barData.trackedItems[spellId] = {
+                    barData.trackedItems[id] = {
+                        order       = nextOrder,
+                        trackType   = "cooldown_aura",
+                        auraId      = id,
+                        type        = fk,
+                        unit        = fd and fd.unit   or "target",
+                        filter      = fd and fd.filter or "HARMFUL",
+                        displayMode = "always",
+                        onlyMine    = false,
+                    }
+                else
+                    local spellName = GetSpellInfo(id)
+                    if not spellName then
+                        print("|cFFFF0000Aura Tracker:|r Spell ID " .. id .. " not found.")
+                        return
+                    end
+                    local fk = st.filterKey or "target_debuff"
+                    local fd = GetFilterData(fk)
+                    barData.trackedItems[id] = {
                         order       = nextOrder,
                         trackType   = "aura",
-                        auraId      = spellId,
+                        auraId      = id,
                         type        = fk,
                         unit        = fd and fd.unit   or "target",
                         filter      = fd and fd.filter or "HARMFUL",
@@ -401,7 +495,7 @@ local function CreateIconListOptions(barKey, barData)
                     }
                 end
 
-                editState.selectedAura = spellId
+                editState.selectedAura = id
                 NotifyAndRebuild(barKey)
             end,
         },
@@ -425,7 +519,7 @@ local function CreateIconListOptions(barKey, barData)
         }
         for i, item in ipairs(sortedItems) do
             local spellId     = item.spellId
-            local spellName, spellIcon = GetSpellNameByID(spellId)
+            local spellName, spellIcon = GetTrackedNameAndIcon(spellId, item.data.trackType)
             local typeLabel   = GetTrackTypeLabel(item.data.trackType, item.data.type)
 
             -- Compact icon button – click to configure
@@ -511,6 +605,18 @@ local function CreateBarSettings(barKey, barData)
                     get   = function() return barData.ignoreGCD ~= false end,
                     set   = function(_, val)
                         barData.ignoreGCD = val
+                        NotifyAndRebuild(barKey)
+                    end,
+                },
+                showOnlyKnown = {
+                    type  = "toggle",
+                    name  = "Show Only Known Spells",
+                    desc  = "Only show icons for spells your character currently knows. Unknown spells are hidden automatically.",
+                    order = 4,
+                    width = "full",
+                    get   = function() return barData.showOnlyKnown or false end,
+                    set   = function(_, val)
+                        barData.showOnlyKnown = val
                         NotifyAndRebuild(barKey)
                     end,
                 },
