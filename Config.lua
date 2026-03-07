@@ -58,7 +58,7 @@ Config.GCD_THRESHOLD = 1.6
 -- The UI can show both states (e.g., cooldown sweep + debuff duration).
 -- Future: Implement dual-display mode in Icon.lua for these spells.
 Config.DualTrackSpells = {
-    -- [spellId] = { auraId = auraId, filterKey = "TARGET_DEBUFF" },
+    -- [spellId] = { auraId = 12345, filterKey = "TARGET_DEBUFF" },
 }
 
 -- ==========================================================

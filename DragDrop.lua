@@ -19,8 +19,9 @@ ns.AuraTracker.DragDrop = DragDrop
 -- INITIALIZATION
 -- ==========================================================
 
-function DragDrop:Init(controller)
+function DragDrop:Init(controller, onBarClick)
     self.controller = controller
+    self.onBarClick = onBarClick
     self.dropZones = {}
     self.isDragging = false
     self.draggedAura = nil
@@ -97,8 +98,7 @@ function DragDrop:ShowDropZones()
                     self:HandleDrop(barKey, cursorType, id, subType, isShift)
                 end,
                 function()
-                    local SP = ns.AuraTracker.SettingsPanel
-                    if SP then SP:Show(barKey) end
+                    if self.onBarClick then self.onBarClick(barKey) end
                 end
             )
             self.dropZones[barKey] = dropZone

@@ -109,7 +109,10 @@ function AuraTracker:OnEnable()
     end
 
     -- Initialize extracted modules
-    DragDrop:Init(self)
+    DragDrop:Init(self, function(barKey)
+        local SP = ns.AuraTracker.SettingsPanel
+        if SP then SP:Show(barKey) end
+    end)
     UpdateEngine:Init(self)
 
     self:RebuildAllBars()

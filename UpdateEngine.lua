@@ -183,7 +183,11 @@ function UpdateEngine:RefreshBar(barKey)
         icon:ApplyStyle(styleOptions)
         local item = icon:GetTrackedItem()
         if item then
-            item:Update(gcdStart, gcdDuration, db.ignoreGCD)
+            if item:GetTrackType() == Config.TrackType.COOLDOWN then
+                item:Update(gcdStart, gcdDuration, db.ignoreGCD)
+            else
+                item:Update()
+            end
             local visChanged = icon:Refresh()
             needsLayout = needsLayout or visChanged
         end
