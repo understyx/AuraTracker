@@ -60,7 +60,7 @@ local function CreateDropZoneFrame(bar, handler, clickCallback)
 
     local label = dropZone:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     label:SetPoint("CENTER")
-    label:SetText("Drop Spell Here")
+    label:SetText("Drop Here")
     dropZone.label = label
 
     dropZone:EnableMouse(true)
@@ -75,7 +75,7 @@ local function CreateDropZoneFrame(bar, handler, clickCallback)
     dropZone:SetScript("OnMouseUp", function(_, button)
         if button == "LeftButton" then
             local cursorType, id, subType = GetCursorInfo()
-            if cursorType == "spell" then
+            if cursorType == "spell" or cursorType == "item" then
                 local isShift = IsShiftKeyDown()
                 ClearCursor()
                 handler(cursorType, id, subType, isShift)
@@ -123,6 +123,10 @@ end
 -- ==========================================================
 
 function DragDrop:HandleDrop(barKey, cursorType, id, subType, isShift)
+    if cursorType == "item" then
+        return self:HandleItemDrop(barKey, id)
+    end
+
     if cursorType ~= "spell" then return end
 
     local controller = self.controller
@@ -145,16 +149,29 @@ function DragDrop:HandleDrop(barKey, cursorType, id, subType, isShift)
                 local fkLabel = fk:lower():gsub("_", " ")
                 controller:Print("Now tracking |cff00ff00" .. result .. "|r (" .. fkLabel .. ", mapped)")
             end
+        elseif mapping.trackType == Config.TrackType.COOLDOWN_AURA then
+            local fk = mapping.filterKey or "TARGET_DEBUFF"
+            success, result = controller:AddCooldownAura(barKey, spellId, fk, mapping.auraId)
+            if success then
+                controller:Print("Now tracking |cff00ff00" .. result .. "|r cooldown + aura (mapped)")
+            end
         else
             success, result = controller:AddCooldown(barKey, spellId)
             if success then
                 controller:Print("Now tracking |cff00ff00" .. result .. "|r cooldown (mapped)")
             end
         end
+    elseif Config.DualTrackSpells[spellId] then
+        local dualConfig = Config.DualTrackSpells[spellId]
+        local fk = dualConfig.filterKey or "TARGET_DEBUFF"
+        success, result = controller:AddCooldownAura(barKey, spellId, fk, dualConfig.auraId)
+        if success then
+            controller:Print("Now tracking |cff00ff00" .. result .. "|r cooldown + aura")
+        end
     elseif isShift then
         success, result = controller:AddAura(barKey, spellId, "TARGET_DEBUFF")
         if success then
-            controller:Print("Now tracking |cff00ff00" .. result .. "|r as target debuff")
+            controller:Print("Now tracking |cff00ff00" .. result .. "|r as target debuff (only mine)")
         end
     else
         success, result = controller:AddCooldown(barKey, spellId)
@@ -164,6 +181,20 @@ function DragDrop:HandleDrop(barKey, cursorType, id, subType, isShift)
     end
 
     if not success and result then
+        controller:Print("Failed: " .. result)
+    end
+end
+
+-- ==========================================================
+-- ITEM DROP HANDLING
+-- ==========================================================
+
+function DragDrop:HandleItemDrop(barKey, itemId)
+    local controller = self.controller
+    local success, result = controller:AddItem(barKey, itemId)
+    if success then
+        controller:Print("Now tracking |cff00ff00" .. result .. "|r item cooldown")
+    elseif result then
         controller:Print("Failed: " .. result)
     end
 end

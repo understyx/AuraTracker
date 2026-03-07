@@ -10,7 +10,7 @@ local UpdateEngine = ns.AuraTracker.UpdateEngine
 
 -- Localize frequently-used globals
 local pairs, ipairs, wipe = pairs, ipairs, wipe
-local GetSpellInfo = GetSpellInfo
+local GetSpellInfo, GetItemInfo = GetSpellInfo, GetItemInfo
 local UnitGUID, UnitClass = UnitGUID, UnitClass
 local IsSpellKnown = IsSpellKnown
 local math_max = math.max
@@ -315,7 +315,12 @@ function AuraTracker:RebuildBar(barKey)
                 self:CreateCooldownIcon(barKey, spellId, order, styleOptions, data.displayMode)
             elseif data.trackType == Config.TrackType.AURA then
                 local filterKey = data.type and string_upper(data.type) or "TARGET_DEBUFF"
-                self:CreateAuraIcon(barKey, spellId, filterKey, data.auraId, order, styleOptions, data.displayMode)
+                self:CreateAuraIcon(barKey, spellId, filterKey, data.auraId, order, styleOptions, data.displayMode, data.onlyMine, data.exclusiveSpells)
+            elseif data.trackType == Config.TrackType.ITEM then
+                self:CreateItemIcon(barKey, spellId, order, styleOptions, data.displayMode)
+            elseif data.trackType == Config.TrackType.COOLDOWN_AURA then
+                local filterKey = data.type and string_upper(data.type) or "TARGET_DEBUFF"
+                self:CreateCooldownAuraIcon(barKey, spellId, filterKey, data.auraId, order, styleOptions, data.displayMode, data.onlyMine, data.exclusiveSpells)
             end
         end
     end
@@ -410,7 +415,7 @@ function AuraTracker:CreateCooldownIcon(barKey, spellId, order, styleOptions, di
     return icon
 end
 
-function AuraTracker:CreateAuraIcon(barKey, spellId, filterKey, auraId, order, styleOptions, displayMode)
+function AuraTracker:CreateAuraIcon(barKey, spellId, filterKey, auraId, order, styleOptions, displayMode, onlyMine, exclusiveSpells)
     local bar = self.bars[barKey]
     if not bar then return nil end
     
@@ -419,6 +424,8 @@ function AuraTracker:CreateAuraIcon(barKey, spellId, filterKey, auraId, order, s
     local item = TrackedItem:New(spellId, Config.TrackType.AURA, {
         auraId = auraId,
         filterKey = filterKey,
+        onlyMine = onlyMine,
+        exclusiveSpells = exclusiveSpells,
     })
     if not item:GetName() then return nil end
     
@@ -465,7 +472,7 @@ function AuraTracker:RemoveCooldown(barKey, spellId)
     return true
 end
 
-function AuraTracker:AddAura(barKey, spellId, filterKey, specificAuraId, displayMode)
+function AuraTracker:AddAura(barKey, spellId, filterKey, specificAuraId, displayMode, onlyMine)
     local db = self:GetBarDB(barKey)
     if not db then return false, "Bar not found" end
     
@@ -483,6 +490,11 @@ function AuraTracker:AddAura(barKey, spellId, filterKey, specificAuraId, display
     
     local finalDisplayMode = displayMode or Config:GetDefaultDisplayMode(Config.TrackType.AURA, filterKey)
     
+    -- Default to only tracking own auras (player usually wants their own debuffs)
+    if onlyMine == nil then
+        onlyMine = true
+    end
+    
     db.trackedItems[spellId] = {
         order = GetNextOrder(db.trackedItems),
         auraId = actualAuraId,
@@ -491,6 +503,7 @@ function AuraTracker:AddAura(barKey, spellId, filterKey, specificAuraId, display
         unit = filterData.unit,
         filter = filterData.filter,
         displayMode = finalDisplayMode,
+        onlyMine = onlyMine,
     }
     
     self:RebuildBar(barKey)
@@ -506,6 +519,113 @@ function AuraTracker:RemoveAura(barKey, spellId)
     self:RebuildBar(barKey)
     
     return true
+end
+
+function AuraTracker:CreateItemIcon(barKey, itemId, order, styleOptions, displayMode)
+    local bar = self.bars[barKey]
+    local db = self:GetBarDB(barKey)
+    if not bar or not db then return nil end
+    
+    local item = TrackedItem:New(itemId, Config.TrackType.ITEM)
+    if not item:GetName() then return nil end
+    
+    local frame = LibFramePool:Acquire(Icon.POOL_KEY, bar:GetFrame())
+    
+    local finalDisplayMode = displayMode or Config:GetDefaultDisplayMode(Config.TrackType.ITEM)
+    local icon = Icon:New(frame, item, finalDisplayMode)
+    icon.order = order
+    icon:ApplyStyle(styleOptions)
+    
+    self.items[barKey]["item_" .. itemId] = item
+    bar:AddIcon(icon)
+    
+    return icon
+end
+
+function AuraTracker:AddItem(barKey, itemId)
+    local db = self:GetBarDB(barKey)
+    if not db then return false, "Bar not found" end
+    
+    local name = GetItemInfo(itemId)
+    if not name then return false, "Item not found" end
+    
+    db.trackedItems = db.trackedItems or {}
+    if db.trackedItems[itemId] then return false, "Already tracked" end
+    
+    db.trackedItems[itemId] = {
+        order = GetNextOrder(db.trackedItems),
+        trackType = Config.TrackType.ITEM,
+        displayMode = Config.DisplayMode.ALWAYS,
+    }
+    self:RebuildBar(barKey)
+    
+    return true, name
+end
+
+function AuraTracker:CreateCooldownAuraIcon(barKey, spellId, filterKey, auraId, order, styleOptions, displayMode, onlyMine, exclusiveSpells)
+    local bar = self.bars[barKey]
+    local db = self:GetBarDB(barKey)
+    if not bar or not db then return nil end
+    
+    if db.showOnlyKnown and not (IsSpellKnown(spellId) or IsSpellKnown(spellId, true)) then
+        return nil
+    end
+    
+    filterKey = filterKey and string_upper(filterKey:gsub(" ", "_")) or "TARGET_DEBUFF"
+    
+    local item = TrackedItem:New(spellId, Config.TrackType.COOLDOWN_AURA, {
+        auraId = auraId,
+        filterKey = filterKey,
+        onlyMine = onlyMine,
+        exclusiveSpells = exclusiveSpells,
+    })
+    if not item:GetName() then return nil end
+    
+    local frame = LibFramePool:Acquire(Icon.POOL_KEY, bar:GetFrame())
+    
+    local finalDisplayMode = displayMode or Config:GetDefaultDisplayMode(Config.TrackType.COOLDOWN_AURA)
+    local icon = Icon:New(frame, item, finalDisplayMode)
+    icon.order = order
+    icon:ApplyStyle(styleOptions)
+    
+    self.items[barKey]["cda_" .. spellId] = item
+    bar:AddIcon(icon)
+    
+    return icon
+end
+
+function AuraTracker:AddCooldownAura(barKey, spellId, filterKey, specificAuraId, displayMode, onlyMine)
+    local db = self:GetBarDB(barKey)
+    if not db then return false, "Bar not found" end
+    
+    filterKey = filterKey or "TARGET_DEBUFF"
+    local filterData = Config:GetAuraFilter(filterKey)
+    if not filterData then return false, "Invalid filter type" end
+    
+    local name = GetSpellInfo(spellId)
+    if not name then return false, "Spell not found" end
+    
+    local actualAuraId = specificAuraId or Config:GetMappedAuraId(spellId)
+    
+    db.trackedItems = db.trackedItems or {}
+    if db.trackedItems[spellId] then return false, "Already tracked" end
+    
+    local finalDisplayMode = displayMode or Config:GetDefaultDisplayMode(Config.TrackType.COOLDOWN_AURA)
+    
+    db.trackedItems[spellId] = {
+        order = GetNextOrder(db.trackedItems),
+        auraId = actualAuraId,
+        type = filterKey:lower(),
+        trackType = Config.TrackType.COOLDOWN_AURA,
+        unit = filterData.unit,
+        filter = filterData.filter,
+        displayMode = finalDisplayMode,
+        onlyMine = onlyMine or false,
+    }
+    
+    self:RebuildBar(barKey)
+    
+    return true, name
 end
 
 -- ==========================================================
