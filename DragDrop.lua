@@ -241,8 +241,11 @@ end
 -- a UnitAura tooltip, we apply our drag handlers so it can be dragged onto
 -- AuraTracker bars.
 function DragDrop:HookTooltipAuraDetection()
+    if self._tooltipHookRegistered then return end
+    self._tooltipHookRegistered = true
+
     hooksecurefunc(GameTooltip, "SetUnitAura", function(_, unit, index, filter)
-        local frame = GetMouseFocus()
+        local frame = GameTooltip:GetOwner()
         if not frame or frame._auraTrackerHooked then return end
 
         local filterKey = UNIT_FILTER_TO_KEY[unit .. "|" .. filter]
