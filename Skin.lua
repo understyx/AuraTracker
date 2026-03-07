@@ -188,7 +188,6 @@ skinners["Frame"] = function(widget)
     -- Hide Blizzard title textures
     if widget.titlebg then widget.titlebg:SetTexture(nil) end
 
-    local titlebg_l = select(1, frame:GetRegions())
     -- Hide all ornamental header textures
     for i = 1, frame:GetNumRegions() do
         local region = select(i, frame:GetRegions())
@@ -348,8 +347,8 @@ skinners["TabGroup"] = function(widget)
                             tab._flatBorderFrame = bf
                         end
 
-                        -- Override the tab look function
-                        local origSetSelected = tab.SetSelected
+                        -- Replace the tab look function entirely (Blizzard PanelTemplates
+                        -- functions are bypassed because we stripped their textures).
                         tab.SetSelected = function(self, selected)
                             self.selected = selected
                             if self._flatBG then
