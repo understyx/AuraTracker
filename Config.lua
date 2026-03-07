@@ -63,10 +63,33 @@ Config.DualTrackSpells = {
     -- [spellId] = { auraId = 12345, filterKey = "TARGET_DEBUFF" },
 }
 
--- Note: Exclusive spell groups (e.g. warlock curses, corruption variants)
--- are now user-configurable per icon via the "Also Track" UI.
+-- Exclusive spell groups are user-configurable per icon via the "Also Track" UI.
 -- Each tracked icon can define a set of alternative spell IDs
 -- stored as exclusiveSpells = { [spellId] = true, ... } in the DB entry.
+--
+-- The presets below provide WotLK-era defaults that can be loaded via the UI.
+-- These use max-rank (level 80) spell IDs; name-based matching in
+-- UpdateAuraExclusive handles lower-level ranks automatically.
+
+Config.ExclusivePresets = {
+    WARLOCK_CURSES = {
+        label  = "Warlock Curses (WotLK)",
+        spells = {
+            [47864] = true,  -- Curse of the Elements
+            [47867] = true,  -- Curse of Doom
+            [47865] = true,  -- Curse of Agony
+            [11719] = true,  -- Curse of Tongues
+            [50511] = true,  -- Curse of Weakness
+        },
+    },
+    WARLOCK_CORRUPTION = {
+        label  = "Corruption / Seed of Corruption (WotLK)",
+        spells = {
+            [47813] = true,  -- Corruption
+            [47836] = true,  -- Seed of Corruption
+        },
+    },
+}
 
 -- ==========================================================
 -- FUNCTIONS

@@ -35,10 +35,18 @@ function TrackedItem:New(id, trackType, options)
     
     -- User-defined exclusive spell set for aura-tracking types.
     -- When set, UpdateAuraExclusive scans for any of these spells on the unit.
+    -- We also build a name-based lookup so lower-level ranks match automatically.
     if trackType == Config.TrackType.AURA or trackType == Config.TrackType.COOLDOWN_AURA then
         local excl = options.exclusiveSpells
         if excl and next(excl) then
-            self.exclusiveGroup = { spells = excl }
+            local names = {}
+            for sid in pairs(excl) do
+                local sname = GetSpellInfo(sid)
+                if sname then
+                    names[sname] = true
+                end
+            end
+            self.exclusiveGroup = { spells = excl, names = names }
         end
     end
     
@@ -222,6 +230,7 @@ end
 function TrackedItem:UpdateAuraExclusive(filter, wasActive, prevStacks)
     local group = self.exclusiveGroup
     local unit = self.unit
+    local groupNames = group.names
 
     self.active = false
     self.duration = 0
@@ -233,7 +242,8 @@ function TrackedItem:UpdateAuraExclusive(filter, wasActive, prevStacks)
             UnitAura(unit, i, filter)
         if not name then break end
 
-        if group.spells[spellId] then
+        -- Match by spell ID first, then fall back to name for lower-rank spells
+        if group.spells[spellId] or (groupNames and groupNames[name]) then
             self.active = true
             self.duration = duration or 0
             self.expiration = expiration or 0

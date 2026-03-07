@@ -472,7 +472,7 @@ function AuraTracker:RemoveCooldown(barKey, spellId)
     return true
 end
 
-function AuraTracker:AddAura(barKey, spellId, filterKey, specificAuraId, displayMode)
+function AuraTracker:AddAura(barKey, spellId, filterKey, specificAuraId, displayMode, onlyMine)
     local db = self:GetBarDB(barKey)
     if not db then return false, "Bar not found" end
     
@@ -490,6 +490,11 @@ function AuraTracker:AddAura(barKey, spellId, filterKey, specificAuraId, display
     
     local finalDisplayMode = displayMode or Config:GetDefaultDisplayMode(Config.TrackType.AURA, filterKey)
     
+    -- Default to only tracking own auras (player usually wants their own debuffs)
+    if onlyMine == nil then
+        onlyMine = true
+    end
+    
     db.trackedItems[spellId] = {
         order = GetNextOrder(db.trackedItems),
         auraId = actualAuraId,
@@ -498,6 +503,7 @@ function AuraTracker:AddAura(barKey, spellId, filterKey, specificAuraId, display
         unit = filterData.unit,
         filter = filterData.filter,
         displayMode = finalDisplayMode,
+        onlyMine = onlyMine,
     }
     
     self:RebuildBar(barKey)

@@ -330,7 +330,8 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
         args.editorAlsoTrackDesc = {
             type = "description",
             name = "|cFFAAAAFFAdd alternative spell IDs that this icon should also scan for.\n"
-                .. "The icon will show whichever spell is active (e.g. add all curse variants so one icon tracks any curse).|r",
+                .. "The icon will show whichever spell is active (e.g. add all curse variants so one icon tracks any curse).\n"
+                .. "Lower-level spell ranks are matched automatically by name.|r",
             order = orderBase + 21,
             width = "full",
         }
@@ -362,6 +363,44 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
                 NotifyAndRebuild(barKey)
             end,
         }
+
+        -- WotLK preset loader
+        local Config = ns.AuraTracker and ns.AuraTracker.Config
+        if Config and Config.ExclusivePresets then
+            local presetValues = { [""] = "Select a preset…" }
+            for key, preset in pairs(Config.ExclusivePresets) do
+                presetValues[key] = preset.label
+            end
+            args.editorAlsoTrackPreset = {
+                type = "select",
+                name = "Load WotLK Preset",
+                desc = "Load a predefined set of alternative spell IDs.\n"
+                    .. "These are WotLK-era (level 80) spell IDs. "
+                    .. "Lower-level ranks are matched automatically by name.",
+                values = presetValues,
+                order = orderBase + 22.5,
+                width = "double",
+                get = function() return "" end,
+                set = function(_, key)
+                    if key == "" then return end
+                    local preset = Config.ExclusivePresets[key]
+                    if not preset then return end
+                    data.exclusiveSpells = data.exclusiveSpells or {}
+                    local added = 0
+                    for sid in pairs(preset.spells) do
+                        if sid ~= spellId and not data.exclusiveSpells[sid] then
+                            data.exclusiveSpells[sid] = true
+                            added = added + 1
+                        end
+                    end
+                    if added > 0 then
+                        NotifyAndRebuild(barKey)
+                    else
+                        print("|cFFFF9900Aura Tracker:|r All spells from this preset are already added.")
+                    end
+                end,
+            }
+        end
 
         -- Show current exclusive spell entries
         local excl = data.exclusiveSpells
@@ -558,7 +597,7 @@ local function CreateIconListOptions(barKey, barData)
                         unit        = fd and fd.unit   or "target",
                         filter      = fd and fd.filter or "HARMFUL",
                         displayMode = "always",
-                        onlyMine    = false,
+                        onlyMine    = true,
                     }
                 else
                     local spellName = GetSpellInfo(id)
@@ -576,6 +615,7 @@ local function CreateIconListOptions(barKey, barData)
                         unit        = fd and fd.unit   or "target",
                         filter      = fd and fd.filter or "HARMFUL",
                         displayMode = "active_only",
+                        onlyMine    = true,
                     }
                 end
 

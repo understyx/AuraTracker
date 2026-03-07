@@ -171,7 +171,7 @@ function DragDrop:HandleDrop(barKey, cursorType, id, subType, isShift)
     elseif isShift then
         success, result = controller:AddAura(barKey, spellId, "TARGET_DEBUFF")
         if success then
-            controller:Print("Now tracking |cff00ff00" .. result .. "|r as target debuff")
+            controller:Print("Now tracking |cff00ff00" .. result .. "|r as target debuff (only mine)")
         end
     else
         success, result = controller:AddCooldown(barKey, spellId)
