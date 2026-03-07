@@ -358,7 +358,8 @@ function AuraTracker:RebuildBar(barKey)
     -- iconSize) instead of the full bar width.
     if bar.mover then
         local frame = bar:GetFrame()
-        bar.mover:SetSize(frame:GetWidth(), frame:GetHeight())
+        local scale = frame:GetScale()
+        bar.mover:SetSize(frame:GetWidth() * scale, frame:GetHeight() * scale)
         bar.mover:ClearAllPoints()
         bar.mover:SetPoint(
             db.point or "CENTER",

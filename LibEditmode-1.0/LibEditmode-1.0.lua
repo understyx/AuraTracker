@@ -131,7 +131,8 @@ local function SyncMoverToFrame(mover)
     local frame = mover.targetFrame
     local w, h = frame:GetWidth(), frame:GetHeight()
     if not w or not h or w <= 0 or h <= 0 then return end
-    mover:SetSize(w, h)
+    local scale = frame:GetScale()
+    mover:SetSize(w * scale, h * scale)
     -- Re-anchor the mover to the same point/offset as the target frame so
     -- that they perfectly overlap when edit mode is entered.
     local point, relTo, relPoint, x, y = frame:GetPoint(1)
@@ -213,8 +214,9 @@ function Lib:Register(frame, opts)
     if mover.syncSize and mover.targetFrame then
         local w, h = mover.targetFrame:GetWidth(), mover.targetFrame:GetHeight()
         if w and h then
-            mover:SetWidth(w)
-            mover:SetHeight(h)
+            local scale = mover.targetFrame:GetScale()
+            mover:SetWidth(w * scale)
+            mover:SetHeight(h * scale)
         end
     end
 
