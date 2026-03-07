@@ -28,7 +28,6 @@ Config.AuraFilter = {
     FOCUS_DEBUFF  = { unit = "focus",  filter = "HARMFUL" },
 }
 
--- Spell ID -> Aura ID mapping (when cast spell differs from applied aura)
 Config.SpellToAuraMap = {
     -- Death Knight
     [45477] = 55095,  -- Icy Touch -> Frost Fever
@@ -40,7 +39,6 @@ Config.SpellToAuraMap = {
     [47867] = 47867,  -- Curse of Doom
 }
 
--- Default display mode per filter type
 Config.DefaultDisplayMode = {
     PLAYER_BUFF   = Config.DisplayMode.ACTIVE_ONLY,
     PLAYER_DEBUFF = Config.DisplayMode.ACTIVE_ONLY,
@@ -51,7 +49,6 @@ Config.DefaultDisplayMode = {
     COOLDOWN      = Config.DisplayMode.ALWAYS,
 }
 
--- GCD constants
 Config.GCD_SPELL_ID = 61304
 Config.GCD_THRESHOLD = 1.6
 

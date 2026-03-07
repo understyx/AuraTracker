@@ -1,24 +1,14 @@
 local _, ns = ...
 ns.AuraTracker = ns.AuraTracker or {}
 
+local math_max = math.max
+local table_insert, table_remove, table_sort = table.insert, table.remove, table.sort
+local ipairs, wipe = ipairs, wipe
+local CreateFrame = CreateFrame
+
 local Bar = {}
 Bar.__index = Bar
 ns.AuraTracker.Bar = Bar
-
---[[
-    Bar is a pure layout container.
-    It holds Icons and positions them.
-    It knows nothing about auras or cooldowns.
-    
-    options = {
-        direction = "HORIZONTAL" | "VERTICAL",
-        spacing = number,
-        iconSize = number,
-        point = string,
-        x = number,
-        y = number,
-    }
-]]
 
 -- ==========================================================
 -- CONSTRUCTOR
@@ -36,7 +26,6 @@ function Bar:New(name, parent, options)
     self.iconSize = options.iconSize or 40
     self.scale = options.scale or 1.0
 
-    -- Create container frame
     self.frame = CreateFrame("Frame", "AuraTracker_Bar_" .. name, parent or UIParent)
     self.frame:SetSize(self.iconSize, self.iconSize)
     self.frame:SetScale(self.scale)
@@ -87,14 +76,14 @@ end
 -- ==========================================================
 
 function Bar:AddIcon(icon)
-    table.insert(self.icons, icon)
+    table_insert(self.icons, icon)
     icon:GetFrame():SetParent(self.frame)
 end
 
 function Bar:RemoveIcon(icon)
     for i, existing in ipairs(self.icons) do
         if existing == icon then
-            table.remove(self.icons, i)
+            table_remove(self.icons, i)
             return true
         end
     end
@@ -104,7 +93,7 @@ end
 function Bar:RemoveIconById(id)
     for i, icon in ipairs(self.icons) do
         if icon:GetId() == id then
-            table.remove(self.icons, i)
+            table_remove(self.icons, i)
             return icon
         end
     end
@@ -164,7 +153,7 @@ function Bar:UpdateLayout()
                     0
                 )
                 w = w + frame:GetWidth() + (prev and self.spacing or 0)
-                h = math.max(h, frame:GetHeight())
+                h = math_max(h, frame:GetHeight())
             else
                 frame:SetPoint(
                     "TOP",
@@ -174,15 +163,15 @@ function Bar:UpdateLayout()
                     prev and -self.spacing or 0
                 )
                 h = h + frame:GetHeight() + (prev and self.spacing or 0)
-                w = math.max(w, frame:GetWidth())
+                w = math_max(w, frame:GetWidth())
             end
             prev = frame
         end
     end
     
     self.frame:SetSize(
-        math.max(w, self.minWidth),
-        math.max(h, self.minHeight)
+        math_max(w, self.minWidth),
+        math_max(h, self.minHeight)
     )
 end
 
