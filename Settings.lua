@@ -960,7 +960,9 @@ function ns.UpdateBarOptions(options)
         func  = function()
             if LibEditmode then
                 LibEditmode:ToggleEditMode("AuraTracker")
-                NotifyChange()
+                -- Defer so AceConfigDialog finishes reading user.rootframe
+                -- before the dialog is rebuilt (immediate call causes nil crash).
+                C_Timer.After(0.01, NotifyChange)
             end
         end,
     }

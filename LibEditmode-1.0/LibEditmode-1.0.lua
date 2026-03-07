@@ -87,6 +87,18 @@ end
 
 -------------------------------------------------
 
+local SNAP_SIZE = 32
+
+local function SnapPosition(mover)
+    local point, relTo, relPoint, x, y = mover:GetPoint()
+    if not x or not y then return end
+    -- Round to nearest multiple of SNAP_SIZE using standard rounding.
+    x = math.floor((x / SNAP_SIZE) + 0.5) * SNAP_SIZE
+    y = math.floor((y / SNAP_SIZE) + 0.5) * SNAP_SIZE
+    mover:ClearAllPoints()
+    mover:SetPoint(point, relTo, relPoint, x, y)
+end
+
 local function UpdatePosition(mover)
     local point, relTo, relPoint, x, y = mover:GetPoint()
 
@@ -170,6 +182,7 @@ function Lib:Register(frame, opts)
         if not self.isDragging and self.onClick then
             self.onClick(self)
         else
+            if self.isDragging then SnapPosition(self) end
             UpdatePosition(self)
         end
 
