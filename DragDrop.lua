@@ -42,6 +42,14 @@ function DragDrop:OnDragEnd()
     self:HideDropZones()
 end
 
+function DragDrop:ClearDragState()
+    self.draggedAura = nil
+    self:HideDropZones()
+    if self.dragIconFrame then
+        self.dragIconFrame:Hide()
+    end
+end
+
 -- ==========================================================
 -- DROP ZONES
 -- ==========================================================
@@ -105,9 +113,7 @@ function DragDrop:ShowDropZones()
                 function()
                     if self.draggedAura then
                         self:HandleAuraDrop(barKey)
-                        self.draggedAura = nil
-                        self:HideDropZones()
-                        if self.dragIconFrame then self.dragIconFrame:Hide() end
+                        self:ClearDragState()
                         return true
                     end
                     return false
@@ -314,12 +320,7 @@ function DragDrop:HookAuraButton(button, unit, filter, filterKey)
                 end
             end
 
-            self.draggedAura = nil
-            self:HideDropZones()
-
-            if self.dragIconFrame then
-                self.dragIconFrame:Hide()
-            end
+            self:ClearDragState()
         end
 
         if oldDragStop then oldDragStop(b) end
