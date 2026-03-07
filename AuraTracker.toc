@@ -13,6 +13,7 @@ LibFramepool-1.0\LibFramepool-1.0.lua
 LibEditmode-1.0\LibEditmode-1.0.xml
 
 Config.lua
+Skin.lua
 
 TrackedItem.lua
 Icon.lua
