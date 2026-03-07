@@ -109,6 +109,18 @@ function TrackedItem:GetRemaining()
 end
 
 -- ==========================================================
+-- INTERNAL HELPERS
+-- ==========================================================
+
+function TrackedItem:GetEffectiveFilter()
+    local filter = self.filter
+    if self.onlyMine and filter then
+        filter = filter .. "|PLAYER"
+    end
+    return filter
+end
+
+-- ==========================================================
 -- UPDATE
 -- ==========================================================
 
@@ -179,10 +191,7 @@ function TrackedItem:UpdateAura()
     local wasActive = self.active
     local prevStacks = self.stacks
 
-    local filter = self.filter
-    if self.onlyMine and filter then
-        filter = filter .. "|PLAYER"
-    end
+    local filter = self:GetEffectiveFilter()
 
     if self.exclusiveGroup then
         return self:UpdateAuraExclusive(filter, wasActive, prevStacks)
@@ -291,10 +300,7 @@ function TrackedItem:UpdateCooldownAura(gcdStart, gcdDuration, ignoreGCD)
     end
 
     -- Aura part
-    local filter = self.filter
-    if self.onlyMine and filter then
-        filter = filter .. "|PLAYER"
-    end
+    local filter = self:GetEffectiveFilter()
 
     local aName, _, _, count, _, auraDuration, auraExpiration =
         UnitAura(self.unit, self.name, nil, filter)

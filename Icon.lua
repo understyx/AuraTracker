@@ -181,12 +181,7 @@ function Icon:RenderActive()
     end
     
     local stacks = item:GetStacks()
-    if stacks and stacks > 1 then
-        self.frame.stackText:SetText(stacks)
-        self.frame.stackText:Show()
-    else
-        self.frame.stackText:Hide()
-    end
+    self:UpdateStackDisplay(stacks)
 end
 
 function Icon:RenderInactive()
@@ -195,6 +190,15 @@ function Icon:RenderInactive()
     self.frame.cooldown:Hide()
     self.frame.stackText:Hide()
     self.frame.text:SetText("")
+end
+
+function Icon:UpdateStackDisplay(stacks)
+    if stacks and stacks > 1 then
+        self.frame.stackText:SetText(stacks)
+        self.frame.stackText:Show()
+    else
+        self.frame.stackText:Hide()
+    end
 end
 
 function Icon:RenderDualTrack()
@@ -212,13 +216,7 @@ function Icon:RenderDualTrack()
         else
             self.frame.cooldown:Hide()
         end
-        local stacks = item:GetAuraStacks()
-        if stacks and stacks > 1 then
-            self.frame.stackText:SetText(stacks)
-            self.frame.stackText:Show()
-        else
-            self.frame.stackText:Hide()
-        end
+        self:UpdateStackDisplay(item:GetAuraStacks())
     elseif item:IsAuraActive() then
         -- Ready + aura active: full color, show aura sweep + stacks
         self.frame:SetAlpha(1)
@@ -231,13 +229,7 @@ function Icon:RenderDualTrack()
         else
             self.frame.cooldown:Hide()
         end
-        local stacks = item:GetAuraStacks()
-        if stacks and stacks > 1 then
-            self.frame.stackText:SetText(stacks)
-            self.frame.stackText:Show()
-        else
-            self.frame.stackText:Hide()
-        end
+        self:UpdateStackDisplay(item:GetAuraStacks())
     else
         -- Ready + no aura: full color, no sweep
         self.frame:SetAlpha(1)
