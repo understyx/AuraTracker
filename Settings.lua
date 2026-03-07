@@ -1024,7 +1024,11 @@ ns.AuraTracker.SettingsPanel = {
         if not talentName or talentName == "" or talentName == "NONE" then
             return true
         end
-        for tab = 1, GetNumTalentTabs() do
+        local numTabs = GetNumTalentTabs()
+        if numTabs == 0 then
+            return true
+        end
+        for tab = 1, numTabs do
             for i = 1, GetNumTalents(tab) do
                 local name, _, _, _, rank = GetTalentInfo(tab, i)
                 if name == talentName and rank and rank > 0 then

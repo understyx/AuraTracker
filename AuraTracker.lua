@@ -346,6 +346,7 @@ function AuraTracker:RebuildBar(barKey)
     -- Initial update so icons reflect correct state before syncing mover size
     self:UpdateAllCooldowns()
     self:UpdateAllAuras()
+    bar:UpdateLayout()
 
     if bar.mover then
         local frame = bar:GetFrame()
@@ -555,7 +556,6 @@ end
 
 function AuraTracker:OnSpellUpdateCooldown()
     self:UpdateGCDState()
-    self:UpdateAllCooldowns()
 end
 
 function AuraTracker:OnUnitAura(event, unit)
