@@ -388,7 +388,7 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
                     data.exclusiveSpells = data.exclusiveSpells or {}
                     local added = 0
                     for sid in pairs(preset.spells) do
-                        if sid ~= spellId and not data.exclusiveSpells[sid] then
+                        if not data.exclusiveSpells[sid] then
                             data.exclusiveSpells[sid] = true
                             added = added + 1
                         end
