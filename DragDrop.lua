@@ -42,19 +42,11 @@ function DragDrop:OnDragEnd()
     self:HideDropZones()
 end
 
-function DragDrop:ClearDragState()
-    self.draggedAura = nil
-    self:HideDropZones()
-    if self.dragIconFrame then
-        self.dragIconFrame:Hide()
-    end
-end
-
 -- ==========================================================
 -- DROP ZONES
 -- ==========================================================
 
-local function CreateDropZoneFrame(bar, handler, clickCallback, auraDropHandler)
+local function CreateDropZoneFrame(bar, handler, clickCallback)
     local dropZone = CreateFrame("Frame", nil, bar:GetFrame())
     dropZone:SetAllPoints(bar:GetFrame())
     dropZone:SetFrameLevel(bar:GetFrame():GetFrameLevel() + 10)
@@ -87,8 +79,6 @@ local function CreateDropZoneFrame(bar, handler, clickCallback, auraDropHandler)
                 local isShift = IsShiftKeyDown()
                 ClearCursor()
                 handler(cursorType, id, subType, isShift)
-            elseif auraDropHandler and auraDropHandler() then
-                -- Aura drag from buff frame (no cursor item); handled before clickCallback
             else
                 clickCallback()
             end
@@ -109,14 +99,6 @@ function DragDrop:ShowDropZones()
                 end,
                 function()
                     if self.onBarClick then self.onBarClick(barKey) end
-                end,
-                function()
-                    if self.draggedAura then
-                        self:HandleAuraDrop(barKey)
-                        self:ClearDragState()
-                        return true
-                    end
-                    return false
                 end
             )
             self.dropZones[barKey] = dropZone
@@ -221,21 +203,28 @@ end
 -- BUFF BUTTON HOOKS (aura drag from buff frame)
 -- ==========================================================
 
+local FILTER_KEY_MAP = {
+    HELPFUL = "PLAYER_BUFF",
+    HARMFUL = "PLAYER_DEBUFF",
+}
+
+function DragDrop:HookAuraButtonByName(buttonName, index, filter)
+    local button = _G[buttonName .. index]
+    if not button or button._auraTrackerHooked then return end
+
+    local filterKey = FILTER_KEY_MAP[filter]
+    if not filterKey then return end
+
+    self:HookAuraButton(button, "player", filter, filterKey)
+    button._auraTrackerHooked = true
+end
+
 function DragDrop:HookBuffButtons()
     for i = 1, 32 do
-        local button = _G["BuffButton" .. i]
-        if button and not button._auraTrackerHooked then
-            self:HookAuraButton(button, "player", "HELPFUL", "PLAYER_BUFF")
-            button._auraTrackerHooked = true
-        end
+        self:HookAuraButtonByName("BuffButton", i, "HELPFUL")
     end
-
     for i = 1, 16 do
-        local button = _G["DebuffButton" .. i]
-        if button and not button._auraTrackerHooked then
-            self:HookAuraButton(button, "player", "HARMFUL", "PLAYER_DEBUFF")
-            button._auraTrackerHooked = true
-        end
+        self:HookAuraButtonByName("DebuffButton", i, "HARMFUL")
     end
 end
 
@@ -320,7 +309,12 @@ function DragDrop:HookAuraButton(button, unit, filter, filterKey)
                 end
             end
 
-            self:ClearDragState()
+            self.draggedAura = nil
+            self:HideDropZones()
+
+            if self.dragIconFrame then
+                self.dragIconFrame:Hide()
+            end
         end
 
         if oldDragStop then oldDragStop(b) end

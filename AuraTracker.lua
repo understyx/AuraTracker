@@ -128,8 +128,8 @@ function AuraTracker:OnEnable()
     self:RegisterEvent("ACTIONBAR_HIDEGRID", "OnDragEnd")
 
     DragDrop:HookBuffButtons()
-    hooksecurefunc("BuffFrame_Update", function()
-        DragDrop:HookBuffButtons()
+    hooksecurefunc("AuraButton_Update", function(buttonName, index, filter)
+        DragDrop:HookAuraButtonByName(buttonName, index, filter)
     end)
 
 end
