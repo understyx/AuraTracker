@@ -63,28 +63,10 @@ Config.DualTrackSpells = {
     -- [spellId] = { auraId = 12345, filterKey = "TARGET_DEBUFF" },
 }
 
--- Spells that are mutually exclusive per target (only one can be active at a time).
--- When tracking any spell from a group, the icon scans for all spells in the group.
-Config.ExclusiveGroups = {
-    WARLOCK_CURSES = {
-        label  = "Warlock Curses",
-        spells = {
-            [47864] = true,  -- Curse of Elements
-            [47867] = true,  -- Curse of Doom
-            [47865] = true,  -- Curse of Agony
-            [11719] = true,  -- Curse of Tongues
-            [50511] = true,  -- Curse of Weakness
-        },
-    },
-}
-
--- Reverse lookup: spellId -> group data (built once at load time)
-Config.ExclusiveGroupLookup = {}
-for _, group in pairs(Config.ExclusiveGroups) do
-    for spellId in pairs(group.spells) do
-        Config.ExclusiveGroupLookup[spellId] = group
-    end
-end
+-- Note: Exclusive spell groups (e.g. warlock curses, corruption variants)
+-- are now user-configurable per icon via the "Also Track" UI.
+-- Each tracked icon can define a set of alternative spell IDs
+-- stored as exclusiveSpells = { [spellId] = true, ... } in the DB entry.
 
 -- ==========================================================
 -- FUNCTIONS
@@ -109,8 +91,4 @@ function Config:GetDefaultDisplayMode(trackType, filterKey)
         return self.DefaultDisplayMode.COOLDOWN_AURA
     end
     return self.DefaultDisplayMode[filterKey] or self.DisplayMode.ALWAYS
-end
-
-function Config:GetExclusiveGroup(spellId)
-    return self.ExclusiveGroupLookup[spellId]
 end

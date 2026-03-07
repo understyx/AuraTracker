@@ -320,6 +320,90 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
                 NotifyAndRebuild(barKey)
             end,
         }
+
+        -- "Also Track" section: user-defined exclusive/alternative spell IDs
+        args.editorAlsoTrackHeader = {
+            type = "header",
+            name = "Also Track (Alternatives)",
+            order = orderBase + 20,
+        }
+        args.editorAlsoTrackDesc = {
+            type = "description",
+            name = "|cFFAAAAFFAdd alternative spell IDs that this icon should also scan for.\n"
+                .. "The icon will show whichever spell is active (e.g. add all curse variants so one icon tracks any curse).|r",
+            order = orderBase + 21,
+            width = "full",
+        }
+        args.editorAlsoTrackAdd = {
+            type = "input",
+            name = "Add Spell ID",
+            desc = "Enter a spell ID to add as an alternative for this icon.",
+            order = orderBase + 22,
+            width = "full",
+            get = function() return "" end,
+            set = function(_, val)
+                local sid = tonumber(val)
+                if not sid then return end
+                if sid == spellId then
+                    print("|cFFFF0000Aura Tracker:|r This is the primary spell ID; no need to add it.")
+                    return
+                end
+                local altName = GetSpellInfo(sid)
+                if not altName then
+                    print("|cFFFF0000Aura Tracker:|r Spell ID " .. sid .. " not found.")
+                    return
+                end
+                data.exclusiveSpells = data.exclusiveSpells or {}
+                if data.exclusiveSpells[sid] then
+                    print("|cFFFF0000Aura Tracker:|r Spell " .. altName .. " is already in the list.")
+                    return
+                end
+                data.exclusiveSpells[sid] = true
+                NotifyAndRebuild(barKey)
+            end,
+        }
+
+        -- Show current exclusive spell entries
+        local excl = data.exclusiveSpells
+        if excl and next(excl) then
+            local exclOrder = 0
+            for exclId in pairs(excl) do
+                exclOrder = exclOrder + 1
+                local exclName, exclIcon = GetSpellNameByID(exclId)
+                args["editorExcl_icon_" .. exclId] = {
+                    type        = "description",
+                    name        = "",
+                    image       = exclIcon,
+                    imageWidth  = 20,
+                    imageHeight = 20,
+                    order       = orderBase + 23 + (exclOrder * 2),
+                    width       = 0.15,
+                }
+                args["editorExcl_remove_" .. exclId] = {
+                    type  = "execute",
+                    name  = exclName .. "  (ID: " .. exclId .. ")  ✕",
+                    desc  = "Remove " .. exclName .. " from the alternatives list.",
+                    order = orderBase + 24 + (exclOrder * 2),
+                    width = "normal",
+                    func  = function()
+                        if data.exclusiveSpells then
+                            data.exclusiveSpells[exclId] = nil
+                            if not next(data.exclusiveSpells) then
+                                data.exclusiveSpells = nil
+                            end
+                        end
+                        NotifyAndRebuild(barKey)
+                    end,
+                }
+            end
+        else
+            args.editorAlsoTrackEmpty = {
+                type = "description",
+                name = "No alternatives defined. This icon only tracks the primary spell.",
+                order = orderBase + 23,
+                width = "full",
+            }
+        end
     end
 
     -- Reorder controls

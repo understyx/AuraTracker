@@ -33,9 +33,13 @@ function TrackedItem:New(id, trackType, options)
         self.filter = filterData.filter
     end
     
-    -- Auto-detect exclusive group for aura-tracking types
+    -- User-defined exclusive spell set for aura-tracking types.
+    -- When set, UpdateAuraExclusive scans for any of these spells on the unit.
     if trackType == Config.TrackType.AURA or trackType == Config.TrackType.COOLDOWN_AURA then
-        self.exclusiveGroup = options.exclusiveGroup or Config:GetExclusiveGroup(id)
+        local excl = options.exclusiveSpells
+        if excl and next(excl) then
+            self.exclusiveGroup = { spells = excl }
+        end
     end
     
     -- Get name/texture based on track type

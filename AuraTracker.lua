@@ -315,12 +315,12 @@ function AuraTracker:RebuildBar(barKey)
                 self:CreateCooldownIcon(barKey, spellId, order, styleOptions, data.displayMode)
             elseif data.trackType == Config.TrackType.AURA then
                 local filterKey = data.type and string_upper(data.type) or "TARGET_DEBUFF"
-                self:CreateAuraIcon(barKey, spellId, filterKey, data.auraId, order, styleOptions, data.displayMode, data.onlyMine)
+                self:CreateAuraIcon(barKey, spellId, filterKey, data.auraId, order, styleOptions, data.displayMode, data.onlyMine, data.exclusiveSpells)
             elseif data.trackType == Config.TrackType.ITEM then
                 self:CreateItemIcon(barKey, spellId, order, styleOptions, data.displayMode)
             elseif data.trackType == Config.TrackType.COOLDOWN_AURA then
                 local filterKey = data.type and string_upper(data.type) or "TARGET_DEBUFF"
-                self:CreateCooldownAuraIcon(barKey, spellId, filterKey, data.auraId, order, styleOptions, data.displayMode, data.onlyMine)
+                self:CreateCooldownAuraIcon(barKey, spellId, filterKey, data.auraId, order, styleOptions, data.displayMode, data.onlyMine, data.exclusiveSpells)
             end
         end
     end
@@ -415,7 +415,7 @@ function AuraTracker:CreateCooldownIcon(barKey, spellId, order, styleOptions, di
     return icon
 end
 
-function AuraTracker:CreateAuraIcon(barKey, spellId, filterKey, auraId, order, styleOptions, displayMode, onlyMine)
+function AuraTracker:CreateAuraIcon(barKey, spellId, filterKey, auraId, order, styleOptions, displayMode, onlyMine, exclusiveSpells)
     local bar = self.bars[barKey]
     if not bar then return nil end
     
@@ -425,6 +425,7 @@ function AuraTracker:CreateAuraIcon(barKey, spellId, filterKey, auraId, order, s
         auraId = auraId,
         filterKey = filterKey,
         onlyMine = onlyMine,
+        exclusiveSpells = exclusiveSpells,
     })
     if not item:GetName() then return nil end
     
@@ -555,7 +556,7 @@ function AuraTracker:AddItem(barKey, itemId)
     return true, name
 end
 
-function AuraTracker:CreateCooldownAuraIcon(barKey, spellId, filterKey, auraId, order, styleOptions, displayMode, onlyMine)
+function AuraTracker:CreateCooldownAuraIcon(barKey, spellId, filterKey, auraId, order, styleOptions, displayMode, onlyMine, exclusiveSpells)
     local bar = self.bars[barKey]
     local db = self:GetBarDB(barKey)
     if not bar or not db then return nil end
@@ -570,6 +571,7 @@ function AuraTracker:CreateCooldownAuraIcon(barKey, spellId, filterKey, auraId, 
         auraId = auraId,
         filterKey = filterKey,
         onlyMine = onlyMine,
+        exclusiveSpells = exclusiveSpells,
     })
     if not item:GetName() then return nil end
     
