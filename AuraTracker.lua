@@ -105,15 +105,6 @@ function AuraTracker:OnEnable()
         self:HookBuffButtons()
     end)
 
-    -- Wire up LibEditmode callbacks.
-    -- CallbackHandler:New(Lib) attaches RegisterCallback to the target (Lib)
-    -- itself; Lib.callbacks is the internal registry that only has Fire().
-    LibEditmode:RegisterCallback("LibEditmode_OnEditModeEnter", function()
-        AuraTracker:OnEditModeToggle(true)
-    end)
-    LibEditmode:RegisterCallback("LibEditmode_OnEditModeExit", function()
-        AuraTracker:OnEditModeToggle(false)
-    end)
 end
 
 function AuraTracker:OnDisable()
@@ -1044,12 +1035,6 @@ end
 -- EDIT MODE INTEGRATION
 -- ==========================================================
 
-function AuraTracker:OnEditModeToggle(enabled)
-    if not enabled then
-        local SP = ns.AuraTracker.SettingsPanel
-        if SP then SP:Hide() end
-    end
-end
 
 function AuraTracker:OnBarClick(barKey)
     local SP = ns.AuraTracker.SettingsPanel
