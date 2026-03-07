@@ -5,19 +5,18 @@ local Config = ns.AuraTracker.Config
 local TrackedItem = ns.AuraTracker.TrackedItem
 local Icon = ns.AuraTracker.Icon
 local Bar = ns.AuraTracker.Bar
+local DragDrop = ns.AuraTracker.DragDrop
+local UpdateEngine = ns.AuraTracker.UpdateEngine
 
 -- Localize frequently-used globals
 local pairs, ipairs, wipe = pairs, ipairs, wipe
-local GetSpellInfo, GetSpellCooldown, GetSpellLink = GetSpellInfo, GetSpellCooldown, GetSpellLink
-local GetTime, GetCursorInfo, ClearCursor = GetTime, GetCursorInfo, ClearCursor
-local UnitGUID, UnitClass, UnitAura = UnitGUID, UnitClass, UnitAura
-local IsSpellKnown, IsShiftKeyDown = IsSpellKnown, IsShiftKeyDown
-local GetCursorPosition, GetMouseFocus = GetCursorPosition, GetMouseFocus
-local CreateFrame = CreateFrame
-local math_abs, math_max = math.abs, math.max
+local GetSpellInfo = GetSpellInfo
+local UnitGUID, UnitClass = UnitGUID, UnitClass
+local IsSpellKnown = IsSpellKnown
+local math_max = math.max
 local string_upper, string_lower = string.upper, string.lower
 local table_sort = table.sort
-local tonumber, tostring, strtrim = tonumber, tostring, strtrim
+local strtrim = strtrim
 
 -- Library references
 local LibFramePool = LibStub("LibFramePool-1.0")
@@ -27,7 +26,6 @@ local LibEditmode  = LibStub("LibEditmode-1.0")
 local AuraTracker = LibStub("AceAddon-3.0"):NewAddon("AuraTracker", "AceEvent-3.0", "AceConsole-3.0")
 ns.AuraTracker.Controller = AuraTracker
 
-local gcdStart, gcdDuration = nil, nil
 local playerGUID = nil
 
 local BAR_DEFAULTS = {
@@ -81,8 +79,6 @@ function AuraTracker:OnInitialize()
 
     self.bars = {}
     self.items = {}
-    self.dropZones = {}
-    self.pendingAura = nil
     
     playerGUID = UnitGUID("player")
     
@@ -112,8 +108,15 @@ function AuraTracker:OnEnable()
         self:CreateBar("auratracker")
     end
 
+    -- Initialize extracted modules
+    DragDrop:Init(self, function(barKey)
+        local SP = ns.AuraTracker.SettingsPanel
+        if SP then SP:Show(barKey) end
+    end)
+    UpdateEngine:Init(self)
+
     self:RebuildAllBars()
-    self:CreateUpdateFrame()
+    UpdateEngine:CreateUpdateFrame()
     self:RegisterEvent("CHARACTER_POINTS_CHANGED", "OnTalentsChanged")
     self:RegisterEvent("PLAYER_TALENT_UPDATE", "OnTalentsChanged")
     self:RegisterEvent("SPELL_UPDATE_COOLDOWN", "OnSpellUpdateCooldown")
@@ -124,19 +127,17 @@ function AuraTracker:OnEnable()
     self:RegisterEvent("ACTIONBAR_SHOWGRID", "OnDragStart")
     self:RegisterEvent("ACTIONBAR_HIDEGRID", "OnDragEnd")
 
-    self:HookBuffButtons()
+    DragDrop:HookBuffButtons()
     hooksecurefunc("BuffFrame_Update", function()
-        self:HookBuffButtons()
+        DragDrop:HookBuffButtons()
     end)
 
 end
 
 function AuraTracker:OnDisable()
-    self:HideDropZones()
+    DragDrop:HideDropZones()
     self:DestroyAllBars()
-    if self.updateFrame then
-        self.updateFrame:Hide()
-    end
+    UpdateEngine:StopUpdateFrame()
     self:UnregisterAllEvents()
 end
 
@@ -161,28 +162,6 @@ end
 
 function AuraTracker:OnTalentsChanged()
     self:RebuildAllBars()
-end
-
--- ==========================================================
--- UPDATE FRAME
--- ==========================================================
-
-function AuraTracker:CreateUpdateFrame()
-    if self.updateFrame then return end
-    
-    self.updateFrame = CreateFrame("Frame")
-    self.updateFrame.elapsed = 0
-    self.updateFrame:SetScript("OnUpdate", function(frame, elapsed)
-        frame.elapsed = frame.elapsed + elapsed
-        if frame.elapsed >= 0.1 then
-            frame.elapsed = 0
-            
-            AuraTracker:UpdateAllCooldowns()
-
-            AuraTracker:UpdateCooldownText()
-        end
-    end)
-    self.updateFrame:Show()
 end
 
 -- ==========================================================
@@ -344,8 +323,8 @@ function AuraTracker:RebuildBar(barKey)
     self:SortBarIcons(barKey)
 
     -- Initial update so icons reflect correct state before syncing mover size
-    self:UpdateAllCooldowns()
-    self:UpdateAllAuras()
+    UpdateEngine:UpdateAllCooldowns()
+    UpdateEngine:UpdateAllAuras()
     bar:UpdateLayout()
 
     if bar.mover then
@@ -555,17 +534,17 @@ function AuraTracker:GetDropAction(spellId)
 end
 
 function AuraTracker:OnSpellUpdateCooldown()
-    self:UpdateGCDState()
+    UpdateEngine:UpdateGCDState()
 end
 
 function AuraTracker:OnUnitAura(event, unit)
     if unit == "player" or unit == "target" or unit == "focus" then
-        self:UpdateAurasForUnit(unit)
+        UpdateEngine:UpdateAurasForUnit(unit)
     end
 end
 
 function AuraTracker:OnTargetChanged()
-    self:UpdateAurasForUnit("target")
+    UpdateEngine:UpdateAurasForUnit("target")
 end
 
 function AuraTracker:OnPlayerEnteringWorld()
@@ -578,128 +557,15 @@ function AuraTracker:OnSpellsChanged()
 end
 
 -- ==========================================================
--- UPDATE LOOPS
+-- EVENT DELEGATES
 -- ==========================================================
 
-function AuraTracker:UpdateAllCooldowns()
-    for barKey, bar in pairs(self.bars) do
-        local db = self:GetBarDB(barKey)
-        if db and db.enabled then
-            local needsLayout = false
-            
-            for _, icon in ipairs(bar:GetIcons()) do
-                local item = icon:GetTrackedItem()
-                if item and item:GetTrackType() == Config.TrackType.COOLDOWN then
-                    local changed = item:Update(gcdStart, gcdDuration, db.ignoreGCD)
-                    local visChanged = icon:Refresh()
-                    needsLayout = needsLayout or visChanged
-                end
-            end
-            
-            if needsLayout then
-                bar:UpdateLayout()
-            end
-        end
-    end
+function AuraTracker:OnDragStart()
+    DragDrop:OnDragStart()
 end
 
-function AuraTracker:UpdateAllAuras()
-    for barKey, bar in pairs(self.bars) do
-        local db = self:GetBarDB(barKey)
-        if db and db.enabled then
-            local needsLayout = false
-            
-            for _, icon in ipairs(bar:GetIcons()) do
-                local item = icon:GetTrackedItem()
-                if item and item:GetTrackType() == Config.TrackType.AURA then
-                    local changed = item:Update()
-                    local visChanged = icon:Refresh()
-                    needsLayout = needsLayout or visChanged
-                end
-            end
-            
-            if needsLayout then
-                bar:UpdateLayout()
-            end
-        end
-    end
-end
-
-function AuraTracker:UpdateAurasForUnit(unit)
-    for barKey, bar in pairs(self.bars) do
-        local db = self:GetBarDB(barKey)
-        if db and db.enabled then
-            local needsLayout = false
-            
-            for _, icon in ipairs(bar:GetIcons()) do
-                local item = icon:GetTrackedItem()
-                if item and item:GetTrackType() == Config.TrackType.AURA then
-                    -- Only update if this item tracks the specified unit
-                    if item.unit == unit then
-                        local changed = item:Update()
-                        local visChanged = icon:Refresh()
-                        needsLayout = needsLayout or visChanged
-                    end
-                end
-            end
-            
-            if needsLayout then
-                bar:UpdateLayout()
-            end
-        end
-    end
-end
-
-function AuraTracker:UpdateCooldownText()
-    for _, bar in pairs(self.bars) do
-        for _, icon in ipairs(bar:GetIcons()) do
-            if icon:GetFrame():IsShown() then
-                icon:UpdateCooldownText()
-            end
-        end
-    end
-end
-
-function AuraTracker:RefreshBar(barKey)
-    local bar = self.bars[barKey]
-    local db = self:GetBarDB(barKey)
-    if not bar or not db then return end
-    
-    local styleOptions = BuildStyleOptions(db)
-    local needsLayout = false
-    
-    for _, icon in ipairs(bar:GetIcons()) do
-        icon:ApplyStyle(styleOptions)
-        local item = icon:GetTrackedItem()
-        if item then
-            item:Update(gcdStart, gcdDuration, db.ignoreGCD)
-            local visChanged = icon:Refresh()
-            needsLayout = needsLayout or visChanged
-        end
-    end
-    
-    if needsLayout then
-        bar:UpdateLayout()
-    end
-end
-
--- ==========================================================
--- GCD HANDLING
--- ==========================================================
-
-function AuraTracker:UpdateGCDState()
-    local start, duration = GetSpellCooldown(Config.GCD_SPELL_ID)
-    if duration and duration > 0 and duration <= Config.GCD_THRESHOLD then
-        gcdStart, gcdDuration = start, duration
-    else
-        gcdStart, gcdDuration = nil, nil
-    end
-end
-
-function AuraTracker:IsGCD(start, duration)
-    if not gcdStart or not gcdDuration then return false end
-    if not start or start == 0 or not duration or duration <= 0 then return false end
-    return math_abs(start - gcdStart) < 0.05 and math_abs(duration - gcdDuration) < 0.05
+function AuraTracker:OnDragEnd()
+    DragDrop:OnDragEnd()
 end
 
 -- ==========================================================
@@ -710,265 +576,9 @@ function AuraTracker:Print(message)
     print("|cff00bfffAuraTracker:|r " .. message)
 end
 
-
--- ==========================================================
--- DRAG & DROP / DROPZONES
--- ==========================================================
-
-function AuraTracker:OnDragStart()
-    self.isDragging = true
-    self:ShowDropZones()
-end
-
-function AuraTracker:OnDragEnd()
-    self.isDragging = false
-    self:HideDropZones()
-end
-
-local function CreateDropZoneFrame(bar, barKey, handler, clickCallback)
-    local dropZone = CreateFrame("Frame", nil, bar:GetFrame())
-    dropZone:SetAllPoints(bar:GetFrame())
-    dropZone:SetFrameLevel(bar:GetFrame():GetFrameLevel() + 10)
-    dropZone:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-    })
-    dropZone:SetBackdropColor(0, 0.5, 1, 0.3)
-    dropZone:SetBackdropBorderColor(0, 0.8, 1, 0.8)
-
-    local label = dropZone:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    label:SetPoint("CENTER")
-    label:SetText("Drop Spell Here")
-    dropZone.label = label
-
-    dropZone:EnableMouse(true)
-
-    dropZone:SetScript("OnReceiveDrag", function()
-        local cursorType, id, subType = GetCursorInfo()
-        local isShift = IsShiftKeyDown()
-        ClearCursor()
-        handler(cursorType, id, subType, isShift)
-    end)
-
-    dropZone:SetScript("OnMouseUp", function(_, button)
-        if button == "LeftButton" then
-            local cursorType, id, subType = GetCursorInfo()
-            if cursorType == "spell" then
-                local isShift = IsShiftKeyDown()
-                ClearCursor()
-                handler(cursorType, id, subType, isShift)
-            else
-                clickCallback()
-            end
-        end
-    end)
-
-    return dropZone
-end
-
-function AuraTracker:ShowDropZones()
-    for barKey, bar in pairs(self.bars) do
-        if not self.dropZones then
-            self.dropZones = {}
-        end
-        
-        if not self.dropZones[barKey] then
-            local dropZone = CreateDropZoneFrame(
-                bar,
-                barKey,
-                function(cursorType, id, subType, isShift)
-                    self:HandleDrop(barKey, cursorType, id, subType, isShift)
-                end,
-                function()
-                    self:OnBarClick(barKey)
-                end
-            )
-            self.dropZones[barKey] = dropZone
-        end
-        
-        self.dropZones[barKey]:Show()
-    end
-end
-
-function AuraTracker:HideDropZones()
-    if not self.dropZones then return end
-    
-    for barKey, dropZone in pairs(self.dropZones) do
-        dropZone:Hide()
-        dropZone:SetParent(nil)
-        self.dropZones[barKey] = nil
-    end
-end
-
-function AuraTracker:HandleDrop(barKey, cursorType, id, subType, isShift)
-    if cursorType ~= "spell" then return end
-    
-    local spellLink = GetSpellLink(id, subType)
-    if not spellLink then return end
-    
-    local spellId = tonumber(spellLink:match("spell:(%d+)"))
-    if not spellId then return end
-    
-    local success, result
-
-    -- Apply global/custom mappings; fall back to shift-key heuristic
-    local mapping = self:GetDropAction(spellId)
-    if mapping then
-        if mapping.trackType == Config.TrackType.AURA then
-            local fk = mapping.filterKey or "TARGET_DEBUFF"
-            success, result = self:AddAura(barKey, spellId, fk, mapping.auraId)
-            if success then
-                local fkLabel = fk:lower():gsub("_", " ")
-                self:Print("Now tracking |cff00ff00" .. result .. "|r (" .. fkLabel .. ", mapped)")
-            end
-        else
-            success, result = self:AddCooldown(barKey, spellId)
-            if success then
-                self:Print("Now tracking |cff00ff00" .. result .. "|r cooldown (mapped)")
-            end
-        end
-    elseif isShift then
-        success, result = self:AddAura(barKey, spellId, "TARGET_DEBUFF")
-        if success then
-            self:Print("Now tracking |cff00ff00" .. result .. "|r as target debuff")
-        end
-    else
-        success, result = self:AddCooldown(barKey, spellId)
-        if success then
-            self:Print("Now tracking |cff00ff00" .. result .. "|r cooldown")
-        end
-    end
-    
-    if not success and result then
-        self:Print("Failed: " .. result)
-    end
-end
-
--- ==========================================================
--- BUFF BUTTON DRAG & DROP
--- ==========================================================
-
-function AuraTracker:HookBuffButtons()
-    for i = 1, 32 do
-        local button = _G["BuffButton" .. i]
-        if button and not button._auraTrackerHooked then
-            self:HookAuraButton(button, "player", "HELPFUL", "PLAYER_BUFF")
-            button._auraTrackerHooked = true
-        end
-    end
-    
-    -- Hook player debuff buttons
-    for i = 1, 16 do
-        local button = _G["DebuffButton" .. i]
-        if button and not button._auraTrackerHooked then
-            self:HookAuraButton(button, "player", "HARMFUL", "PLAYER_DEBUFF")
-            button._auraTrackerHooked = true
-        end
-    end
-end
-
-function AuraTracker:GetDragFrame()
-    if not self.dragIconFrame then
-        self.dragIconFrame = CreateFrame("Frame", nil, UIParent)
-        self.dragIconFrame:SetFrameStrata("TOOLTIP")
-        self.dragIconFrame:SetSize(30, 30)
-        
-        self.dragIconFrame.texture = self.dragIconFrame:CreateTexture(nil, "ARTWORK")
-        self.dragIconFrame.texture:SetAllPoints()
-        
-        self.dragIconFrame:SetScript("OnUpdate", function(f)
-            local x, y = GetCursorPosition()
-            local scale = UIParent:GetEffectiveScale()
-            f:ClearAllPoints()
-            f:SetPoint("CENTER", UIParent, "BOTTOMLEFT", (x / scale) + 15, (y / scale) - 15)
-        end)
-        self.dragIconFrame:Hide()
-    end
-    return self.dragIconFrame
-end
-
-function AuraTracker:HandleAuraDrop(barKey)
-    if not self.draggedAura then return end
-    
-    local filterKey = self.draggedAura.filterKey or "TARGET_DEBUFF"
-    local success, msg = self:AddAura(barKey, self.draggedAura.id, filterKey, nil, self.draggedAura.displayMode)
-    
-    if success then
-        local modeText = ""
-        if self.draggedAura.displayMode == Config.DisplayMode.MISSING_ONLY then
-            modeText = " (show when missing)"
-        end
-        self:Print("Added |cff00ff00" .. self.draggedAura.name .. "|r as " .. filterKey:lower() .. modeText)
-    else
-        self:Print("Failed: " .. (msg or "Unknown error"))
-    end
-end
-
-function AuraTracker:HookAuraButton(button, unit, filter, filterKey)
-    button:RegisterForDrag("LeftButton")
-    
-    local oldDragStart = button:GetScript("OnDragStart")
-    local oldDragStop = button:GetScript("OnDragStop")
-    
-    button:SetScript("OnDragStart", function(b)
-        local name, _, icon, _, _, _, _, _, _, _, spellId = UnitAura(unit, b:GetID(), filter)
-        if name and spellId then
-            local displayMode = IsShiftKeyDown() and Config.DisplayMode.MISSING_ONLY or nil
-            
-            self.draggedAura = {
-                name = name,
-                id = spellId,
-                filterKey = filterKey,
-                displayMode = displayMode,
-            }
-            
-            self:ShowDropZones()
-            
-            if icon then
-                local dragFrame = self:GetDragFrame()
-                dragFrame.texture:SetTexture(icon)
-                dragFrame:Show()
-            end
-        end
-        
-        if oldDragStart then oldDragStart(b) end
-    end)
-
-    button:SetScript("OnDragStop", function(b)
-        if self.draggedAura then
-            local focus = GetMouseFocus()
-            
-            if self.dropZones then
-                for barKey, dropZone in pairs(self.dropZones) do
-                    if focus == dropZone then
-                        self:HandleAuraDrop(barKey)
-                        break
-                    end
-                end
-            end
-            
-            self.draggedAura = nil
-            self:HideDropZones()
-            
-            if self.dragIconFrame then
-                self.dragIconFrame:Hide()
-            end
-        end
-        
-        if oldDragStop then oldDragStop(b) end
-    end)
-end
-
-
 -- ==========================================================
 -- EDIT MODE INTEGRATION
 -- ==========================================================
-
-function AuraTracker:OnBarClick(barKey)
-    local SP = ns.AuraTracker.SettingsPanel
-    if SP then SP:Show(barKey) end
-end
 
 function AuraTracker:OnSlashCommand(input)
     local cmd = strtrim(string_lower(input or ""))

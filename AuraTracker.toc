@@ -18,5 +18,8 @@ Skin.lua
 TrackedItem.lua
 Icon.lua
 Bar.lua
+DragDrop.lua
+UpdateEngine.lua
 AuraTracker.lua
 Settings.lua
+SettingsMappings.lua
