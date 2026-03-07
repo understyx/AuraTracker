@@ -46,7 +46,7 @@ end
 -- DROP ZONES
 -- ==========================================================
 
-local function CreateDropZoneFrame(bar, handler, clickCallback)
+local function CreateDropZoneFrame(bar, handler, clickCallback, auraDropHandler)
     local dropZone = CreateFrame("Frame", nil, bar:GetFrame())
     dropZone:SetAllPoints(bar:GetFrame())
     dropZone:SetFrameLevel(bar:GetFrame():GetFrameLevel() + 10)
@@ -79,6 +79,8 @@ local function CreateDropZoneFrame(bar, handler, clickCallback)
                 local isShift = IsShiftKeyDown()
                 ClearCursor()
                 handler(cursorType, id, subType, isShift)
+            elseif auraDropHandler and auraDropHandler() then
+                -- Buff/debuff drag-and-drop handled
             else
                 clickCallback()
             end
@@ -99,6 +101,16 @@ function DragDrop:ShowDropZones()
                 end,
                 function()
                     if self.onBarClick then self.onBarClick(barKey) end
+                end,
+                function()
+                    if self.draggedAura then
+                        self:HandleAuraDrop(barKey)
+                        self.draggedAura = nil
+                        self:HideDropZones()
+                        if self.dragIconFrame then self.dragIconFrame:Hide() end
+                        return true
+                    end
+                    return false
                 end
             )
             self.dropZones[barKey] = dropZone
