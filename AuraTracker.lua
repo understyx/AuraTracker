@@ -105,11 +105,13 @@ function AuraTracker:OnEnable()
         self:HookBuffButtons()
     end)
 
-    -- Wire up LibEditmode callbacks
-    LibEditmode.callbacks:RegisterCallback("LibEditmode_OnEditModeEnter", function()
+    -- Wire up LibEditmode callbacks.
+    -- CallbackHandler:New(Lib) attaches RegisterCallback to the target (Lib)
+    -- itself; Lib.callbacks is the internal registry that only has Fire().
+    LibEditmode:RegisterCallback("LibEditmode_OnEditModeEnter", function()
         AuraTracker:OnEditModeToggle(true)
     end)
-    LibEditmode.callbacks:RegisterCallback("LibEditmode_OnEditModeExit", function()
+    LibEditmode:RegisterCallback("LibEditmode_OnEditModeExit", function()
         AuraTracker:OnEditModeToggle(false)
     end)
 end

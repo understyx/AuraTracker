@@ -231,9 +231,12 @@ function Lib:SetEditMode(state, addonName, subKey)
         Lib.EditModeStates[stateKey] = state
 
         for _, mover in ipairs(Lib.Movers) do
-            local matches = subKey
-                and (mover.addonName == addonName and mover.subKey == subKey)
-                or  (mover.addonName == addonName)
+            local matches
+            if subKey then
+                matches = mover.addonName == addonName and mover.subKey == subKey
+            else
+                matches = mover.addonName == addonName
+            end
 
             if matches then
                 if state then
