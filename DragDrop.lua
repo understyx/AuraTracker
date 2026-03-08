@@ -203,22 +203,57 @@ end
 -- BUFF BUTTON HOOKS (aura drag from buff frame)
 -- ==========================================================
 
+local FILTER_KEY_MAP = {
+    HELPFUL = "PLAYER_BUFF",
+    HARMFUL = "PLAYER_DEBUFF",
+}
+
+-- Reverse lookup from Config.AuraFilter: "unit|filter" → filterKey
+-- Supports all units (player, target, focus) so addon frames for any
+-- unit type can be hooked automatically.
+local UNIT_FILTER_TO_KEY = {}
+for key, data in pairs(Config.AuraFilter) do
+    UNIT_FILTER_TO_KEY[data.unit .. "|" .. data.filter] = key
+end
+
+function DragDrop:HookAuraButtonByName(buttonName, index, filter)
+    local button = _G[buttonName .. index]
+    if not button or button._auraTrackerHooked then return end
+
+    local filterKey = FILTER_KEY_MAP[filter]
+    if not filterKey then return end
+
+    self:HookAuraButton(button, "player", filter, filterKey)
+    button._auraTrackerHooked = true
+end
+
 function DragDrop:HookBuffButtons()
     for i = 1, 32 do
-        local button = _G["BuffButton" .. i]
-        if button and not button._auraTrackerHooked then
-            self:HookAuraButton(button, "player", "HELPFUL", "PLAYER_BUFF")
-            button._auraTrackerHooked = true
-        end
+        self:HookAuraButtonByName("BuffButton", i, "HELPFUL")
     end
-
     for i = 1, 16 do
-        local button = _G["DebuffButton" .. i]
-        if button and not button._auraTrackerHooked then
-            self:HookAuraButton(button, "player", "HARMFUL", "PLAYER_DEBUFF")
-            button._auraTrackerHooked = true
-        end
+        self:HookAuraButtonByName("DebuffButton", i, "HARMFUL")
     end
+end
+
+-- Hook GameTooltip:SetUnitAura to detect aura frames created by any addon
+-- (ElvUI, TukUI, etc.). When a user hovers over an aura button that shows
+-- a UnitAura tooltip, we apply our drag handlers so it can be dragged onto
+-- AuraTracker bars.
+function DragDrop:HookTooltipAuraDetection()
+    if self._tooltipHookRegistered then return end
+    self._tooltipHookRegistered = true
+
+    hooksecurefunc(GameTooltip, "SetUnitAura", function(_, unit, index, filter)
+        local frame = GameTooltip:GetOwner()
+        if not frame or frame._auraTrackerHooked then return end
+
+        local filterKey = UNIT_FILTER_TO_KEY[unit .. "|" .. filter]
+        if not filterKey then return end
+
+        self:HookAuraButton(frame, unit, filter, filterKey)
+        frame._auraTrackerHooked = true
+    end)
 end
 
 function DragDrop:GetDragFrame()
