@@ -751,10 +751,32 @@ function AuraTracker:ShouldShowBar(barKey)
         end
     end
 
+    -- Legacy single-talent-name check (backward compatibility)
     if db.talentRestriction and db.talentRestriction ~= "NONE" then
         local SP = ns.AuraTracker.SettingsPanel
         if SP and not SP:CheckTalentRestriction(db.talentRestriction) then
             return false
+        end
+    end
+
+    -- New multi-talent requirement check
+    if db.talentRequirements and next(db.talentRequirements) then
+        local numTabs = GetNumTalentTabs and GetNumTalentTabs() or 0
+        local maxTalents = MAX_NUM_TALENTS or 30
+        if numTabs > 0 then
+            for combinedIndex, requiredState in pairs(db.talentRequirements) do
+                local tab = math.ceil(combinedIndex / maxTalents)
+                local talentIndex = combinedIndex - (tab - 1) * maxTalents
+                if tab >= 1 and tab <= numTabs then
+                    local name, iconTex, tier, col, rank = GetTalentInfo(tab, talentIndex)
+                    local hasRank = rank and rank > 0
+                    if requiredState == true and not hasRank then
+                        return false
+                    elseif requiredState == false and hasRank then
+                        return false
+                    end
+                end
+            end
         end
     end
 

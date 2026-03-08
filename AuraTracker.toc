@@ -22,5 +22,6 @@ Bar.lua
 DragDrop.lua
 UpdateEngine.lua
 AuraTracker.lua
+MiniTalentWidget.lua
 Settings.lua
 SettingsMappings.lua
