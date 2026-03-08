@@ -772,17 +772,21 @@ local skinningDepth = 0
 if AceConfigDialog then
     local origOpen = AceConfigDialog.Open
     AceConfigDialog.Open = function(self, appName, ...)
-        if appName == addonName then skinningDepth = skinningDepth + 1 end
-        local result = origOpen(self, appName, ...)
-        if appName == addonName then skinningDepth = skinningDepth - 1 end
+        if appName ~= addonName then return origOpen(self, appName, ...) end
+        skinningDepth = skinningDepth + 1
+        local ok, result = pcall(origOpen, self, appName, ...)
+        skinningDepth = skinningDepth - 1
+        if not ok then error(result, 0) end
         return result
     end
 
     local origFeedGroup = AceConfigDialog.FeedGroup
     AceConfigDialog.FeedGroup = function(self, appName, ...)
-        if appName == addonName then skinningDepth = skinningDepth + 1 end
-        origFeedGroup(self, appName, ...)
-        if appName == addonName then skinningDepth = skinningDepth - 1 end
+        if appName ~= addonName then return origFeedGroup(self, appName, ...) end
+        skinningDepth = skinningDepth + 1
+        local ok, err = pcall(origFeedGroup, self, appName, ...)
+        skinningDepth = skinningDepth - 1
+        if not ok then error(err, 0) end
     end
 end
 
