@@ -7,6 +7,8 @@ local GetTime = GetTime
 local math_floor, math_max = math.floor, math.max
 local string_format = string.format
 
+local SnapshotTracker = nil  -- resolved lazily
+
 local Icon = {}
 Icon.__index = Icon
 ns.AuraTracker.Icon = Icon
@@ -36,7 +38,11 @@ function Icon.CreateFrame(parent)
     f.stackText = f:CreateFontString(nil, "OVERLAY")
     f.stackText:SetFont([[Fonts\FRIZQT__.ttf]], 10, "OUTLINE")
     f.stackText:SetPoint("BOTTOMRIGHT", -2, 2)
-    
+
+    f.snapshotText = f:CreateFontString(nil, "OVERLAY")
+    f.snapshotText:SetFont([[Fonts\FRIZQT__.ttf]], 9, "OUTLINE")
+    f.snapshotText:SetPoint("TOP", 0, -2)
+
     return f
 end
 
@@ -61,6 +67,8 @@ function Icon:New(frame, trackedItem, displayMode)
     self.frame.cooldown:Hide()
     self.frame.text:SetText("")
     self.frame.stackText:Hide()
+    self.frame.snapshotText:SetText("")
+    self.frame.snapshotText:Hide()
     
     return self
 end
@@ -189,6 +197,7 @@ function Icon:RenderInactive()
     self.frame.icon:SetDesaturated(true)
     self.frame.cooldown:Hide()
     self.frame.stackText:Hide()
+    self.frame.snapshotText:Hide()
     self.frame.text:SetText("")
 end
 
@@ -288,6 +297,53 @@ function Icon:FormatTime(seconds)
 end
 
 -- ==========================================================
+-- SNAPSHOT DIFF TEXT
+-- ==========================================================
+
+function Icon:UpdateSnapshotText()
+    if not self.showSnapshotText or not self.trackedItem then
+        self.frame.snapshotText:Hide()
+        return
+    end
+
+    local item = self.trackedItem
+    local tt = item:GetTrackType()
+
+    -- Only show for active aura-type items
+    local isAuraActive = false
+    if tt == Config.TrackType.AURA then
+        isAuraActive = item:IsActive()
+    elseif tt == Config.TrackType.COOLDOWN_AURA then
+        isAuraActive = item:IsAuraActive()
+    end
+
+    if not isAuraActive then
+        self.frame.snapshotText:Hide()
+        return
+    end
+
+    -- Lazily resolve SnapshotTracker reference
+    if not SnapshotTracker then
+        SnapshotTracker = ns.AuraTracker.SnapshotTracker
+    end
+    if not SnapshotTracker then
+        self.frame.snapshotText:Hide()
+        return
+    end
+
+    local unit = item.unit
+    local spellName = item:GetName()
+    local diffText = SnapshotTracker:GetSnapshotDiff(unit, spellName)
+
+    if diffText then
+        self.frame.snapshotText:SetText(diffText)
+        self.frame.snapshotText:Show()
+    else
+        self.frame.snapshotText:Hide()
+    end
+end
+
+-- ==========================================================
 -- STYLING
 -- ==========================================================
 
@@ -326,5 +382,10 @@ function Icon:ApplyStyle(styleOptions)
         self.frame.text:Show()
     else
         self.frame.text:Hide()
+    end
+
+    self.showSnapshotText = styleOptions.showSnapshotText or false
+    if not self.showSnapshotText then
+        self.frame.snapshotText:Hide()
     end
 end
