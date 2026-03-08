@@ -258,15 +258,17 @@ function DragDrop:HookBuffButtons()
     end
 end
 
--- Hook GameTooltip:SetUnitAura to detect aura frames created by any addon
--- (ElvUI, TukUI, etc.). When a user hovers over an aura button that shows
--- a UnitAura tooltip, we apply our drag handlers so it can be dragged onto
--- AuraTracker bars.
+-- Hook GameTooltip:SetUnitAura, SetUnitBuff, and SetUnitDebuff to detect
+-- aura frames created by any addon (oUF, ElvUI, TukUI, etc.).
+-- SetUnitBuff/SetUnitDebuff are used by oUF and many unit-frame addons for
+-- target/focus aura tooltips, while SetUnitAura is the generic variant.
+-- When a user hovers over an aura button that shows a UnitAura tooltip, we
+-- apply our drag handlers so it can be dragged onto AuraTracker bars.
 function DragDrop:HookTooltipAuraDetection()
     if self._tooltipHookRegistered then return end
     self._tooltipHookRegistered = true
 
-    hooksecurefunc(GameTooltip, "SetUnitAura", function(_, unit, index, filter)
+    local function hookAuraFrame(unit, filter)
         local frame = GameTooltip:GetOwner()
         if not frame or frame._auraTrackerHooked then return end
 
@@ -275,6 +277,18 @@ function DragDrop:HookTooltipAuraDetection()
 
         self:HookAuraButton(frame, unit, filter, filterKey)
         frame._auraTrackerHooked = true
+    end
+
+    hooksecurefunc(GameTooltip, "SetUnitAura", function(_, unit, index, filter)
+        hookAuraFrame(unit, filter)
+    end)
+
+    hooksecurefunc(GameTooltip, "SetUnitBuff", function(_, unit)
+        hookAuraFrame(unit, "HELPFUL")
+    end)
+
+    hooksecurefunc(GameTooltip, "SetUnitDebuff", function(_, unit)
+        hookAuraFrame(unit, "HARMFUL")
     end)
 end
 
