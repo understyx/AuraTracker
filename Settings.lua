@@ -320,6 +320,18 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
                 NotifyAndRebuild(barKey)
             end,
         }
+        args.editorShowSnapshotText = {
+            type = "toggle",
+            name = "Show Snapshot Diff",
+            desc = "Show a percentage indicating whether refreshing this DoT now would increase (+) or decrease (-) its damage compared to when it was applied.",
+            order = orderBase + 14,
+            width = "full",
+            get = function() return data.showSnapshotText or false end,
+            set = function(_, val)
+                data.showSnapshotText = val
+                NotifyAndRebuild(barKey)
+            end,
+        }
 
         -- "Also Track" section: user-defined exclusive/alternative spell IDs
         args.editorAlsoTrackHeader = {
@@ -836,18 +848,6 @@ local function CreateBarSettings(barKey, barData)
                     get   = function() return barData.showCooldownText ~= false end,
                     set   = function(_, val)
                         barData.showCooldownText = val
-                        RebuildBar(barKey)
-                    end,
-                },
-                showSnapshotText = {
-                    type  = "toggle",
-                    name  = "Show Snapshot Diff",
-                    desc  = "Show a percentage on aura icons indicating whether refreshing the DoT now would increase (+) or decrease (-) its damage compared to when it was applied.",
-                    order = 12,
-                    width = "full",
-                    get   = function() return barData.showSnapshotText or false end,
-                    set   = function(_, val)
-                        barData.showSnapshotText = val
                         RebuildBar(barKey)
                     end,
                 },
