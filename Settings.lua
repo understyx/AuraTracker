@@ -733,6 +733,13 @@ end
 -- ==========================================================
 
 local function CreateBarSettings(barKey, barData)
+    local function HideTalentsForNonMatchingClass()
+        local cr = barData.classRestriction
+        if not cr or cr == "NONE" then return true end
+        local _, playerClass = UnitClass("player")
+        return cr ~= playerClass
+    end
+
     return {
         -- ==============================================
         -- TAB 1: Bar Configuration (merged General + Appearance)
@@ -810,12 +817,7 @@ local function CreateBarSettings(barKey, barData)
                     name  = "|cFFFFFF00Click|r = Required (yellow)   |cFFFFFF00Click again|r = Excluded (red)   |cFFFFFF00Click again|r = Any (gray)",
                     order = 12,
                     width = "full",
-                    hidden = function()
-                        local cr = barData.classRestriction
-                        if not cr or cr == "NONE" then return true end
-                        local _, playerClass = UnitClass("player")
-                        return cr ~= playerClass
-                    end,
+                    hidden = HideTalentsForNonMatchingClass,
                 },
                 talentRequirements = {
                     type          = "multiselect",
@@ -823,12 +825,7 @@ local function CreateBarSettings(barKey, barData)
                     name          = "Required Talents",
                     order         = 13,
                     width         = "full",
-                    hidden = function()
-                        local cr = barData.classRestriction
-                        if not cr or cr == "NONE" then return true end
-                        local _, playerClass = UnitClass("player")
-                        return cr ~= playerClass
-                    end,
+                    hidden = HideTalentsForNonMatchingClass,
                     values        = function() return BuildTalentList() end,
                     get           = function(_, key)
                         local reqs = barData.talentRequirements
