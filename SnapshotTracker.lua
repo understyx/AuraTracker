@@ -74,6 +74,23 @@ local masterPoisonerWhitelist = {
     [48666] = true, -- Mutilate (Rank 6)
 }
 
+-- DoTs refreshed through talents/glyphs keep their original snapshot.
+-- Only a fresh SPELL_AURA_APPLIED recalculates damage/crit modifiers.
+local noRecalcOnRefresh = {
+    -- Warlock: Corruption — refreshed by Everlasting Affliction
+    [172]   = true, [6222]  = true, [6223]  = true, [7648]  = true,
+    [11671] = true, [11672] = true, [25311] = true, [27216] = true,
+    [47812] = true, [47813] = true,
+    -- Hunter: Serpent Sting — refreshed by Chimera Shot
+    [1978]  = true, [13549] = true, [13550] = true, [13551] = true,
+    [13552] = true, [13553] = true, [13554] = true, [13555] = true,
+    [25295] = true, [27016] = true, [49000] = true, [49001] = true,
+    -- DK: Blood Plague — refreshed by Pestilence (Glyph of Disease)
+    [55078] = true,
+    -- DK: Frost Fever — refreshed by Pestilence (Glyph of Disease)
+    [55095] = true,
+}
+
 -- Spell crit school per class (shadow=6, nature=4, etc.)
 local critSchools = {
     WARLOCK = 6,
@@ -683,6 +700,12 @@ function SnapshotTracker:ProcessEvent(subEvent, sourceGUID, destGUID, spellId, s
 
     if subEvent == "SPELL_AURA_APPLIED" or subEvent == "SPELL_AURA_REFRESH" then
         if not spellName then return end
+        -- Talent/glyph refreshes only extend the timer; they do not
+        -- reapply the aura, so damage and crit snapshots stay unchanged.
+        if subEvent == "SPELL_AURA_REFRESH" and noRecalcOnRefresh[spellId]
+           and snapshots[destGUID] and snapshots[destGUID][spellName] then
+            return
+        end
         if not snapshots[destGUID] then
             snapshots[destGUID] = {}
         end
