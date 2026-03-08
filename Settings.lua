@@ -155,6 +155,41 @@ local function GetFilterData(filterKey)
 end
 
 -- ==========================================================
+-- TALENT LIST BUILDER (for MiniTalent widget)
+-- ==========================================================
+
+local function BuildTalentList()
+    local list = {}
+    local numTabs = GetNumTalentTabs and GetNumTalentTabs() or 0
+    local maxTalents = MAX_NUM_TALENTS or 30
+    if numTabs == 0 then return list end
+
+    for tab = 1, numTabs do
+        local numTalents = GetNumTalents and GetNumTalents(tab) or 0
+        for i = 1, numTalents do
+            local talentName, iconTexture, tier, column = GetTalentInfo(tab, i)
+            if talentName then
+                local index = (tab - 1) * maxTalents + i
+                list[index] = { iconTexture, tier, column, talentName }
+            end
+        end
+    end
+
+    -- Background textures for each talent tab
+    local bgIndex = maxTalents * numTabs + 1
+    local backgrounds = {}
+    for tab = 1, numTabs do
+        local _, _, _, texture = GetTalentTabInfo(tab)
+        if texture then
+            backgrounds[tab] = texture
+        end
+    end
+    list[bgIndex] = backgrounds
+
+    return list
+end
+
+-- ==========================================================
 -- ICON ORDER HELPERS
 -- ==========================================================
 
@@ -767,6 +802,37 @@ local function CreateBarSettings(barKey, barData)
                     get    = function() return barData.classRestriction or "NONE" end,
                     set    = function(_, val)
                         barData.classRestriction = val
+                        NotifyAndRebuild(barKey)
+                    end,
+                },
+                talentRequirementsDesc = {
+                    type  = "description",
+                    name  = "|cFFFFFF00Click|r = Required (yellow)   |cFFFFFF00Click again|r = Excluded (red)   |cFFFFFF00Click again|r = Any (gray)",
+                    order = 12,
+                    width = "full",
+                },
+                talentRequirements = {
+                    type          = "multiselect",
+                    dialogControl = "AuraTrackerMiniTalent",
+                    name          = "Required Talents",
+                    order         = 13,
+                    width         = "full",
+                    values        = function() return BuildTalentList() end,
+                    get           = function(_, key)
+                        local reqs = barData.talentRequirements
+                        return reqs and reqs[key]
+                    end,
+                    set           = function(_, key, value)
+                        barData.talentRequirements = barData.talentRequirements or {}
+                        if value == nil then
+                            barData.talentRequirements[key] = nil
+                        else
+                            barData.talentRequirements[key] = value
+                        end
+                        -- Clean up empty table
+                        if not next(barData.talentRequirements) then
+                            barData.talentRequirements = nil
+                        end
                         NotifyAndRebuild(barKey)
                     end,
                 },
