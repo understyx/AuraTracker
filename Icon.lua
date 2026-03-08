@@ -303,6 +303,9 @@ end
 function Icon:UpdateSnapshotText()
     if not self.showSnapshotText or not self.trackedItem then
         self.frame.snapshotText:Hide()
+        -- Reset cooldown text to centre when snapshot is disabled
+        self.frame.text:ClearAllPoints()
+        self.frame.text:SetPoint("CENTER")
         return
     end
 
@@ -319,6 +322,8 @@ function Icon:UpdateSnapshotText()
 
     if not isAuraActive then
         self.frame.snapshotText:Hide()
+        self.frame.text:ClearAllPoints()
+        self.frame.text:SetPoint("CENTER")
         return
     end
 
@@ -328,6 +333,8 @@ function Icon:UpdateSnapshotText()
     end
     if not SnapshotTracker then
         self.frame.snapshotText:Hide()
+        self.frame.text:ClearAllPoints()
+        self.frame.text:SetPoint("CENTER")
         return
     end
 
@@ -338,8 +345,14 @@ function Icon:UpdateSnapshotText()
     if diffText then
         self.frame.snapshotText:SetText(diffText)
         self.frame.snapshotText:Show()
+        -- Shift cooldown text down so it doesn't overlap the snapshot text
+        self.frame.text:ClearAllPoints()
+        self.frame.text:SetPoint("BOTTOM", 0, 2)
     else
         self.frame.snapshotText:Hide()
+        -- Reset cooldown text to centre
+        self.frame.text:ClearAllPoints()
+        self.frame.text:SetPoint("CENTER")
     end
 end
 

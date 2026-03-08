@@ -919,6 +919,113 @@ function ns.GetAuraTrackerOptions()
         name        = "Aura Tracker",
         childGroups = "tree",
         args        = {
+            -- Introduction / How-to page
+            introduction = {
+                type  = "group",
+                name  = "Introduction",
+                order = 1,
+                args  = {
+                    welcome = {
+                        type     = "description",
+                        name     = "|cFF00CCFFAura Tracker|r lets you create moveable icon bars that track cooldowns, "
+                            .. "auras (buffs/debuffs), and item cooldowns for any class.",
+                        fontSize = "medium",
+                        order    = 1,
+                        width    = "full",
+                    },
+
+                    -- Getting Started
+                    gettingStartedHeader = { type = "header", name = "Getting Started", order = 10 },
+                    gettingStartedDesc = {
+                        type  = "description",
+                        order = 11,
+                        width = "full",
+                        name  = "1.  Open |cFFFFFF00Bars|r in the tree on the left and enter a name in "
+                            .. "|cFFFFFF00New Bar ID|r to create a bar.\n"
+                            .. "2.  Click |cFFFFFF00Toggle Move Bars|r to enter edit mode and drag bars "
+                            .. "to the desired screen position.\n"
+                            .. "3.  Drag spells or items from your spellbook / bags onto a bar to start "
+                            .. "tracking them.\n"
+                            .. "4.  Open a bar in the settings tree to fine-tune its appearance and icons.",
+                    },
+
+                    -- Drag & Drop
+                    dragDropHeader = { type = "header", name = "Drag & Drop", order = 20 },
+                    dragDropDesc = {
+                        type  = "description",
+                        order = 21,
+                        width = "full",
+                        name  = "|cFFAAD4FFNormal drag|r from the spellbook onto a bar "
+                            .. "tracks the spell as a |cFFAAD4FFcooldown|r.\n\n"
+                            .. "|cFFAAAAFFShift + drag|r from the spellbook onto a bar "
+                            .. "tracks the spell as a |cFFAAFFAAtarget debuff aura|r instead.\n\n"
+                            .. "|cFFFFD700Items|r can be dragged from your bags to track item cooldowns.\n\n"
+                            .. "You can also drag aura buttons from the |cFFFFFFFFbuff/debuff frame|r "
+                            .. "(or addon frames like ElvUI) directly onto a bar. "
+                            .. "Hold |cFFAAAAFFShift|r while dragging an aura button to set its display "
+                            .. "mode to |cFFAAAAFF\"Show When Missing\"|r.",
+                    },
+
+                    -- Spell Mappings
+                    mappingsHeader = { type = "header", name = "Spell Mappings", order = 30 },
+                    mappingsDesc = {
+                        type  = "description",
+                        order = 31,
+                        width = "full",
+                        name  = "Some spells (e.g. Icy Touch → Frost Fever) have built-in mappings that "
+                            .. "automatically track the correct aura when dragged.\n\n"
+                            .. "You can create your own custom mappings in the |cFFFFFF00Mappings|r page "
+                            .. "to control what happens when any spell is dragged onto a bar.",
+                    },
+
+                    -- Icon Settings
+                    iconSettingsHeader = { type = "header", name = "Per-Icon Settings", order = 40 },
+                    iconSettingsDesc = {
+                        type  = "description",
+                        order = 41,
+                        width = "full",
+                        name  = "Click any icon in a bar's |cFFFFFF00Icons|r tab to open its inline editor. "
+                            .. "From there you can:\n\n"
+                            .. "• Change |cFFFFFF00Visibility|r (Always, Active Only, Missing Only).\n"
+                            .. "• Set the |cFFFFFF00Aura Source|r (player/target/focus, buff/debuff).\n"
+                            .. "• Toggle |cFFFFFF00Only Mine|r to track only your own auras.\n"
+                            .. "• Enable |cFFFFFF00Show Snapshot Diff|r to see whether refreshing a DoT "
+                            .. "now would increase or decrease its damage.\n"
+                            .. "• Add |cFFFFFF00Also Track (Alternatives)|r spell IDs so one icon "
+                            .. "covers an entire spell family (e.g. all Warlock curses).\n"
+                            .. "• Reorder icons with the Move Left / Move Right buttons.",
+                    },
+
+                    -- Bar Settings
+                    barSettingsHeader = { type = "header", name = "Bar Settings", order = 50 },
+                    barSettingsDesc = {
+                        type  = "description",
+                        order = 51,
+                        width = "full",
+                        name  = "Each bar has three tabs:\n\n"
+                            .. "|cFFFFFF00General|r – Bar name, layout direction, Ignore GCD toggle, "
+                            .. "Show Only Known Spells, and class restriction.\n\n"
+                            .. "|cFFFFFF00Appearance|r – Icon size, spacing, scale, font size, outline, "
+                            .. "text color, and whether to show cooldown timers.\n\n"
+                            .. "|cFFFFFF00Icons|r – Add or remove tracked spells/items and configure each icon.",
+                    },
+
+                    -- Tips
+                    tipsHeader = { type = "header", name = "Tips", order = 60 },
+                    tipsDesc = {
+                        type  = "description",
+                        order = 61,
+                        width = "full",
+                        name  = "• Use |cFFFFFF00/auratracker|r or |cFFFFFF00/at|r to open this settings panel.\n"
+                            .. "• Bars are saved per-character. Each character can have different bars.\n"
+                            .. "• The |cFFFFFF00Class Restriction|r option lets you share a profile between "
+                            .. "characters while hiding class-specific bars on the wrong class.\n"
+                            .. "• Enable |cFFFFFF00Show Only Known Spells|r to automatically hide icons "
+                            .. "for spells your character hasn't learned yet.",
+                    },
+                },
+            },
+
             -- Mappings page (always shown, even before any bars exist)
             mappings = ns.CreateMappingsOptions(),
 
@@ -1032,6 +1139,9 @@ ns.AuraTracker.SettingsPanel = {
         end
         if barKey then
             AceConfigDialog:SelectGroup(addonName, "bars", barKey)
+        else
+            -- Expand the Bars group by default so users see their bars immediately
+            AceConfigDialog:SelectGroup(addonName, "bars")
         end
     end,
 
