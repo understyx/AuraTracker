@@ -863,11 +863,28 @@ local function CreateBarSettings(barKey, barData)
                         RebuildBar(barKey)
                     end,
                 },
+                fontOutline = {
+                    type     = "select",
+                    name     = "Font Outline",
+                    desc     = "Outline style for text on icons.",
+                    values   = {
+                        ["NONE"]          = "None",
+                        ["OUTLINE"]       = "Thin",
+                        ["THICKOUTLINE"]  = "Thick",
+                    },
+                    order    = 14,
+                    width    = "normal",
+                    get      = function() return barData.fontOutline or "THICKOUTLINE" end,
+                    set      = function(_, val)
+                        barData.fontOutline = val
+                        RebuildBar(barKey)
+                    end,
+                },
                 textColor = {
                     type     = "color",
                     name     = "Text Color",
                     hasAlpha = true,
-                    order    = 14,
+                    order    = 15,
                     width    = "normal",
                     get      = function()
                         local c = barData.textColor or DEFAULT_TEXT_COLOR

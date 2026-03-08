@@ -60,6 +60,7 @@ local function BuildStyleOptions(db)
     return {
         size = db.iconSize,
         fontSize = db.textSize,
+        fontOutline = db.fontOutline,
         textColor = db.textColor,
         showCooldownText = db.showCooldownText,
         showSnapshotText = db.showSnapshotText,

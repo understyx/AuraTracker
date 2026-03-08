@@ -32,15 +32,15 @@ function Icon.CreateFrame(parent)
     f.cooldown:SetAlpha(0)
     
     f.text = f:CreateFontString(nil, "OVERLAY")
-    f.text:SetFont([[Fonts\FRIZQT__.ttf]], 12, "OUTLINE")
+    f.text:SetFont([[Fonts\FRIZQT__.ttf]], 12, "THICKOUTLINE")
     f.text:SetPoint("CENTER")
     
     f.stackText = f:CreateFontString(nil, "OVERLAY")
-    f.stackText:SetFont([[Fonts\FRIZQT__.ttf]], 10, "OUTLINE")
+    f.stackText:SetFont([[Fonts\FRIZQT__.ttf]], 10, "THICKOUTLINE")
     f.stackText:SetPoint("BOTTOMRIGHT", -2, 2)
 
     f.snapshotText = f:CreateFontString(nil, "OVERLAY")
-    f.snapshotText:SetFont([[Fonts\FRIZQT__.ttf]], 9, "OUTLINE")
+    f.snapshotText:SetFont([[Fonts\FRIZQT__.ttf]], 9, "THICKOUTLINE")
     f.snapshotText:SetPoint("TOP", 0, -2)
 
     return f
@@ -354,11 +354,19 @@ function Icon:ApplyStyle(styleOptions)
     self.frame:SetSize(size, size)
 
     local fontSize = styleOptions.fontSize or 12
-    self.frame.text:SetFont([[Fonts\FRIZQT__.ttf]], fontSize, "OUTLINE")
+    local fontOutline = styleOptions.fontOutline or "THICKOUTLINE"
+    if fontOutline == "NONE" then fontOutline = "" end
+
+    self.frame.text:SetFont([[Fonts\FRIZQT__.ttf]], fontSize, fontOutline)
     self.frame.stackText:SetFont(
         [[Fonts\FRIZQT__.ttf]],
         fontSize * 0.9,
-        "OUTLINE"
+        fontOutline
+    )
+    self.frame.snapshotText:SetFont(
+        [[Fonts\FRIZQT__.ttf]],
+        fontSize * 0.75,
+        fontOutline
     )
 
     if not self.frame.border then
