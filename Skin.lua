@@ -759,13 +759,37 @@ skinners["BlizOptionsGroup"] = function(widget)
 end
 
 -- ==========================================================
--- HOOK AceGUI:Create
+-- SCOPE SKINNING TO AURATRACKER WIDGETS ONLY
 -- ==========================================================
+-- AceGUI is a shared library – hooking Create globally would
+-- re-skin every AceGUI widget from every addon (ElvUI config,
+-- DBM options, etc.).  Instead we track when AceConfigDialog
+-- is building *our* options and only apply skinning then.
+
+local AceConfigDialog = LibStub("AceConfigDialog-3.0", true)
+local skinningDepth = 0
+
+if AceConfigDialog then
+    local origOpen = AceConfigDialog.Open
+    AceConfigDialog.Open = function(self, appName, ...)
+        if appName == addonName then skinningDepth = skinningDepth + 1 end
+        local result = origOpen(self, appName, ...)
+        if appName == addonName then skinningDepth = skinningDepth - 1 end
+        return result
+    end
+
+    local origFeedGroup = AceConfigDialog.FeedGroup
+    AceConfigDialog.FeedGroup = function(self, appName, ...)
+        if appName == addonName then skinningDepth = skinningDepth + 1 end
+        origFeedGroup(self, appName, ...)
+        if appName == addonName then skinningDepth = skinningDepth - 1 end
+    end
+end
 
 local origCreate = AceGUI.Create
 AceGUI.Create = function(self, widgetType, ...)
     local widget = origCreate(self, widgetType, ...)
-    if widget then
+    if widget and skinningDepth > 0 then
         local skinner = skinners[widgetType]
         if skinner then
             skinner(widget)
