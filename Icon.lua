@@ -383,9 +383,4 @@ function Icon:ApplyStyle(styleOptions)
     else
         self.frame.text:Hide()
     end
-
-    self.showSnapshotText = styleOptions.showSnapshotText or false
-    if not self.showSnapshotText then
-        self.frame.snapshotText:Hide()
-    end
 end

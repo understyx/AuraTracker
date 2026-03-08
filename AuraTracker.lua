@@ -40,7 +40,6 @@ local BAR_DEFAULTS = {
     y = -200,
     textSize = 12,
     showCooldownText = true,
-    showSnapshotText = false,
     ignoreGCD = true,
     textColor = { r = 1, g = 1, b = 1, a = 1 },
 }
@@ -62,7 +61,6 @@ local function BuildStyleOptions(db)
         fontSize = db.textSize,
         textColor = db.textColor,
         showCooldownText = db.showCooldownText,
-        showSnapshotText = db.showSnapshotText,
     }
 end
 
@@ -321,12 +319,14 @@ function AuraTracker:RebuildBar(barKey)
                 self:CreateCooldownIcon(barKey, spellId, order, styleOptions, data.displayMode)
             elseif data.trackType == Config.TrackType.AURA then
                 local filterKey = data.type and string_upper(data.type) or "TARGET_DEBUFF"
-                self:CreateAuraIcon(barKey, spellId, filterKey, data.auraId, order, styleOptions, data.displayMode, data.onlyMine, data.exclusiveSpells)
+                local icon = self:CreateAuraIcon(barKey, spellId, filterKey, data.auraId, order, styleOptions, data.displayMode, data.onlyMine, data.exclusiveSpells)
+                if icon then icon.showSnapshotText = data.showSnapshotText or false end
             elseif data.trackType == Config.TrackType.ITEM then
                 self:CreateItemIcon(barKey, spellId, order, styleOptions, data.displayMode)
             elseif data.trackType == Config.TrackType.COOLDOWN_AURA then
                 local filterKey = data.type and string_upper(data.type) or "TARGET_DEBUFF"
-                self:CreateCooldownAuraIcon(barKey, spellId, filterKey, data.auraId, order, styleOptions, data.displayMode, data.onlyMine, data.exclusiveSpells)
+                local icon = self:CreateCooldownAuraIcon(barKey, spellId, filterKey, data.auraId, order, styleOptions, data.displayMode, data.onlyMine, data.exclusiveSpells)
+                if icon then icon.showSnapshotText = data.showSnapshotText or false end
             end
         end
     end
