@@ -303,7 +303,7 @@ end
 function Icon:UpdateSnapshotText()
     if not self.showSnapshotText or not self.trackedItem then
         self.frame.snapshotText:Hide()
-        -- Reset cooldown text to centre when snapshot is disabled
+        -- Reset cooldown text to center when snapshot is disabled
         self.frame.text:ClearAllPoints()
         self.frame.text:SetPoint("CENTER")
         return
@@ -350,7 +350,7 @@ function Icon:UpdateSnapshotText()
         self.frame.text:SetPoint("BOTTOM", 0, 2)
     else
         self.frame.snapshotText:Hide()
-        -- Reset cooldown text to centre
+        -- Reset cooldown text to center
         self.frame.text:ClearAllPoints()
         self.frame.text:SetPoint("CENTER")
     end
