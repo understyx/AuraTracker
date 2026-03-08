@@ -42,11 +42,19 @@ function DragDrop:OnDragEnd()
     self:HideDropZones()
 end
 
+function DragDrop:ClearDragState()
+    self.draggedAura = nil
+    self:HideDropZones()
+    if self.dragIconFrame then
+        self.dragIconFrame:Hide()
+    end
+end
+
 -- ==========================================================
 -- DROP ZONES
 -- ==========================================================
 
-local function CreateDropZoneFrame(bar, handler, clickCallback)
+local function CreateDropZoneFrame(bar, handler, clickCallback, auraHandler)
     local dropZone = CreateFrame("Frame", nil, bar:GetFrame())
     dropZone:SetAllPoints(bar:GetFrame())
     dropZone:SetFrameLevel(bar:GetFrame():GetFrameLevel() + 10)
@@ -67,9 +75,13 @@ local function CreateDropZoneFrame(bar, handler, clickCallback)
 
     dropZone:SetScript("OnReceiveDrag", function()
         local cursorType, id, subType = GetCursorInfo()
-        local isShift = IsShiftKeyDown()
-        ClearCursor()
-        handler(cursorType, id, subType, isShift)
+        if cursorType then
+            local isShift = IsShiftKeyDown()
+            ClearCursor()
+            handler(cursorType, id, subType, isShift)
+        elseif auraHandler then
+            auraHandler()
+        end
     end)
 
     dropZone:SetScript("OnMouseUp", function(_, button)
@@ -79,6 +91,8 @@ local function CreateDropZoneFrame(bar, handler, clickCallback)
                 local isShift = IsShiftKeyDown()
                 ClearCursor()
                 handler(cursorType, id, subType, isShift)
+            elseif auraHandler and auraHandler() then
+                -- Aura drop from buff frame handled
             else
                 clickCallback()
             end
@@ -99,6 +113,14 @@ function DragDrop:ShowDropZones()
                 end,
                 function()
                     if self.onBarClick then self.onBarClick(barKey) end
+                end,
+                function()
+                    if self.draggedAura then
+                        self:HandleAuraDrop(barKey)
+                        self:ClearDragState()
+                        return true
+                    end
+                    return false
                 end
             )
             self.dropZones[barKey] = dropZone
@@ -337,12 +359,7 @@ function DragDrop:HookAuraButton(button, unit, filter, filterKey)
                 end
             end
 
-            self.draggedAura = nil
-            self:HideDropZones()
-
-            if self.dragIconFrame then
-                self.dragIconFrame:Hide()
-            end
+            self:ClearDragState()
         end
 
         if oldDragStop then oldDragStop(b) end

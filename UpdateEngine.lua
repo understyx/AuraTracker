@@ -198,6 +198,7 @@ function UpdateEngine:RefreshBar(barKey)
     local styleOptions = {
         size = db.iconSize,
         fontSize = db.textSize,
+        fontOutline = db.fontOutline,
         textColor = db.textColor,
         showCooldownText = db.showCooldownText,
     }
