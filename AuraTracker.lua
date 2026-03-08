@@ -242,19 +242,21 @@ end
 
 function AuraTracker:DeleteBar(barKey)
     local bar = self.bars[barKey]
-    if not bar then return false end
+    if bar then
+        for _, icon in ipairs(bar:GetIcons()) do
+            icon:Destroy()
+            LibFramePool:Release(icon:GetFrame())
+        end
 
-    for _, icon in ipairs(bar:GetIcons()) do
-        icon:Destroy()
-        LibFramePool:Release(icon:GetFrame())
+        LibEditmode:Unregister(bar:GetFrame())
+
+        bar:Destroy()
+        self.bars[barKey] = nil
+        self.items[barKey] = nil
     end
 
-    LibEditmode:Unregister(bar:GetFrame())
-
-    bar:Destroy()
-    self.bars[barKey] = nil
-    self.items[barKey] = nil
-
+    -- Always remove from database even if the bar widget was not
+    -- active (e.g. hidden by class restriction or disabled).
     local profileDB = self:GetDB()
     if profileDB and profileDB.bars then
         profileDB.bars[barKey] = nil

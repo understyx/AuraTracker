@@ -960,14 +960,15 @@ local function CreateBarSettings(barKey, barData)
                     confirm     = true,
                     confirmText = "Delete bar \"" .. (barData.name or barKey) .. "\" and all its icons?",
                     func        = function()
-                        if ns.AuraTracker and ns.AuraTracker.Controller then
-                            ns.AuraTracker.Controller:DeleteBar(barKey)
-                            if editState.selectedBar == barKey then
-                                editState.selectedBar  = nil
-                                editState.selectedAura = nil
-                            end
-                            NotifyChange()
+                        local ctrl = ns.AuraTracker and ns.AuraTracker.Controller
+                        if ctrl then
+                            ctrl:DeleteBar(barKey)
                         end
+                        if editState.selectedBar == barKey then
+                            editState.selectedBar  = nil
+                            editState.selectedAura = nil
+                        end
+                        NotifyChange()
                     end,
                 },
             },
@@ -1037,18 +1038,6 @@ function ns.GetAuraTrackerOptions()
                             .. "mode to |cFFAAAAFF\"Show When Missing\"|r.",
                     },
 
-                    -- Spell Mappings
-                    mappingsHeader = { type = "header", name = "Spell Mappings", order = 30 },
-                    mappingsDesc = {
-                        type  = "description",
-                        order = 31,
-                        width = "full",
-                        name  = "Some spells (e.g. Icy Touch → Frost Fever) have built-in mappings that "
-                            .. "automatically track the correct aura when dragged.\n\n"
-                            .. "You can create your own custom mappings in the |cFFFFFF00Mappings|r page "
-                            .. "to control what happens when any spell is dragged onto a bar.",
-                    },
-
                     -- Icon Settings
                     iconSettingsHeader = { type = "header", name = "Per-Icon Settings", order = 40 },
                     iconSettingsDesc = {
@@ -1073,11 +1062,10 @@ function ns.GetAuraTrackerOptions()
                         type  = "description",
                         order = 51,
                         width = "full",
-                        name  = "Each bar has three tabs:\n\n"
-                            .. "|cFFFFFF00General|r – Bar name, layout direction, Ignore GCD toggle, "
-                            .. "Show Only Known Spells, and class restriction.\n\n"
-                            .. "|cFFFFFF00Appearance|r – Icon size, spacing, scale, font size, outline, "
-                            .. "text color, and whether to show cooldown timers.\n\n"
+                        name  = "Each bar has two tabs:\n\n"
+                            .. "|cFFFFFF00Bar Configuration|r – Bar name, layout direction, Ignore GCD toggle, "
+                            .. "Show Only Known Spells, class restriction, icon size, spacing, scale, "
+                            .. "font size, outline, and text color.\n\n"
                             .. "|cFFFFFF00Icons|r – Add or remove tracked spells/items and configure each icon.",
                     },
 
@@ -1096,9 +1084,6 @@ function ns.GetAuraTrackerOptions()
                     },
                 },
             },
-
-            -- Mappings page (always shown, even before any bars exist)
-            mappings = ns.CreateMappingsOptions(),
 
             -- Parent group that holds all individual bar groups + new-bar creation
             bars = {
@@ -1130,8 +1115,6 @@ function ns.UpdateBarOptions(options)
     for key in pairs(options.args.bars.args) do
         options.args.bars.args[key] = nil
     end
-
-    options.args.mappings = ns.CreateMappingsOptions()
 
     options.args.bars.args["__editMode"] = {
         type  = "execute",
