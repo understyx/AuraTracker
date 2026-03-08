@@ -432,7 +432,7 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
                 }
                 args["editorExcl_remove_" .. exclId] = {
                     type  = "execute",
-                    name  = exclName .. "  (ID: " .. exclId .. ")  ✕",
+                    name  = exclName .. "  (ID: " .. exclId .. ")  x",
                     desc  = "Remove " .. exclName .. " from the alternatives list.",
                     order = orderBase + 24 + (exclOrder * 2),
                     width = "normal",
@@ -462,7 +462,7 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
         args.editorReorderHeader = { type = "header", name = "Order", order = orderBase + 50 }
         args.editorMoveLeft = {
             type     = "execute",
-            name     = "◀ Move Left",
+            name     = "<  Move Left",
             order    = orderBase + 51,
             width    = "half",
             disabled = (currentIndex <= 1),
@@ -470,7 +470,7 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
         }
         args.editorMoveRight = {
             type     = "execute",
-            name     = "Move Right ▶",
+            name     = "Move Right  >",
             order    = orderBase + 52,
             width    = "half",
             disabled = (currentIndex >= totalIcons),
@@ -700,11 +700,11 @@ end
 local function CreateBarSettings(barKey, barData)
     return {
         -- ==============================================
-        -- TAB 1: General
+        -- TAB 1: Bar Configuration (merged General + Appearance)
         -- ==============================================
-        general = {
+        barConfig = {
             type        = "group",
-            name        = "General",
+            name        = "Bar Configuration",
             order       = 1,
             args        = {
                 name = {
@@ -725,7 +725,7 @@ local function CreateBarSettings(barKey, barData)
                     desc   = "Icon layout direction.",
                     values = L.DIRECTIONS,
                     order  = 2,
-                    width  = "normal",
+                    width  = "double",
                     get    = function() return barData.direction or "HORIZONTAL" end,
                     set    = function(_, val)
                         barData.direction = val
@@ -763,13 +763,117 @@ local function CreateBarSettings(barKey, barData)
                     desc   = "Only show this bar when playing the selected class.",
                     values = L.CLASSES,
                     order  = 11,
-                    width  = "normal",
+                    width  = "double",
                     get    = function() return barData.classRestriction or "NONE" end,
                     set    = function(_, val)
                         barData.classRestriction = val
                         NotifyAndRebuild(barKey)
                     end,
                 },
+
+                -- Size & Spacing (previously in Appearance tab)
+                sizeHeader = { type = "header", name = "Size & Spacing", order = 20 },
+                iconSize = {
+                    type     = "range",
+                    name     = "Icon Size",
+                    min      = 10, max = 100, step = 1,
+                    order    = 21,
+                    width    = "double",
+                    get      = function() return barData.iconSize end,
+                    set      = function(_, val)
+                        barData.iconSize = val
+                        RebuildBar(barKey)
+                    end,
+                },
+                spacing = {
+                    type     = "range",
+                    name     = "Spacing",
+                    min      = 0, max = 50, step = 1,
+                    order    = 22,
+                    width    = "double",
+                    get      = function() return barData.spacing end,
+                    set      = function(_, val)
+                        barData.spacing = val
+                        RebuildBar(barKey)
+                    end,
+                },
+                scale = {
+                    type     = "range",
+                    name     = "Scale",
+                    desc     = "Overall scale of the bar frame (does not affect saved position).",
+                    min      = 0.25, max = 3.0, step = 0.05,
+                    order    = 23,
+                    width    = "double",
+                    get      = function() return barData.scale or 1.0 end,
+                    set      = function(_, val)
+                        barData.scale = val
+                        RebuildBar(barKey)
+                    end,
+                },
+
+                -- Text (previously in Appearance tab)
+                textHeader = { type = "header", name = "Text", order = 30 },
+                showCooldownText = {
+                    type  = "toggle",
+                    name  = "Show Cooldown Timer",
+                    desc  = "Show remaining cooldown time as text on the icon.",
+                    order = 31,
+                    width = "full",
+                    get   = function() return barData.showCooldownText ~= false end,
+                    set   = function(_, val)
+                        barData.showCooldownText = val
+                        RebuildBar(barKey)
+                    end,
+                },
+                textSize = {
+                    type     = "range",
+                    name     = "Font Size",
+                    min      = 8, max = 32, step = 1,
+                    order    = 32,
+                    width    = "double",
+                    get      = function() return barData.textSize or 12 end,
+                    set      = function(_, val)
+                        barData.textSize = val
+                        RebuildBar(barKey)
+                    end,
+                },
+                fontOutline = {
+                    type     = "select",
+                    name     = "Font Outline",
+                    desc     = "Outline style for text on icons.",
+                    values   = {
+                        ["NONE"]          = "None",
+                        ["OUTLINE"]       = "Thin",
+                        ["THICKOUTLINE"]  = "Thick",
+                    },
+                    order    = 33,
+                    width    = "double",
+                    get      = function() return barData.fontOutline or "THICKOUTLINE" end,
+                    set      = function(_, val)
+                        barData.fontOutline = val
+                        RebuildBar(barKey)
+                    end,
+                },
+                textColor = {
+                    type     = "color",
+                    name     = "Text Color",
+                    hasAlpha = true,
+                    order    = 34,
+                    width    = "normal",
+                    get      = function()
+                        local c = barData.textColor or DEFAULT_TEXT_COLOR
+                        return c.r, c.g, c.b, c.a
+                    end,
+                    set      = function(_, r, g, b, a)
+                        barData.textColor = barData.textColor or {}
+                        barData.textColor.r = r
+                        barData.textColor.g = g
+                        barData.textColor.b = b
+                        barData.textColor.a = a
+                        RebuildBar(barKey)
+                    end,
+                },
+
                 dangerHeader = { type = "header", name = "Danger Zone", order = 100 },
                 deleteBar = {
                     type        = "execute",
@@ -793,117 +897,7 @@ local function CreateBarSettings(barKey, barData)
         },
 
         -- ==============================================
-        -- TAB 2: Appearance
-        -- ==============================================
-        appearance = {
-            type        = "group",
-            name        = "Appearance",
-            order       = 2,
-            args        = {
-                sizeHeader = { type = "header", name = "Size & Spacing", order = 1 },
-                iconSize = {
-                    type     = "range",
-                    name     = "Icon Size",
-                    min      = 10, max = 100, step = 1,
-                    order    = 2,
-                    width    = "double",
-                    get      = function() return barData.iconSize end,
-                    set      = function(_, val)
-                        barData.iconSize = val
-                        RebuildBar(barKey)
-                    end,
-                },
-                spacing = {
-                    type     = "range",
-                    name     = "Spacing",
-                    min      = 0, max = 50, step = 1,
-                    order    = 3,
-                    width    = "double",
-                    get      = function() return barData.spacing end,
-                    set      = function(_, val)
-                        barData.spacing = val
-                        RebuildBar(barKey)
-                    end,
-                },
-                scale = {
-                    type     = "range",
-                    name     = "Scale",
-                    desc     = "Overall scale of the bar frame (does not affect saved position).",
-                    min      = 0.25, max = 3.0, step = 0.05,
-                    order    = 4,
-                    width    = "double",
-                    get      = function() return barData.scale or 1.0 end,
-                    set      = function(_, val)
-                        barData.scale = val
-                        RebuildBar(barKey)
-                    end,
-                },
-                textHeader = { type = "header", name = "Text", order = 10 },
-                showCooldownText = {
-                    type  = "toggle",
-                    name  = "Show Cooldown Timer",
-                    desc  = "Show remaining cooldown time as text on the icon.",
-                    order = 11,
-                    width = "full",
-                    get   = function() return barData.showCooldownText ~= false end,
-                    set   = function(_, val)
-                        barData.showCooldownText = val
-                        RebuildBar(barKey)
-                    end,
-                },
-                textSize = {
-                    type     = "range",
-                    name     = "Font Size",
-                    min      = 8, max = 32, step = 1,
-                    order    = 13,
-                    width    = "double",
-                    get      = function() return barData.textSize or 12 end,
-                    set      = function(_, val)
-                        barData.textSize = val
-                        RebuildBar(barKey)
-                    end,
-                },
-                fontOutline = {
-                    type     = "select",
-                    name     = "Font Outline",
-                    desc     = "Outline style for text on icons.",
-                    values   = {
-                        ["NONE"]          = "None",
-                        ["OUTLINE"]       = "Thin",
-                        ["THICKOUTLINE"]  = "Thick",
-                    },
-                    order    = 14,
-                    width    = "normal",
-                    get      = function() return barData.fontOutline or "THICKOUTLINE" end,
-                    set      = function(_, val)
-                        barData.fontOutline = val
-                        RebuildBar(barKey)
-                    end,
-                },
-                textColor = {
-                    type     = "color",
-                    name     = "Text Color",
-                    hasAlpha = true,
-                    order    = 15,
-                    width    = "normal",
-                    get      = function()
-                        local c = barData.textColor or DEFAULT_TEXT_COLOR
-                        return c.r, c.g, c.b, c.a
-                    end,
-                    set      = function(_, r, g, b, a)
-                        barData.textColor = barData.textColor or {}
-                        barData.textColor.r = r
-                        barData.textColor.g = g
-                        barData.textColor.b = b
-                        barData.textColor.a = a
-                        RebuildBar(barKey)
-                    end,
-                },
-            },
-        },
-
-        -- ==============================================
-        -- TAB 3: Icons
+        -- TAB 2: Icons
         -- ==============================================
         icons = CreateIconListOptions(barKey, barData),
     }

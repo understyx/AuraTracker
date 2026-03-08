@@ -239,7 +239,7 @@ function ns.CreateMappingsOptions()
                 },
                 remove = {
                     type        = "execute",
-                    name        = "✕",
+                    name        = "x",
                     desc        = "Remove this mapping.",
                     order       = 3,
                     width       = 0.18,

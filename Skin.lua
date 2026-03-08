@@ -660,13 +660,15 @@ skinners["Dropdown"] = function(widget)
             button._flatBG = bg
         end
 
-        -- Simple arrow text indicator
-        if not button._arrowText then
-            local arrow = button:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-            arrow:SetPoint("CENTER", 0, 1)
-            arrow:SetText("▼")
-            arrow:SetTextColor(unpack(C.gold))
-            button._arrowText = arrow
+        -- Arrow texture indicator (avoids font glyph issues with Unicode)
+        if not button._arrowTex then
+            local arrow = button:CreateTexture(nil, "OVERLAY")
+            arrow:SetTexture("Interface\\ChatFrame\\ChatFrameExpandArrow")
+            arrow:SetVertexColor(unpack(C.gold))
+            arrow:SetWidth(12)
+            arrow:SetHeight(12)
+            arrow:SetPoint("CENTER", 0, 0)
+            button._arrowTex = arrow
         end
     end
 end
@@ -765,11 +767,20 @@ end
 -- re-skin every AceGUI widget from every addon (ElvUI config,
 -- DBM options, etc.).  Instead we track when AceConfigDialog
 -- is building *our* options and only apply skinning then.
+--
+-- If ElvUI is loaded we skip our AceGUI hooks entirely so we
+-- don't overwrite its own skin and cause visual glitches when
+-- widgets are pooled and reused across addon panels.
 
-local AceConfigDialog = LibStub("AceConfigDialog-3.0", true)
-local skinningDepth = 0
+local function SetupSkinningHooks()
+    -- If ElvUI is present, let it handle all AceGUI skinning.
+    if _G.ElvUI then return end
 
-if AceConfigDialog then
+    local AceConfigDialog = LibStub("AceConfigDialog-3.0", true)
+    if not AceConfigDialog then return end
+
+    local skinningDepth = 0
+
     local origOpen = AceConfigDialog.Open
     AceConfigDialog.Open = function(self, appName, ...)
         if appName ~= addonName then return origOpen(self, appName, ...) end
@@ -788,16 +799,25 @@ if AceConfigDialog then
         skinningDepth = skinningDepth - 1
         if not ok then error(err, 0) end
     end
+
+    local origCreate = AceGUI.Create
+    AceGUI.Create = function(self, widgetType, ...)
+        local widget = origCreate(self, widgetType, ...)
+        if widget and skinningDepth > 0 then
+            local skinner = skinners[widgetType]
+            if skinner then
+                skinner(widget)
+            end
+        end
+        return widget
+    end
 end
 
-local origCreate = AceGUI.Create
-AceGUI.Create = function(self, widgetType, ...)
-    local widget = origCreate(self, widgetType, ...)
-    if widget and skinningDepth > 0 then
-        local skinner = skinners[widgetType]
-        if skinner then
-            skinner(widget)
-        end
-    end
-    return widget
-end
+-- Defer hook setup until all addons have loaded so we can
+-- reliably detect ElvUI (which loads after us alphabetically).
+local loader = CreateFrame("Frame")
+loader:RegisterEvent("PLAYER_LOGIN")
+loader:SetScript("OnEvent", function(self)
+    self:UnregisterAllEvents()
+    SetupSkinningHooks()
+end)
