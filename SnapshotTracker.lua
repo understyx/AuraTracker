@@ -34,6 +34,8 @@ local playerGUID = nil
 local snapshots = {}        -- [destGUID][spellName] = { damageMod, critChance }
 local masterPoisoners = {}  -- [rogueGUID] = expirationTime
 local MASTER_POISONER_WINDOW = 3
+local recentDirectDotCasts = {} -- [destGUID][dotSpellId] = expiryTime
+local DIRECT_CAST_WINDOW = 2
 
 -- Per-frame cache for expensive calculations
 local cachedDamageMod, cachedCritChance, cachedCritDamage
@@ -76,6 +78,7 @@ local masterPoisonerWhitelist = {
 
 -- DoTs refreshed through talents/glyphs keep their original snapshot.
 -- Only a fresh SPELL_AURA_APPLIED recalculates damage/crit modifiers.
+-- A manual recast (detected via SPELL_CAST_SUCCESS) also recalculates.
 local noRecalcOnRefresh = {
     -- Warlock: Corruption — refreshed by Everlasting Affliction
     [172]   = true, [6222]  = true, [6223]  = true, [7648]  = true,
@@ -89,6 +92,19 @@ local noRecalcOnRefresh = {
     [55078] = true,
     -- DK: Frost Fever — refreshed by Pestilence (Glyph of Disease)
     [55095] = true,
+}
+
+-- Abilities that directly (re)apply a noRecalcOnRefresh DoT via a different
+-- spell (e.g. Plague Strike applies Blood Plague). Value = the DoT spell ID.
+-- For Corruption/Serpent Sting the cast ID already matches the aura ID,
+-- so they don't need entries here.
+local indirectApplicators = {
+    -- Plague Strike → Blood Plague (55078)
+    [45462] = 55078, [49917] = 55078, [49918] = 55078,
+    [49919] = 55078, [49920] = 55078, [49921] = 55078,
+    -- Icy Touch → Frost Fever (55095)
+    [45477] = 55095, [49896] = 55095, [49903] = 55095,
+    [49904] = 55095, [49909] = 55095,
 }
 
 -- Spell crit school per class (shadow=6, nature=4, etc.)
@@ -681,8 +697,9 @@ end
 function SnapshotTracker:ProcessEvent(subEvent, sourceGUID, destGUID, spellId, spellName)
     -- UNIT_DIED has no source; clean up regardless
     if subEvent == "UNIT_DIED" then
-        if destGUID and snapshots[destGUID] then
+        if destGUID then
             snapshots[destGUID] = nil
+            recentDirectDotCasts[destGUID] = nil
         end
         return
     end
@@ -691,6 +708,18 @@ function SnapshotTracker:ProcessEvent(subEvent, sourceGUID, destGUID, spellId, s
     if subEvent == "SPELL_CAST_SUCCESS" then
         if masterPoisonerWhitelist[spellId] then
             masterPoisoners[sourceGUID] = GetTime() + MASTER_POISONER_WINDOW
+        end
+        -- Track direct casts of noRecalcOnRefresh DoTs so we can
+        -- distinguish manual recasts from talent/glyph refreshes.
+        if sourceGUID == playerGUID and destGUID then
+            local dotId = noRecalcOnRefresh[spellId] and spellId
+                          or indirectApplicators[spellId]
+            if dotId then
+                if not recentDirectDotCasts[destGUID] then
+                    recentDirectDotCasts[destGUID] = {}
+                end
+                recentDirectDotCasts[destGUID][dotId] = GetTime() + DIRECT_CAST_WINDOW
+            end
         end
         return
     end
@@ -702,9 +731,18 @@ function SnapshotTracker:ProcessEvent(subEvent, sourceGUID, destGUID, spellId, s
         if not spellName then return end
         -- Talent/glyph refreshes only extend the timer; they do not
         -- reapply the aura, so damage and crit snapshots stay unchanged.
+        -- A manual recast (recent SPELL_CAST_SUCCESS for the same DoT)
+        -- is allowed through so the snapshot is recalculated.
         if subEvent == "SPELL_AURA_REFRESH" and noRecalcOnRefresh[spellId]
            and snapshots[destGUID] and snapshots[destGUID][spellName] then
-            return
+            local casts = recentDirectDotCasts[destGUID]
+            local isDirectCast = casts and casts[spellId]
+                                 and casts[spellId] > GetTime()
+            if isDirectCast then
+                casts[spellId] = nil  -- consume the flag
+            else
+                return  -- talent/glyph refresh: keep existing snapshot
+            end
         end
         if not snapshots[destGUID] then
             snapshots[destGUID] = {}
