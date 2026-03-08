@@ -839,11 +839,23 @@ local function CreateBarSettings(barKey, barData)
                         RebuildBar(barKey)
                     end,
                 },
+                showSnapshotText = {
+                    type  = "toggle",
+                    name  = "Show Snapshot Diff",
+                    desc  = "Show a percentage on aura icons indicating whether refreshing the DoT now would increase (+) or decrease (-) its damage compared to when it was applied.",
+                    order = 12,
+                    width = "full",
+                    get   = function() return barData.showSnapshotText or false end,
+                    set   = function(_, val)
+                        barData.showSnapshotText = val
+                        RebuildBar(barKey)
+                    end,
+                },
                 textSize = {
                     type     = "range",
                     name     = "Font Size",
                     min      = 8, max = 32, step = 1,
-                    order    = 12,
+                    order    = 13,
                     width    = "double",
                     get      = function() return barData.textSize or 12 end,
                     set      = function(_, val)
@@ -855,7 +867,7 @@ local function CreateBarSettings(barKey, barData)
                     type     = "color",
                     name     = "Text Color",
                     hasAlpha = true,
-                    order    = 13,
+                    order    = 14,
                     width    = "normal",
                     get      = function()
                         local c = barData.textColor or DEFAULT_TEXT_COLOR

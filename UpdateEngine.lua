@@ -174,6 +174,17 @@ function UpdateEngine:UpdateCooldownText()
     end
 end
 
+function UpdateEngine:UpdateSnapshotText()
+    local controller = self.controller
+    for _, bar in pairs(controller.bars) do
+        for _, icon in ipairs(bar:GetIcons()) do
+            if icon:GetFrame():IsShown() then
+                icon:UpdateSnapshotText()
+            end
+        end
+    end
+end
+
 -- ==========================================================
 -- BAR REFRESH (visual/style update)
 -- ==========================================================

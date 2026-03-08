@@ -7,6 +7,7 @@ local Icon = ns.AuraTracker.Icon
 local Bar = ns.AuraTracker.Bar
 local DragDrop = ns.AuraTracker.DragDrop
 local UpdateEngine = ns.AuraTracker.UpdateEngine
+local SnapshotTracker = ns.AuraTracker.SnapshotTracker
 
 -- Localize frequently-used globals
 local pairs, ipairs, wipe = pairs, ipairs, wipe
@@ -39,6 +40,7 @@ local BAR_DEFAULTS = {
     y = -200,
     textSize = 12,
     showCooldownText = true,
+    showSnapshotText = false,
     ignoreGCD = true,
     textColor = { r = 1, g = 1, b = 1, a = 1 },
 }
@@ -60,6 +62,7 @@ local function BuildStyleOptions(db)
         fontSize = db.textSize,
         textColor = db.textColor,
         showCooldownText = db.showCooldownText,
+        showSnapshotText = db.showSnapshotText,
     }
 end
 
@@ -114,6 +117,7 @@ function AuraTracker:OnEnable()
         if SP then SP:Show(barKey) end
     end)
     UpdateEngine:Init(self)
+    SnapshotTracker:Init(self)
 
     self:RebuildAllBars()
     UpdateEngine:CreateUpdateFrame()
@@ -126,6 +130,7 @@ function AuraTracker:OnEnable()
     self:RegisterEvent("SPELLS_CHANGED", "OnSpellsChanged")
     self:RegisterEvent("ACTIONBAR_SHOWGRID", "OnDragStart")
     self:RegisterEvent("ACTIONBAR_HIDEGRID", "OnDragEnd")
+    self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", "OnCLEU")
 
     DragDrop:HookBuffButtons()
     hooksecurefunc("BuffFrame_Update", function()
@@ -657,18 +662,28 @@ function AuraTracker:OnSpellUpdateCooldown()
     UpdateEngine:UpdateGCDState()
 end
 
+function AuraTracker:OnCLEU(event, ...)
+    SnapshotTracker:HandleCLEU(...)
+end
+
 function AuraTracker:OnUnitAura(event, unit)
     if unit == "player" or unit == "target" or unit == "focus" then
         UpdateEngine:UpdateAurasForUnit(unit)
     end
+    -- Player stat changes can affect snapshot diffs on target icons
+    SnapshotTracker:InvalidateCache()
+    UpdateEngine:UpdateSnapshotText()
 end
 
 function AuraTracker:OnTargetChanged()
     UpdateEngine:UpdateAurasForUnit("target")
+    SnapshotTracker:InvalidateCache()
+    UpdateEngine:UpdateSnapshotText()
 end
 
 function AuraTracker:OnPlayerEnteringWorld()
     playerGUID = UnitGUID("player")
+    SnapshotTracker:ResetPlayerInfo()
     self:RebuildAllBars()
 end
 

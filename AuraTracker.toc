@@ -15,6 +15,7 @@ LibEditmode-1.0\LibEditmode-1.0.xml
 Config.lua
 Skin.lua
 
+SnapshotTracker.lua
 TrackedItem.lua
 Icon.lua
 Bar.lua
