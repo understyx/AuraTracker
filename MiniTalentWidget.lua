@@ -18,6 +18,10 @@ local pairs, ipairs = pairs, ipairs
 
 local buttonSize = 32
 local buttonSizePadded = 45
+local columnsPerTab = 4        -- max columns in a WotLK talent tab
+local collapsedPerRow = 11     -- buttons per row in collapsed view
+local collapsedPadding = 7     -- edge padding in collapsed view
+local collapsedSpacing = 4     -- extra spacing between collapsed buttons
 
 -- ==========================================================
 -- TALENT BUTTON
@@ -140,7 +144,7 @@ local function TalentFrame_Update(self)
                 if self.open then
                     button:SetPoint(
                         "TOPLEFT", button.obj, "TOPLEFT",
-                        buttonSizePadded * (column - 1) + (button.tab - 1) * buttonSizePadded * 4 + 5,
+                        buttonSizePadded * (column - 1) + (button.tab - 1) * buttonSizePadded * columnsPerTab + 5,
                         -buttonSizePadded * (tier - 1) - 5
                     )
                     button:Enable()
@@ -150,8 +154,8 @@ local function TalentFrame_Update(self)
                         buttonShownCount = buttonShownCount + 1
                         button:SetPoint(
                             "TOPLEFT", button.obj, "TOPLEFT",
-                            7 + ((buttonShownCount - 1) % 11) * (buttonSizePadded + 4),
-                            -7 + -1 * (ceil(buttonShownCount / 11) - 1) * (buttonSizePadded + 4)
+                            collapsedPadding + ((buttonShownCount - 1) % collapsedPerRow) * (buttonSizePadded + collapsedSpacing),
+                            -collapsedPadding + -1 * (ceil(buttonShownCount / collapsedPerRow) - 1) * (buttonSizePadded + collapsedSpacing)
                         )
                         button:Disable()
                         button:Show()
@@ -166,7 +170,7 @@ local function TalentFrame_Update(self)
     if self.open then
         self.frame:SetHeight(self.saveSize.fullHeight)
     else
-        local rows = ceil(buttonShownCount / 11)
+        local rows = ceil(buttonShownCount / collapsedPerRow)
         if rows > 0 then
             self.frame:SetHeight(self.saveSize.collapsedRowHeight * rows)
         else
@@ -286,19 +290,20 @@ local function Constructor()
         table.insert(buttons, button)
     end
 
-    -- Create background textures
+    -- Create background textures (3.17 ≈ visually fits 4-column tree background per tab)
+    local bgColMultiplier = 3.17
     local backgrounds = {}
     for tab = 1, numTabs do
         local background = talentFrame:CreateTexture(nil, "BACKGROUND")
-        background:SetPoint("TOPLEFT", talentFrame, "TOPLEFT", (tab - 1) * buttonSizePadded * 3.17, 0)
-        background:SetPoint("BOTTOMRIGHT", talentFrame, "BOTTOMLEFT", tab * buttonSizePadded * 3.17, 0)
+        background:SetPoint("TOPLEFT", talentFrame, "TOPLEFT", (tab - 1) * buttonSizePadded * bgColMultiplier, 0)
+        background:SetPoint("BOTTOMRIGHT", talentFrame, "BOTTOMLEFT", tab * buttonSizePadded * bgColMultiplier, 0)
         background:SetTexCoord(0, 1, 0, 1)
         background:Show()
         table.insert(backgrounds, background)
     end
 
     -- Scale to fit settings panel
-    local width = buttonSizePadded * 4 * numTabs + 10
+    local width = buttonSizePadded * columnsPerTab * numTabs + 10
     local height = buttonSizePadded * 11 + 10
     local finalWidth = 440
     local scale = finalWidth / width

@@ -768,7 +768,7 @@ function AuraTracker:ShouldShowBar(barKey)
                 local tab = math.ceil(combinedIndex / maxTalents)
                 local talentIndex = combinedIndex - (tab - 1) * maxTalents
                 if tab >= 1 and tab <= numTabs then
-                    local _, _, _, _, rank = GetTalentInfo(tab, talentIndex)
+                    local name, iconTex, tier, col, rank = GetTalentInfo(tab, talentIndex)
                     local hasRank = rank and rank > 0
                     if requiredState == true and not hasRank then
                         return false
