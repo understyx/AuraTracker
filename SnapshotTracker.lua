@@ -381,6 +381,7 @@ function SnapshotTracker:GetCritChance()
     local baseCrit = GetSpellCritChance(critSchools[playerClass] or 1)
 
     -- Talent-based crit
+    -- Talent-based crit (only one class-specific talent applies)
     local talentCrit = 0
     for indices, val in pairs(critChanceTalents[playerClass] or {}) do
         local talentIndex = indices % 100
@@ -388,7 +389,7 @@ function SnapshotTracker:GetCritChance()
         local _, _, _, _, rank = GetTalentInfo(tab, talentIndex)
         if rank and rank > 0 then
             talentCrit = val * rank
-            break
+            break -- only one talent applies per class
         end
     end
 
@@ -445,17 +446,18 @@ function SnapshotTracker:GetCritDamage()
     local critDamage = 1.5
 
     -- Talent-based periodic crit damage bonus
+    -- Talent-based periodic crit damage bonus (only one per class)
     for indices, val in pairs(critModDamageBonusTalents[playerClass] or {}) do
         local talentIndex = indices % 100
         local tab = (indices - talentIndex) / 100
         local _, _, _, _, rank = GetTalentInfo(tab, talentIndex)
         if rank and rank > 0 then
             critDamageBonus = val * rank
-            break
+            break -- only one talent applies per class
         end
     end
 
-    -- Buff-based periodic crit damage bonus (fallback if no talent)
+    -- Buff-based periodic crit damage bonus (only used if no talent provides one)
     if critDamageBonus == 0 then
         local classBuffs = critModDamageBonusBuffs[playerClass]
         if classBuffs then
@@ -466,7 +468,7 @@ function SnapshotTracker:GetCritDamage()
                 local val = classBuffs[spellId]
                 if val then
                     critDamageBonus = val
-                    break
+                    break -- only one buff source applies
                 end
             end
         end
@@ -531,9 +533,12 @@ function SnapshotTracker:IsTrackingTarget()
     end
     for i = 1, GetNumTrackingTypes() do
         local _, _, active, _, _, spellID = GetTrackingInfo(i)
+        -- Tracking types without spell IDs (e.g. herbs, minerals) come after
+        -- creature-tracking spells; stop once we reach them.
         if not spellID then break end
         if active then
             local creatureType = trackingSpells[spellID]
+            -- Active tracking is not a creature-type spell (e.g. Find Fish)
             if not creatureType then break end
             return DelocalizeTracking(UnitCreatureType(TARGET_UNIT)) == creatureType
         end
@@ -735,6 +740,10 @@ function SnapshotTracker:GetSnapshotDiff(unit, spellName)
 
     local damageMod, critChance, critDamage = GetCachedValues(self)
 
+    -- critDamage (from talents/set bonuses) is intentionally shared between
+    -- expected and current calculations: these modifiers are semi-permanent
+    -- and don't change between DoT application and now. Only damageMod and
+    -- critChance (which change with temporary buffs/debuffs) are snapshotted.
     local expectedTick = (100 + critChance * critDamage) * damageMod
     local currentTick  = (100 + snap.critChance * critDamage) * snap.damageMod
 
