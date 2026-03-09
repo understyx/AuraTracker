@@ -313,6 +313,54 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
         end,
     }
 
+    -- Per-icon sound alerts
+    local Config = ns.AuraTracker and ns.AuraTracker.Config
+    local soundValues = { ["NONE"] = "None" }
+    if Config and Config.SoundOptions then
+        for key, snd in pairs(Config.SoundOptions) do
+            soundValues[key] = snd.label
+        end
+    end
+    args.editorSoundHeader = {
+        type = "header",
+        name = "Sound Alerts",
+        order = orderBase + 14.1,
+    }
+
+    local showLabel  = isAura and "Sound on Show"  or "Sound on Ready"
+    local showDesc   = isAura
+        and "Play a sound when this aura appears."
+        or  "Play a sound when this cooldown becomes ready."
+    local missLabel  = isAura and "Sound on Missing" or "Sound on Cooldown"
+    local missDesc   = isAura
+        and "Play a sound when this aura expires."
+        or  "Play a sound when this spell goes on cooldown."
+
+    args.editorSoundOnShow = {
+        type = "select",
+        name = showLabel,
+        desc = showDesc,
+        values = soundValues,
+        order = orderBase + 14.2,
+        get = function() return data.soundOnShow or "NONE" end,
+        set = function(_, val)
+            data.soundOnShow = (val ~= "NONE") and val or nil
+            NotifyAndRebuild(barKey)
+        end,
+    }
+    args.editorSoundOnMissing = {
+        type = "select",
+        name = missLabel,
+        desc = missDesc,
+        values = soundValues,
+        order = orderBase + 14.3,
+        get = function() return data.soundOnMissing or "NONE" end,
+        set = function(_, val)
+            data.soundOnMissing = (val ~= "NONE") and val or nil
+            NotifyAndRebuild(barKey)
+        end,
+    }
+
     -- Aura options: source, aura-ID override, "only mine" toggle
     if hasAuraOptions then
         args.editorAuraSource = {

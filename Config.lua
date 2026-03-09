@@ -55,6 +55,18 @@ Config.DefaultDisplayMode = {
     INTERNAL_CD   = Config.DisplayMode.ALWAYS,
 }
 
+-- Sound files available for per-icon triggers.
+-- Keys are stored in saved variables; file paths are WotLK-safe.
+Config.SoundOptions = {
+    NONE         = { label = "None",         file = nil },
+    RAID_WARNING = { label = "Raid Warning", file = [[Sound\Interface\RaidWarning.wav]] },
+    ALARM        = { label = "Alarm Clock",  file = [[Sound\Interface\AlarmClockWarning3.wav]] },
+    MAP_PING     = { label = "Map Ping",     file = [[Sound\Interface\MapPing.wav]] },
+    LEVEL_UP     = { label = "Level Up",     file = [[Sound\Interface\LevelUp.wav]] },
+    PVP_QUEUE    = { label = "PvP Queue",    file = [[Sound\Spells\PVPEnterQueue.wav]] },
+    BELL         = { label = "Bell",         file = [[Sound\Spells\ShaysBell.wav]] },
+}
+
 Config.GCD_SPELL_ID = 61304
 Config.GCD_THRESHOLD = 1.6
 

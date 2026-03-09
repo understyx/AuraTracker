@@ -4,6 +4,7 @@ ns.AuraTracker = ns.AuraTracker or {}
 local Config = ns.AuraTracker.Config
 local CreateFrame = CreateFrame
 local GetTime = GetTime
+local PlaySoundFile = PlaySoundFile
 local math_floor, math_max = math.floor, math.max
 local string_format = string.format
 
@@ -57,6 +58,11 @@ function Icon:New(frame, trackedItem, displayMode)
     self.trackedItem = trackedItem
     self.displayMode = displayMode or Config.DisplayMode.ALWAYS
     self.showCooldownText = true
+
+    -- Sound trigger state
+    self._prevActive = nil   -- nil = uninitialized (no sound on first load)
+    self.soundOnShow = nil   -- sound key to play when becoming active
+    self.soundOnMissing = nil -- sound key to play when becoming inactive
 
     -- Create the border frame once per icon instance
     if not self.frame.border then
@@ -162,6 +168,14 @@ end
 -- REFRESH / RENDER
 -- ==========================================================
 
+function Icon:PlaySoundForKey(key)
+    if not key or key == "NONE" then return end
+    local soundData = Config.SoundOptions[key]
+    if soundData and soundData.file then
+        PlaySoundFile(soundData.file)
+    end
+end
+
 function Icon:Refresh()
     if not self.trackedItem then
         self.frame:Hide()
@@ -170,6 +184,17 @@ function Icon:Refresh()
     
     -- Update texture in case it changed (e.g., exclusive group)
     self.frame.icon:SetTexture(self.trackedItem:GetTexture())
+
+    -- Detect active-state transitions for sound triggers
+    local isActive = self.trackedItem:IsActive()
+    if self._prevActive ~= nil and isActive ~= self._prevActive then
+        if isActive then
+            self:PlaySoundForKey(self.soundOnShow)
+        else
+            self:PlaySoundForKey(self.soundOnMissing)
+        end
+    end
+    self._prevActive = isActive
     
     local shouldShow = self:ShouldShow()
     local wasShown = self.frame:IsShown()
