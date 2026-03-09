@@ -57,6 +57,18 @@ function Icon:New(frame, trackedItem, displayMode)
     self.trackedItem = trackedItem
     self.displayMode = displayMode or Config.DisplayMode.ALWAYS
     self.showCooldownText = true
+
+    -- Create the border frame once per icon instance
+    if not self.frame.border then
+        local border = CreateFrame("Frame", nil, self.frame)
+        border:SetPoint("TOPLEFT", -1, 1)
+        border:SetPoint("BOTTOMRIGHT", 1, -1)
+        border:SetBackdrop({
+            edgeFile = "Interface\\Buttons\\WHITE8X8",
+            edgeSize = 2,
+        })
+        self.frame.border = border
+    end
     
     if trackedItem then
         self.frame.icon:SetTexture(trackedItem:GetTexture())
@@ -382,18 +394,10 @@ function Icon:ApplyStyle(styleOptions)
         fontOutline
     )
 
-    if not self.frame.border then
-        local border = CreateFrame("Frame", nil, self.frame)
-        border:SetPoint("TOPLEFT", -1, 1)
-        border:SetPoint("BOTTOMRIGHT", 1, -1)
-        border:SetBackdrop({
-            edgeFile = "Interface\\Buttons\\WHITE8X8",
-            edgeSize = 2,
-        })
-        self.frame.border = border
+    if self.frame.border then
+        self.frame.border:SetFrameLevel(self.frame:GetFrameLevel() + 1)
+        self.frame.border:SetBackdropBorderColor(0, 0, 0, 1)
     end
-    self.frame.border:SetFrameLevel(self.frame:GetFrameLevel() + 1)
-    self.frame.border:SetBackdropBorderColor(0, 0, 0, 1)
 
     local c = styleOptions.textColor or { r = 1, g = 1, b = 1, a = 1 }
     self.frame.text:SetTextColor(c.r, c.g, c.b, c.a)

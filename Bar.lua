@@ -37,6 +37,7 @@ function Bar:New(name, parent, options)
     
     self.minWidth = self.iconSize
     self.minHeight = self.iconSize
+    self._layoutPending = false
     
     return self
 end
@@ -136,6 +137,25 @@ end
 -- ==========================================================
 
 function Bar:UpdateLayout()
+    if self._layoutPending then return end
+    self._layoutPending = true
+
+    -- Defer layout to the next frame so multiple visibility changes
+    -- within the same tick are coalesced into a single layout pass.
+    -- Uses a one-shot OnUpdate frame (3.3.5-compatible; C_Timer is unavailable).
+    if not self._layoutFrame then
+        self._layoutFrame = CreateFrame("Frame")
+        local bar = self
+        self._layoutFrame:SetScript("OnUpdate", function(f)
+            f:Hide()
+            bar._layoutPending = false
+            bar:DoLayout()
+        end)
+    end
+    self._layoutFrame:Show()
+end
+
+function Bar:DoLayout()
     local prev, w, h = nil, 0, 0
     local horiz = self.direction == "HORIZONTAL"
     
@@ -177,12 +197,12 @@ end
 
 function Bar:SetDirection(direction)
     self.direction = direction
-    self:UpdateLayout()
+    self:DoLayout()
 end
 
 function Bar:SetSpacing(spacing)
     self.spacing = spacing
-    self:UpdateLayout()
+    self:DoLayout()
 end
 
 function Bar:SetIconSize(size)

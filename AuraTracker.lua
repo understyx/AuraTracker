@@ -339,7 +339,7 @@ function AuraTracker:RebuildBar(barKey)
     -- Initial update so icons reflect correct state before syncing mover size
     UpdateEngine:UpdateAllCooldowns()
     UpdateEngine:UpdateAllAuras()
-    bar:UpdateLayout()
+    bar:DoLayout()
 
     if bar.mover then
         local frame = bar:GetFrame()
@@ -674,8 +674,11 @@ function AuraTracker:OnUnitAura(event, unit)
     if unit == "player" or unit == "target" or unit == "focus" then
         UpdateEngine:UpdateAurasForUnit(unit)
     end
-    -- Player stat changes can affect snapshot diffs on target icons
-    SnapshotTracker:InvalidateCache()
+    -- Player buffs and target debuffs affect snapshot calculations;
+    -- skip invalidation for unrelated units (e.g. party members).
+    if unit == "player" or unit == "target" then
+        SnapshotTracker:InvalidateCache()
+    end
     UpdateEngine:UpdateSnapshotText()
 end
 

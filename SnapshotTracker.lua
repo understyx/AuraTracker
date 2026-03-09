@@ -40,7 +40,9 @@ local DIRECT_CAST_WINDOW = 2
 -- Per-frame cache for expensive calculations
 local cachedDamageMod, cachedCritChance, cachedCritDamage
 local cacheTime = 0
-local CACHE_TTL = 0.1
+local CACHE_TTL = 0.25
+-- Start dirty so the first query triggers a full calculation.
+local cacheIsDirty = true
 
 -- ==========================================================
 -- HELPERS
@@ -180,13 +182,13 @@ local critChanceEnemyDebuffs = {
 }
 
 -- Master Poisoner crit bonus helper
-local function GetMasterPoisonerCritBonus(casterUnit)
+local function GetMasterPoisonerCritBonus(casterUnit, now)
     if casterUnit then
         local guid = UnitGUID(casterUnit)
         if guid then
             local expiry = masterPoisoners[guid]
             if expiry then
-                if expiry > GetTime() then
+                if expiry > now then
                     return 3
                 else
                     masterPoisoners[guid] = nil
@@ -412,8 +414,8 @@ end
 
 function SnapshotTracker:GetCritChance()
     local baseCrit = GetSpellCritChance(critSchools[playerClass] or 1)
+    local now = GetTime()
 
-    -- Talent-based crit
     -- Talent-based crit (only one class-specific talent applies)
     local talentCrit = 0
     for indices, val in pairs(critChanceTalents[playerClass] or {}) do
@@ -452,7 +454,7 @@ function SnapshotTracker:GetCritChance()
         end
 
         if not mpCounted and critChanceEnemyMasterPoisonerDebuffs[spellId] then
-            local mpBonus = GetMasterPoisonerCritBonus(source)
+            local mpBonus = GetMasterPoisonerCritBonus(source, now)
             if mpBonus then
                 critDebuff = critDebuff + mpBonus
                 mpCounted = true
@@ -677,17 +679,18 @@ end
 
 local function GetCachedValues(self)
     local now = GetTime()
-    if now - cacheTime > CACHE_TTL then
+    if cacheIsDirty or (now - cacheTime > CACHE_TTL) then
         cachedDamageMod = self:GetDamageMod()
         cachedCritChance = self:GetCritChance()
         cachedCritDamage = self:GetCritDamage()
         cacheTime = now
+        cacheIsDirty = false
     end
     return cachedDamageMod, cachedCritChance, cachedCritDamage
 end
 
 function SnapshotTracker:InvalidateCache()
-    cacheTime = 0
+    cacheIsDirty = true
 end
 
 -- ==========================================================
