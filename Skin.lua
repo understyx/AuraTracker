@@ -744,7 +744,32 @@ end
 
 -- ------- Icon Widget ----------
 skinners["Icon"] = function(widget)
-    -- No changes needed; icon images should remain unchanged
+    local frame = widget.frame
+    if not frame or frame._flatSkinned then return end
+    frame._flatSkinned = true
+
+    -- Flat border around the icon image
+    if not frame._flatBorder then
+        local border = CreateFrame("Frame", nil, frame)
+        border:SetPoint("TOPLEFT", widget.image, "TOPLEFT", -1, 1)
+        border:SetPoint("BOTTOMRIGHT", widget.image, "BOTTOMRIGHT", 1, -1)
+        border:SetBackdrop(flatBackdrop)
+        border:SetBackdropColor(0, 0, 0, 0)
+        border:SetBackdropBorderColor(unpack(C.border))
+        frame._flatBorder = border
+    end
+
+    -- Replace default highlight with flat accent overlay
+    if widget.highlight then
+        widget.highlight:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
+        widget.highlight:SetVertexColor(unpack(C.accent))
+        widget.highlight:SetAlpha(0.3)
+    end
+
+    -- Style the label text if present
+    if widget.label then
+        widget.label:SetTextColor(unpack(C.white))
+    end
 end
 
 -- ------- ScrollFrame Container ----------
