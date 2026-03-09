@@ -68,6 +68,36 @@ local function BuildStyleOptions(db)
 end
 
 -- ==========================================================
+-- EQUIPMENT SLOT CONSTANTS
+-- ==========================================================
+
+local TRINKET_SLOT1 = 13
+local TRINKET_SLOT2 = 14
+local RING_SLOT1    = 11
+local RING_SLOT2    = 12
+
+local ICD_EQUIP_SLOTS = { TRINKET_SLOT1, TRINKET_SLOT2, RING_SLOT1, RING_SLOT2 }
+local TRINKET_SLOTS   = { [TRINKET_SLOT1] = true, [TRINKET_SLOT2] = true }
+
+--- Returns a set of item IDs currently equipped in trinket and ring slots.
+local function GetEquippedICDItemIds()
+    local ids = {}
+    for _, slot in ipairs(ICD_EQUIP_SLOTS) do
+        local id = GetInventoryItemID("player", slot)
+        if id then ids[id] = true end
+    end
+    return ids
+end
+
+--- Returns a map of { [slot] = itemId } for trinket slots only.
+local function GetTrinketSlotMap()
+    return {
+        [TRINKET_SLOT1] = GetInventoryItemID("player", TRINKET_SLOT1),
+        [TRINKET_SLOT2] = GetInventoryItemID("player", TRINKET_SLOT2),
+    }
+end
+
+-- ==========================================================
 -- LIFECYCLE
 -- ==========================================================
 
@@ -283,9 +313,26 @@ function AuraTracker:ReleaseBarIcons(barKey)
     if self.items[barKey] then
         wipe(self.items[barKey])
     end
-    -- Clear proc→item reverse lookup; it gets rebuilt in CreateInternalCDIcon
-    if self._procToItems then
-        wipe(self._procToItems)
+    -- Rebuild proc→item reverse lookup from all remaining bars so that
+    -- releasing one bar's icons does not break proc detection for other bars.
+    self:RebuildProcLookup()
+end
+
+--- Rebuilds the _procToItems reverse lookup table from all bars' tracked items.
+function AuraTracker:RebuildProcLookup()
+    self._procToItems = {}
+    for bk, itemTable in pairs(self.items) do
+        for key, item in pairs(itemTable) do
+            if item:GetTrackType() == Config.TrackType.INTERNAL_CD then
+                local procSpells = item:GetProcSpellIds()
+                if procSpells then
+                    for _, procId in ipairs(procSpells) do
+                        self._procToItems[procId] = self._procToItems[procId] or {}
+                        self._procToItems[procId][item] = true
+                    end
+                end
+            end
+        end
     end
 end
 
@@ -345,6 +392,7 @@ function AuraTracker:RebuildBar(barKey)
     
     self:SortBarIcons(barKey)
     self:SyncEquipState()
+    self._prevTrinketSlots = GetTrinketSlotMap()
 
     -- Initial update so icons reflect correct state before syncing mover size
     UpdateEngine:UpdateAllCooldowns()
@@ -602,7 +650,6 @@ function AuraTracker:CreateInternalCDIcon(barKey, itemId, order, styleOptions, d
     if not bar or not db then return nil end
 
     local item = TrackedItem:New(itemId, Config.TrackType.INTERNAL_CD)
-    if not item:GetName() then return nil end
 
     local frame = LibFramePool:Acquire(Icon.POOL_KEY, bar:GetFrame())
 
@@ -815,34 +862,7 @@ end
 -- EQUIPMENT EQUIP STATE
 -- ==========================================================
 
-local TRINKET_SLOT1 = 13
-local TRINKET_SLOT2 = 14
-local RING_SLOT1    = 11
-local RING_SLOT2    = 12
-
-local ICD_EQUIP_SLOTS = { TRINKET_SLOT1, TRINKET_SLOT2, RING_SLOT1, RING_SLOT2 }
-local TRINKET_SLOTS   = { [TRINKET_SLOT1] = true, [TRINKET_SLOT2] = true }
-
---- Returns a set of item IDs currently equipped in trinket and ring slots.
-local function GetEquippedICDItemIds()
-    local ids = {}
-    for _, slot in ipairs(ICD_EQUIP_SLOTS) do
-        local id = GetInventoryItemID("player", slot)
-        if id then ids[id] = true end
-    end
-    return ids
-end
-
---- Returns a map of { [slot] = itemId } for trinket slots only.
-local function GetTrinketSlotMap()
-    return {
-        [TRINKET_SLOT1] = GetInventoryItemID("player", TRINKET_SLOT1),
-        [TRINKET_SLOT2] = GetInventoryItemID("player", TRINKET_SLOT2),
-    }
-end
-
 --- Syncs the equipped flag on all INTERNAL_CD tracked items across all bars.
---- Also snapshots the current trinket slot state for swap detection.
 function AuraTracker:SyncEquipState()
     local equippedIds = GetEquippedICDItemIds()
 
@@ -853,8 +873,6 @@ function AuraTracker:SyncEquipState()
             end
         end
     end
-
-    self._prevTrinketSlots = GetTrinketSlotMap()
 end
 
 --- Finds the TrackedItem for a given item ID across all bars.
@@ -871,13 +889,20 @@ function AuraTracker:OnEquipmentChanged(event, slot)
     -- Only care about trinket and ring slots
     if not isTrinketSlot and slot ~= RING_SLOT1 and slot ~= RING_SLOT2 then return end
 
-    -- For trinket slots, detect which item was swapped in and apply swap CD
+    -- For trinket slots, detect which item was swapped in and apply swap CD.
+    -- Read prev state BEFORE updating the snapshot for this slot so that a
+    -- two-slot swap (t1↔t2) correctly detects changes on both events.
     if isTrinketSlot then
         local prev = self._prevTrinketSlots or {}
         local currentId = GetInventoryItemID("player", slot)
         local prevId = prev[slot]
 
-        -- Sync equipped flags and snapshot new slot state
+        -- Update only this slot in the snapshot so the other slot's
+        -- event still compares against the original state.
+        prev[slot] = currentId
+        self._prevTrinketSlots = prev
+
+        -- Sync equipped flags
         self:SyncEquipState()
 
         -- Apply swap CD if a different item is now in this trinket slot
