@@ -138,6 +138,12 @@ function Icon:ShouldShow()
     if not self.trackedItem then
         return false
     end
+
+    -- Hide unequipped trinkets
+    if self.trackedItem:GetTrackType() == Config.TrackType.INTERNAL_CD
+    and not self.trackedItem:IsEquipped() then
+        return false
+    end
     
     local isActive = self.trackedItem:IsActive()
     
@@ -172,6 +178,8 @@ function Icon:Refresh()
         self.frame:Show()
         if self.trackedItem:GetTrackType() == Config.TrackType.COOLDOWN_AURA then
             self:RenderDualTrack()
+        elseif self.trackedItem:GetTrackType() == Config.TrackType.INTERNAL_CD then
+            self:RenderInternalCD()
         elseif self.trackedItem:IsActive() then
             self:RenderActive()
         else
@@ -211,6 +219,27 @@ function Icon:RenderInactive()
     self.frame.stackText:Hide()
     self.frame.snapshotText:Hide()
     self.frame.text:SetText("")
+end
+
+function Icon:RenderInternalCD()
+    local item = self.trackedItem
+    local duration = item:GetDuration()
+    local expiration = item:GetExpiration()
+
+    if not item:IsActive() and duration and duration > 0 and expiration and expiration > 0 then
+        -- ICD is running: show cooldown sweep on desaturated icon
+        self.frame:SetAlpha(1)
+        self.frame.icon:SetDesaturated(true)
+        self.frame.cooldown:SetCooldown(expiration - duration, duration)
+        self.frame.cooldown:Show()
+    else
+        -- Trinket is ready: full color, no sweep
+        self.frame:SetAlpha(1)
+        self.frame.icon:SetDesaturated(false)
+        self.frame.cooldown:Hide()
+    end
+
+    self.frame.stackText:Hide()
 end
 
 function Icon:UpdateStackDisplay(stacks)

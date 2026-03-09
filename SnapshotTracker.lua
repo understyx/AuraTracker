@@ -764,22 +764,10 @@ function SnapshotTracker:ProcessEvent(subEvent, sourceGUID, destGUID, spellId, s
 end
 
 function SnapshotTracker:HandleCLEU(...)
-    local subEvent, sourceGUID, destGUID, spellId, spellName
-
-    if CombatLogGetCurrentEventInfo then
-        -- WotLK Classic format (CombatLogGetCurrentEventInfo available)
-        local _, se, _, sg, _, _, _, dg, _, _, _, si, sn = CombatLogGetCurrentEventInfo()
-        subEvent, sourceGUID, destGUID, spellId, spellName = se, sg, dg, si, sn
-    else
-        -- Original WotLK format: args passed via event
-        -- timestamp(1), subEvent(2), sourceGUID(3), sourceName(4), sourceFlags(5),
-        -- destGUID(6), destName(7), destFlags(8), spellId(9), spellName(10), ...
-        subEvent   = select(2, ...)
-        sourceGUID = select(3, ...)
-        destGUID   = select(6, ...)
-        spellId    = select(9, ...)
-        spellName  = select(10, ...)
-    end
+    -- WotLK 3.3.5 CLEU format: timestamp(1), subEvent(2), sourceGUID(3),
+    -- sourceName(4), sourceFlags(5), destGUID(6), destName(7), destFlags(8),
+    -- spellId(9), spellName(10), spellSchool(11), ...
+    local _, subEvent, sourceGUID, _, _, destGUID, _, _, spellId, spellName = ...
 
     if subEvent then
         self:ProcessEvent(subEvent, sourceGUID, destGUID, spellId, spellName)

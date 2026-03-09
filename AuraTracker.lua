@@ -14,6 +14,8 @@ local pairs, ipairs, wipe = pairs, ipairs, wipe
 local GetSpellInfo, GetItemInfo = GetSpellInfo, GetItemInfo
 local UnitGUID, UnitClass = UnitGUID, UnitClass
 local IsSpellKnown = IsSpellKnown
+local GetTime = GetTime
+local GetInventoryItemID = GetInventoryItemID
 local math_max = math.max
 local string_upper, string_lower = string.upper, string.lower
 local table_sort = table.sort
@@ -62,6 +64,36 @@ local function BuildStyleOptions(db)
         fontOutline = db.fontOutline,
         textColor = db.textColor,
         showCooldownText = db.showCooldownText,
+    }
+end
+
+-- ==========================================================
+-- EQUIPMENT SLOT CONSTANTS
+-- ==========================================================
+
+local TRINKET_SLOT1 = 13
+local TRINKET_SLOT2 = 14
+local RING_SLOT1    = 11
+local RING_SLOT2    = 12
+
+local ICD_EQUIP_SLOTS = { TRINKET_SLOT1, TRINKET_SLOT2, RING_SLOT1, RING_SLOT2 }
+local TRINKET_SLOTS   = { [TRINKET_SLOT1] = true, [TRINKET_SLOT2] = true }
+
+--- Returns a set of item IDs currently equipped in trinket and ring slots.
+local function GetEquippedICDItemIds()
+    local ids = {}
+    for _, slot in ipairs(ICD_EQUIP_SLOTS) do
+        local id = GetInventoryItemID("player", slot)
+        if id then ids[id] = true end
+    end
+    return ids
+end
+
+--- Returns a map of { [slot] = itemId } for trinket slots only.
+local function GetTrinketSlotMap()
+    return {
+        [TRINKET_SLOT1] = GetInventoryItemID("player", TRINKET_SLOT1),
+        [TRINKET_SLOT2] = GetInventoryItemID("player", TRINKET_SLOT2),
     }
 end
 
@@ -130,6 +162,7 @@ function AuraTracker:OnEnable()
     self:RegisterEvent("ACTIONBAR_SHOWGRID", "OnDragStart")
     self:RegisterEvent("ACTIONBAR_HIDEGRID", "OnDragEnd")
     self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", "OnCLEU")
+    self:RegisterEvent("PLAYER_EQUIPMENT_CHANGED", "OnEquipmentChanged")
 
     DragDrop:HookBuffButtons()
     hooksecurefunc("AuraButton_Update", function(buttonName, index, filter)
@@ -280,6 +313,28 @@ function AuraTracker:ReleaseBarIcons(barKey)
     if self.items[barKey] then
         wipe(self.items[barKey])
     end
+    -- Rebuild proc→item reverse lookup from all remaining bars so that
+    -- releasing one bar's icons does not break proc detection for other bars.
+    self:RebuildProcLookup()
+end
+
+--- Rebuilds the _procToItems reverse lookup table
+--- (procSpellId → { TrackedItem → true }) from all bars' tracked items.
+function AuraTracker:RebuildProcLookup()
+    self._procToItems = {}
+    for bk, itemTable in pairs(self.items) do
+        for key, item in pairs(itemTable) do
+            if item:GetTrackType() == Config.TrackType.INTERNAL_CD then
+                local procSpells = item:GetProcSpellIds()
+                if procSpells then
+                    for _, procId in ipairs(procSpells) do
+                        self._procToItems[procId] = self._procToItems[procId] or {}
+                        self._procToItems[procId][item] = true
+                    end
+                end
+            end
+        end
+    end
 end
 
 function AuraTracker:RebuildBar(barKey)
@@ -330,11 +385,15 @@ function AuraTracker:RebuildBar(barKey)
                 local filterKey = data.type and string_upper(data.type) or "TARGET_DEBUFF"
                 local icon = self:CreateCooldownAuraIcon(barKey, spellId, filterKey, data.auraId, order, styleOptions, data.displayMode, data.onlyMine, data.exclusiveSpells)
                 if icon then icon.showSnapshotText = data.showSnapshotText or false end
+            elseif data.trackType == Config.TrackType.INTERNAL_CD then
+                self:CreateInternalCDIcon(barKey, spellId, order, styleOptions, data.displayMode)
             end
         end
     end
     
     self:SortBarIcons(barKey)
+    self:SyncEquipState()
+    self._prevTrinketSlots = GetTrinketSlotMap()
 
     -- Initial update so icons reflect correct state before syncing mover size
     UpdateEngine:UpdateAllCooldowns()
@@ -586,6 +645,60 @@ function AuraTracker:AddItem(barKey, itemId)
     return true, name
 end
 
+function AuraTracker:CreateInternalCDIcon(barKey, itemId, order, styleOptions, displayMode)
+    local bar = self.bars[barKey]
+    local db = self:GetBarDB(barKey)
+    if not bar or not db then return nil end
+
+    local item = TrackedItem:New(itemId, Config.TrackType.INTERNAL_CD)
+
+    local frame = LibFramePool:Acquire(Icon.POOL_KEY, bar:GetFrame())
+
+    local finalDisplayMode = displayMode or Config:GetDefaultDisplayMode(Config.TrackType.INTERNAL_CD)
+    local icon = Icon:New(frame, item, finalDisplayMode)
+    icon.order = order
+    icon:ApplyStyle(styleOptions)
+
+    self.items[barKey]["icd_" .. itemId] = item
+    bar:AddIcon(icon)
+
+    -- Register proc spell IDs for CLEU lookup
+    local procSpells = item:GetProcSpellIds()
+    if procSpells then
+        self._procToItems = self._procToItems or {}
+        for _, procId in ipairs(procSpells) do
+            self._procToItems[procId] = self._procToItems[procId] or {}
+            self._procToItems[procId][item] = true
+        end
+    end
+
+    return icon
+end
+
+function AuraTracker:AddInternalCD(barKey, itemId)
+    local db = self:GetBarDB(barKey)
+    if not db then return false, "Bar not found" end
+
+    local name = GetItemInfo(itemId)
+    if not name then return false, "Item not found" end
+
+    if not Config:IsTrinketWithICD(itemId) then
+        return false, "No ICD data for this item"
+    end
+
+    db.trackedItems = db.trackedItems or {}
+    if db.trackedItems[itemId] then return false, "Already tracked" end
+
+    db.trackedItems[itemId] = {
+        order = GetNextOrder(db.trackedItems),
+        trackType = Config.TrackType.INTERNAL_CD,
+        displayMode = Config.DisplayMode.ALWAYS,
+    }
+    self:RebuildBar(barKey)
+
+    return true, name
+end
+
 function AuraTracker:CreateCooldownAuraIcon(barKey, spellId, filterKey, auraId, order, styleOptions, displayMode, onlyMine, exclusiveSpells)
     local bar = self.bars[barKey]
     local db = self:GetBarDB(barKey)
@@ -698,6 +811,24 @@ end
 
 function AuraTracker:OnCLEU(event, ...)
     SnapshotTracker:HandleCLEU(...)
+
+    -- Trinket ICD tracking via proc buff detection
+    -- WotLK 3.3.5 CLEU format: timestamp(1), subEvent(2), sourceGUID(3),
+    -- sourceName(4), sourceFlags(5), destGUID(6), destName(7), destFlags(8),
+    -- spellId(9), spellName(10), spellSchool(11), ...
+    if self._procToItems and next(self._procToItems) then
+        local _, subEvent, _, _, _, destGUID, _, _, spellId = ...
+        if destGUID == playerGUID
+        and (subEvent == "SPELL_AURA_APPLIED" or subEvent == "SPELL_AURA_REFRESH") then
+            local trackedItems = self._procToItems[spellId]
+            if trackedItems then
+                local now = GetTime()
+                for trackedItem in pairs(trackedItems) do
+                    trackedItem:OnProcDetected(spellId, now)
+                end
+            end
+        end
+    end
 end
 
 function AuraTracker:OnUnitAura(event, unit)
@@ -726,6 +857,67 @@ end
 
 function AuraTracker:OnSpellsChanged()
     self:RebuildAllBars()
+end
+
+-- ==========================================================
+-- EQUIPMENT EQUIP STATE
+-- ==========================================================
+
+--- Syncs the equipped flag on all INTERNAL_CD tracked items across all bars.
+function AuraTracker:SyncEquipState()
+    local equippedIds = GetEquippedICDItemIds()
+
+    for barKey, itemTable in pairs(self.items) do
+        for key, item in pairs(itemTable) do
+            if item:GetTrackType() == Config.TrackType.INTERNAL_CD then
+                item:SetEquipped(equippedIds[item:GetId()])
+            end
+        end
+    end
+end
+
+--- Finds the TrackedItem for a given item ID across all bars.
+function AuraTracker:FindICDItem(itemId)
+    for barKey, itemTable in pairs(self.items) do
+        local item = itemTable["icd_" .. itemId]
+        if item then return item end
+    end
+    return nil
+end
+
+function AuraTracker:OnEquipmentChanged(event, slot)
+    local isTrinketSlot = TRINKET_SLOTS[slot]
+    -- Only care about trinket and ring slots
+    if not isTrinketSlot and slot ~= RING_SLOT1 and slot ~= RING_SLOT2 then return end
+
+    -- For trinket slots, detect which item was swapped in and apply swap CD.
+    -- Read prev state BEFORE updating the snapshot for this slot so that a
+    -- two-slot swap (t1↔t2) correctly detects changes on both events.
+    if isTrinketSlot then
+        local prev = self._prevTrinketSlots or {}
+        local currentId = GetInventoryItemID("player", slot)
+        local prevId = prev[slot]
+
+        -- Update only this slot in the snapshot so the other slot's
+        -- event still compares against the original state.
+        -- (assignment needed when prev was created via the `or {}` fallback)
+        prev[slot] = currentId
+        self._prevTrinketSlots = prev
+
+        -- Sync equipped flags
+        self:SyncEquipState()
+
+        -- Apply swap CD if a different item is now in this trinket slot
+        if currentId and currentId ~= prevId then
+            local item = self:FindICDItem(currentId)
+            if item then
+                item:OnEquipSwap(GetTime())
+            end
+        end
+    else
+        -- Ring slot changed – just sync visibility, no swap CD
+        self:SyncEquipState()
+    end
 end
 
 -- ==========================================================

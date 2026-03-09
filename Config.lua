@@ -13,7 +13,7 @@ Config.TrackType = {
     AURA          = "aura",
     ITEM          = "item",
     COOLDOWN_AURA = "cooldown_aura",
-    INTERNAL_CD   = "internal_cd",   -- Future: custom internal cooldown trackers (e.g. Lock and Load ICD)
+    INTERNAL_CD   = "internal_cd",   -- Trinket / enchant internal cooldown tracking via combat log
 }
 
 Config.DisplayMode = {
@@ -52,6 +52,7 @@ Config.DefaultDisplayMode = {
     COOLDOWN      = Config.DisplayMode.ALWAYS,
     ITEM          = Config.DisplayMode.ALWAYS,
     COOLDOWN_AURA = Config.DisplayMode.ALWAYS,
+    INTERNAL_CD   = Config.DisplayMode.ALWAYS,
 }
 
 Config.GCD_SPELL_ID = 61304
@@ -387,6 +388,9 @@ function Config:GetDefaultDisplayMode(trackType, filterKey)
     end
     if trackType == self.TrackType.COOLDOWN_AURA then
         return self.DefaultDisplayMode.COOLDOWN_AURA
+    end
+    if trackType == self.TrackType.INTERNAL_CD then
+        return self.DefaultDisplayMode.INTERNAL_CD
     end
     return self.DefaultDisplayMode[filterKey] or self.DisplayMode.ALWAYS
 end
