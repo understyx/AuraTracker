@@ -763,7 +763,21 @@ function AuraTracker:OnCLEU(event, ...)
 
     -- Trinket ICD tracking via proc buff detection
     if self._procToItems and next(self._procToItems) then
-        local _, subEvent, _, _, _, _, _, destGUID, _, _, _, spellId = ...
+        local subEvent, destGUID, spellId
+
+        if CombatLogGetCurrentEventInfo then
+            -- WotLK Classic format
+            local _, se, _, _, _, _, _, dg, _, _, _, si = CombatLogGetCurrentEventInfo()
+            subEvent, destGUID, spellId = se, dg, si
+        else
+            -- Original WotLK format: args passed via event
+            -- timestamp(1), subEvent(2), sourceGUID(3), sourceName(4), sourceFlags(5),
+            -- destGUID(6), destName(7), destFlags(8), spellId(9)
+            subEvent = select(2, ...)
+            destGUID = select(6, ...)
+            spellId  = select(9, ...)
+        end
+
         if destGUID == playerGUID
         and (subEvent == "SPELL_AURA_APPLIED" or subEvent == "SPELL_AURA_REFRESH") then
             local trackedItems = self._procToItems[spellId]
