@@ -318,7 +318,8 @@ function AuraTracker:ReleaseBarIcons(barKey)
     self:RebuildProcLookup()
 end
 
---- Rebuilds the _procToItems reverse lookup table from all bars' tracked items.
+--- Rebuilds the _procToItems reverse lookup table
+--- (procSpellId → { TrackedItem → true }) from all bars' tracked items.
 function AuraTracker:RebuildProcLookup()
     self._procToItems = {}
     for bk, itemTable in pairs(self.items) do
@@ -899,6 +900,7 @@ function AuraTracker:OnEquipmentChanged(event, slot)
 
         -- Update only this slot in the snapshot so the other slot's
         -- event still compares against the original state.
+        -- (assignment needed when prev was created via the `or {}` fallback)
         prev[slot] = currentId
         self._prevTrinketSlots = prev
 
