@@ -849,7 +849,7 @@ function AuraTracker:SyncEquipState()
     for barKey, itemTable in pairs(self.items) do
         for key, item in pairs(itemTable) do
             if item:GetTrackType() == Config.TrackType.INTERNAL_CD then
-                item:SetEquipped(equippedIds[item:GetId()] or false)
+                item:SetEquipped(equippedIds[item:GetId()])
             end
         end
     end
