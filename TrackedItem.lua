@@ -265,8 +265,8 @@ function TrackedItem:UpdateAuraExclusive(filter, wasActive, prevStacks)
             UnitAura(unit, i, filter)
         if not name then break end
 
-        -- Match by spell ID first, then fall back to name for lower-rank spells
-        if group.spells[spellId] or (groupNames and groupNames[name]) then
+        -- Match original spell, exclusive group spells, or fall back to name
+        if spellId == self.auraId or group.spells[spellId] or name == self.name or (groupNames and groupNames[name]) then
             self.active = true
             self.duration = duration or 0
             self.expiration = expiration or 0
