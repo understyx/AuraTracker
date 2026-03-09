@@ -245,6 +245,10 @@ skinners["Frame"] = function(widget)
     end
 end
 
+-- ------- Shared Font Constants ----------
+local TAB_FONT     = "Fonts\\FRIZQT__.TTF"
+local TAB_FONTSIZE = 12
+
 -- ------- TreeGroup Container ----------
 skinners["TreeGroup"] = function(widget)
     -- Tree pane
@@ -402,8 +406,6 @@ local function SkinOneTab(tab)
     end)
 end
 
-local TAB_FONT     = "Fonts\\FRIZQT__.TTF"
-local TAB_FONTSIZE = 12
 local TAB_PADDING  = 8   -- horizontal text padding per side
 local TAB_HEIGHT   = 24
 local TAB_GAP      = 2   -- gap between flat tabs

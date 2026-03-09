@@ -108,7 +108,6 @@ Config.ExclusivePresets = {
         label  = "Attack Power",
         spells = {
             [47436] = true,  -- Battle Shout
-            [57339] = true,  -- Commanding Presence (talent, Battle Shout variant)
             [48934] = true,  -- Blessing of Might
             [20045] = true,  -- Improved Blessing of Might (talent)
         },
@@ -154,7 +153,6 @@ Config.ExclusivePresets = {
         label  = "Health (Stamina via Shout/Imp)",
         spells = {
             [47440] = true,  -- Commanding Shout
-            [57339] = true,  -- Commanding Presence (talent)
             [47982] = true,  -- Blood Pact (Improved Imp)
         },
     },
@@ -386,10 +384,15 @@ Config.ExclusivePresets = {
 
 -- Build a reverse lookup: spell ID → preset key.
 -- Used for auto-linking exclusive groups when a user adds a spell.
+-- Some spells appear in multiple presets (e.g. Fel Intelligence provides
+-- both Intellect and Spirit).  We keep only the first mapping found;
+-- users can still load other presets manually via the UI dropdown.
 Config.SpellToPreset = {}
 for presetKey, preset in pairs(Config.ExclusivePresets) do
     for spellId in pairs(preset.spells) do
-        Config.SpellToPreset[spellId] = Config.SpellToPreset[spellId] or presetKey
+        if not Config.SpellToPreset[spellId] then
+            Config.SpellToPreset[spellId] = presetKey
+        end
     end
 end
 
