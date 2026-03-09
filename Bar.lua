@@ -142,11 +142,17 @@ function Bar:UpdateLayout()
 
     -- Defer layout to the next frame so multiple visibility changes
     -- within the same tick are coalesced into a single layout pass.
-    local bar = self
-    C_Timer.After(0, function()
-        bar._layoutPending = false
-        bar:DoLayout()
-    end)
+    -- Uses a one-shot OnUpdate frame (3.3.5-compatible; C_Timer is unavailable).
+    if not self._layoutFrame then
+        self._layoutFrame = CreateFrame("Frame")
+        local bar = self
+        self._layoutFrame:SetScript("OnUpdate", function(f)
+            f:Hide()
+            bar._layoutPending = false
+            bar:DoLayout()
+        end)
+    end
+    self._layoutFrame:Show()
 end
 
 function Bar:DoLayout()
