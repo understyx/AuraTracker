@@ -67,8 +67,6 @@ local editState = {
     selectedAura = nil,
 }
 
-local addState = {}
-
 -- ==========================================================
 -- HELPERS
 -- ==========================================================
@@ -385,7 +383,8 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
         args.editorAlsoTrackAdd = {
             type = "input",
             name = "Add Spell ID",
-            desc = "Enter a spell ID to add as an alternative for this icon.",
+            desc = "Enter a spell ID to add as an alternative for this icon.\n"
+                .. "If the spell belongs to an exclusive group preset, all spells from that group will be added automatically.",
             order = orderBase + 22,
             width = "full",
             get = function() return "" end,
@@ -407,6 +406,23 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
                     return
                 end
                 data.exclusiveSpells[sid] = true
+
+                -- Auto-link: if this spell belongs to an exclusive group, add the whole group
+                local Cfg = ns.AuraTracker and ns.AuraTracker.Config
+                if Cfg and Cfg.GetPresetForSpell then
+                    local presetKey = Cfg:GetPresetForSpell(sid)
+                    if presetKey then
+                        local preset = Cfg.ExclusivePresets[presetKey]
+                        if preset then
+                            for groupSpellId in pairs(preset.spells) do
+                                if groupSpellId ~= spellId then
+                                    data.exclusiveSpells[groupSpellId] = true
+                                end
+                            end
+                        end
+                    end
+                end
+
                 NotifyAndRebuild(barKey)
             end,
         }
@@ -543,141 +559,14 @@ local function CreateIconListOptions(barKey, barData)
     end
     table_sort(sortedItems, function(a, b) return a.order < b.order end)
 
-    addState[barKey] = addState[barKey] or { trackType = "cooldown", filterKey = "target_debuff" }
-    local st = addState[barKey]
-
     local args = {
-        addHeader = { type = "header", name = "Add Tracked Entry", order = 1 },
-
-        addTrackType = {
-            type = "select",
-            name = "Track As",
-            desc = "Whether to track a cooldown, aura, item, or combined cooldown + aura.",
-            values = L.TRACK_TYPES,
-            order = 2,
-            width = "half",
-            get = function() return st.trackType end,
-            set = function(_, v)
-                st.trackType = v
-                NotifyChange()
-            end,
-        },
-
-        addAuraSource = {
-            type = "select",
-            name = "Aura Source",
-            desc = "Which unit and buff/debuff type to monitor.",
-            values = L.AURA_SOURCES,
-            order = 3,
-            width = "half",
-            hidden = function() return st.trackType ~= "aura" and st.trackType ~= "cooldown_aura" end,
-            get = function() return st.filterKey end,
-            set = function(_, v)
-                st.filterKey = v
-                NotifyChange()
-            end,
-        },
-
-        addSpellId = {
-            type = "input",
-            name = function()
-                if st.trackType == "item" then
-                    return "Item ID  (press Enter to add)"
-                end
-                return "Spell ID  (press Enter to add)"
-            end,
-            desc = function()
-                if st.trackType == "item" then
-                    return "Enter the numeric Item ID and press Enter."
-                end
-                return "Enter the numeric Spell ID and press Enter."
-            end,
-            order = 4,
-            width = "full",
-            get = function() return "" end,
-            set = function(_, val)
-                local id = tonumber(val)
-                if not id then return end
-
-                if barData.trackedItems[id] then
-                    print("|cFFFF0000Aura Tracker:|r This entry is already on this bar.")
-                    return
-                end
-
-                local nextOrder = GetNextOrder(barData.trackedItems)
-
-                if st.trackType == "item" then
-                    local itemName = GetItemInfo(id)
-                    if not itemName then
-                        print("|cFFFF0000Aura Tracker:|r Item ID " .. id .. " not found.")
-                        return
-                    end
-                    barData.trackedItems[id] = {
-                        order       = nextOrder,
-                        trackType   = "item",
-                        displayMode = "always",
-                    }
-                elseif st.trackType == "cooldown" then
-                    local spellName = GetSpellInfo(id)
-                    if not spellName then
-                        print("|cFFFF0000Aura Tracker:|r Spell ID " .. id .. " not found.")
-                        return
-                    end
-                    barData.trackedItems[id] = {
-                        order       = nextOrder,
-                        trackType   = "cooldown",
-                        displayMode = "always",
-                    }
-                elseif st.trackType == "cooldown_aura" then
-                    local spellName = GetSpellInfo(id)
-                    if not spellName then
-                        print("|cFFFF0000Aura Tracker:|r Spell ID " .. id .. " not found.")
-                        return
-                    end
-                    local fk = st.filterKey or "target_debuff"
-                    local fd = GetFilterData(fk)
-                    barData.trackedItems[id] = {
-                        order       = nextOrder,
-                        trackType   = "cooldown_aura",
-                        auraId      = id,
-                        type        = fk,
-                        unit        = fd and fd.unit   or "target",
-                        filter      = fd and fd.filter or "HARMFUL",
-                        displayMode = "always",
-                        onlyMine    = true,
-                    }
-                else
-                    local spellName = GetSpellInfo(id)
-                    if not spellName then
-                        print("|cFFFF0000Aura Tracker:|r Spell ID " .. id .. " not found.")
-                        return
-                    end
-                    local fk = st.filterKey or "target_debuff"
-                    local fd = GetFilterData(fk)
-                    barData.trackedItems[id] = {
-                        order       = nextOrder,
-                        trackType   = "aura",
-                        auraId      = id,
-                        type        = fk,
-                        unit        = fd and fd.unit   or "target",
-                        filter      = fd and fd.filter or "HARMFUL",
-                        displayMode = "active_only",
-                        onlyMine    = true,
-                    }
-                end
-
-                editState.selectedAura = id
-                NotifyAndRebuild(barKey)
-            end,
-        },
-
         listHeader = { type = "header", name = "Tracked Icons", order = 10 },
     }
 
     if #sortedItems == 0 then
         args.emptyMsg = {
             type = "description",
-            name = "No spells tracked yet. Add one above.",
+            name = "No spells tracked yet. Drag spells from your spellbook onto the bar.",
             order = 11,
             width = "full",
         }
@@ -1014,7 +903,7 @@ function ns.GetAuraTrackerOptions()
                         width = "full",
                         name  = "1.  Open |cFFFFFF00Bars|r in the tree on the left and enter a name in "
                             .. "|cFFFFFF00New Bar ID|r to create a bar.\n"
-                            .. "2.  Click |cFFFFFF00Toggle Move Bars|r to enter edit mode and drag bars "
+                            .. "2.  Click |cFFFFFF00Toggle Movers|r to enter edit mode and drag bars "
                             .. "to the desired screen position.\n"
                             .. "3.  Drag spells or items from your spellbook / bags onto a bar to start "
                             .. "tracking them.\n"
@@ -1085,6 +974,20 @@ function ns.GetAuraTrackerOptions()
                 },
             },
 
+            -- Toggle edit mode (movers) at the top level for easy access
+            toggleMovers = {
+                type  = "execute",
+                name  = "Toggle Movers",
+                desc  = "Toggle edit mode to drag bars to new positions on screen.",
+                order = 5,
+                width = "normal",
+                func  = function()
+                    if LibEditmode then
+                        LibEditmode:ToggleEditMode("AuraTracker")
+                    end
+                end,
+            },
+
             -- Parent group that holds all individual bar groups + new-bar creation
             bars = {
                 type        = "group",
@@ -1115,19 +1018,6 @@ function ns.UpdateBarOptions(options)
     for key in pairs(options.args.bars.args) do
         options.args.bars.args[key] = nil
     end
-
-    options.args.bars.args["__editMode"] = {
-        type  = "execute",
-        name  = "Toggle Move Bars",
-        desc  = "Toggle edit mode to drag bars to new positions on screen.",
-        order = -1,
-        width = "normal",
-        func  = function()
-            if LibEditmode then
-                LibEditmode:ToggleEditMode("AuraTracker")
-            end
-        end,
-    }
 
     options.args.bars.args["__createBar"] = {
         type  = "input",

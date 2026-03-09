@@ -514,19 +514,34 @@ function AuraTracker:AddAura(barKey, spellId, filterKey, specificAuraId, display
         displayMode = finalDisplayMode,
         onlyMine = onlyMine,
     }
-    
+
+    -- Auto-link exclusive groups: if the spell belongs to a preset, add the whole group
+    local presetKey = Config:GetPresetForSpell(spellId)
+    if presetKey then
+        local preset = Config.ExclusivePresets[presetKey]
+        if preset then
+            local entry = db.trackedItems[spellId]
+            entry.exclusiveSpells = entry.exclusiveSpells or {}
+            for groupSpellId in pairs(preset.spells) do
+                if groupSpellId ~= spellId then
+                    entry.exclusiveSpells[groupSpellId] = true
+                end
+            end
+        end
+    end
+
     self:RebuildBar(barKey)
-    
+
     return true, name
 end
 
 function AuraTracker:RemoveAura(barKey, spellId)
     local db = self:GetBarDB(barKey)
     if not db or not db.trackedItems then return false end
-    
+
     db.trackedItems[spellId] = nil
     self:RebuildBar(barKey)
-    
+
     return true
 end
 
@@ -631,7 +646,22 @@ function AuraTracker:AddCooldownAura(barKey, spellId, filterKey, specificAuraId,
         displayMode = finalDisplayMode,
         onlyMine = onlyMine or false,
     }
-    
+
+    -- Auto-link exclusive groups: if the spell belongs to a preset, add the whole group
+    local presetKey = Config:GetPresetForSpell(spellId)
+    if presetKey then
+        local preset = Config.ExclusivePresets[presetKey]
+        if preset then
+            local entry = db.trackedItems[spellId]
+            entry.exclusiveSpells = entry.exclusiveSpells or {}
+            for groupSpellId in pairs(preset.spells) do
+                if groupSpellId ~= spellId then
+                    entry.exclusiveSpells[groupSpellId] = true
+                end
+            end
+        end
+    end
+
     self:RebuildBar(barKey)
     
     return true, name
