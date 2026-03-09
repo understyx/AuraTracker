@@ -37,6 +37,7 @@ function Bar:New(name, parent, options)
     
     self.minWidth = self.iconSize
     self.minHeight = self.iconSize
+    self._layoutPending = false
     
     return self
 end

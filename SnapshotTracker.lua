@@ -41,6 +41,7 @@ local DIRECT_CAST_WINDOW = 2
 local cachedDamageMod, cachedCritChance, cachedCritDamage
 local cacheTime = 0
 local CACHE_TTL = 0.25
+-- Start dirty so the first query triggers a full calculation.
 local cacheIsDirty = true
 
 -- ==========================================================
