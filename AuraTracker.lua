@@ -344,7 +344,7 @@ function AuraTracker:RebuildBar(barKey)
     end
     
     self:SortBarIcons(barKey)
-    self:SyncTrinketEquipState()
+    self:SyncEquipState()
 
     -- Initial update so icons reflect correct state before syncing mover size
     UpdateEngine:UpdateAllCooldowns()
@@ -812,53 +812,84 @@ function AuraTracker:OnSpellsChanged()
 end
 
 -- ==========================================================
--- TRINKET EQUIP STATE
+-- EQUIPMENT EQUIP STATE
 -- ==========================================================
 
 local TRINKET_SLOT1 = 13
 local TRINKET_SLOT2 = 14
+local RING_SLOT1    = 11
+local RING_SLOT2    = 12
 
---- Returns a set of trinket item IDs currently equipped in slots 13 and 14.
-local function GetEquippedTrinketIds()
+local ICD_EQUIP_SLOTS = { TRINKET_SLOT1, TRINKET_SLOT2, RING_SLOT1, RING_SLOT2 }
+local TRINKET_SLOTS   = { [TRINKET_SLOT1] = true, [TRINKET_SLOT2] = true }
+
+--- Returns a set of item IDs currently equipped in trinket and ring slots.
+local function GetEquippedICDItemIds()
     local ids = {}
-    local id1 = GetInventoryItemID("player", TRINKET_SLOT1)
-    local id2 = GetInventoryItemID("player", TRINKET_SLOT2)
-    if id1 then ids[id1] = true end
-    if id2 then ids[id2] = true end
+    for _, slot in ipairs(ICD_EQUIP_SLOTS) do
+        local id = GetInventoryItemID("player", slot)
+        if id then ids[id] = true end
+    end
     return ids
 end
 
+--- Returns a map of { [slot] = itemId } for trinket slots only.
+local function GetTrinketSlotMap()
+    return {
+        [TRINKET_SLOT1] = GetInventoryItemID("player", TRINKET_SLOT1),
+        [TRINKET_SLOT2] = GetInventoryItemID("player", TRINKET_SLOT2),
+    }
+end
+
 --- Syncs the equipped flag on all INTERNAL_CD tracked items across all bars.
---- Returns a table of item IDs that were newly equipped (previously unequipped).
-function AuraTracker:SyncTrinketEquipState()
-    local equippedIds = GetEquippedTrinketIds()
-    local newlyEquipped = {}
+--- Also snapshots the current trinket slot state for swap detection.
+function AuraTracker:SyncEquipState()
+    local equippedIds = GetEquippedICDItemIds()
 
     for barKey, itemTable in pairs(self.items) do
         for key, item in pairs(itemTable) do
             if item:GetTrackType() == Config.TrackType.INTERNAL_CD then
-                local wasEquipped = item:IsEquipped()
-                local isNowEquipped = equippedIds[item:GetId()]
-                item:SetEquipped(isNowEquipped)
-                if isNowEquipped and not wasEquipped then
-                    newlyEquipped[item:GetId()] = item
-                end
+                item:SetEquipped(equippedIds[item:GetId()] or false)
             end
         end
     end
 
-    return newlyEquipped
+    self._prevTrinketSlots = GetTrinketSlotMap()
+end
+
+--- Finds the TrackedItem for a given item ID across all bars.
+function AuraTracker:FindICDItem(itemId)
+    for barKey, itemTable in pairs(self.items) do
+        local item = itemTable["icd_" .. itemId]
+        if item then return item end
+    end
+    return nil
 end
 
 function AuraTracker:OnEquipmentChanged(event, slot)
-    if slot ~= TRINKET_SLOT1 and slot ~= TRINKET_SLOT2 then return end
+    local isTrinketSlot = TRINKET_SLOTS[slot]
+    -- Only care about trinket and ring slots
+    if not isTrinketSlot and slot ~= RING_SLOT1 and slot ~= RING_SLOT2 then return end
 
-    local newlyEquipped = self:SyncTrinketEquipState()
+    -- For trinket slots, detect which item was swapped in and apply swap CD
+    if isTrinketSlot then
+        local prev = self._prevTrinketSlots or {}
+        local currentId = GetInventoryItemID("player", slot)
+        local prevId = prev[slot]
 
-    -- Start 30s swap cooldown on newly equipped trinkets
-    local now = GetTime()
-    for _, item in pairs(newlyEquipped) do
-        item:OnEquipSwap(now)
+        -- Sync equipped flags and snapshot new slot state
+        self:SyncEquipState()
+
+        -- Apply swap CD if a different item is now in this trinket slot
+        if currentId and currentId ~= prevId then
+            local item = self:FindICDItem(currentId)
+            if item then
+                item:OnEquipSwap(GetTime())
+            end
+        end
+    else
+        -- Ring slot changed – just sync visibility, no swap CD
+        self:SyncEquipState()
     end
 end
 

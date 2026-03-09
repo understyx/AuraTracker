@@ -93,6 +93,7 @@ function TrackedItem:New(id, trackType, options)
             self.procSpellIds = {}
             self.icdDuration = Config.DEFAULT_ICD
         end
+        self.nativeICD = self.icdDuration
         self.icdExpiration = 0
         self.equipped = false
     end
@@ -426,16 +427,18 @@ end
 
 local SWAP_CD = 30
 
---- Called when the trinket is newly equipped.
---- Starts a 30-second swap cooldown unless ICD is already running longer.
+--- Called when a trinket is placed into a trinket slot.
+--- If native ICD > 30s, triggers the full ICD; otherwise triggers 30s.
+--- Skips passive/stacking trinkets (nativeICD == 0).
 function TrackedItem:OnEquipSwap(now)
     now = now or GetTime()
-    -- If existing ICD extends past the 30s swap CD, preserve the longer ICD
-    if self.icdExpiration > now + SWAP_CD then return end
-    self.icdDuration = SWAP_CD
-    self.icdExpiration = now + SWAP_CD
+    -- Skip passive / stacking trinkets that have no ICD
+    if not self.nativeICD or self.nativeICD <= 0 then return end
+    local cd = (self.nativeICD > SWAP_CD) and self.nativeICD or SWAP_CD
+    self.icdDuration = cd
+    self.icdExpiration = now + cd
     self.active = false
-    self.duration = SWAP_CD
+    self.duration = cd
     self.expiration = self.icdExpiration
 end
 
