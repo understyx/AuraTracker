@@ -213,6 +213,16 @@ end
 
 function DragDrop:HandleItemDrop(barKey, itemId)
     local controller = self.controller
+    -- If the item has known trinket ICD data, track as Internal CD
+    if Config:IsTrinketWithICD(itemId) then
+        local success, result = controller:AddInternalCD(barKey, itemId)
+        if success then
+            controller:Print("Now tracking |cff00ff00" .. result .. "|r trinket ICD")
+        elseif result then
+            controller:Print("Failed: " .. result)
+        end
+        return
+    end
     local success, result = controller:AddItem(barKey, itemId)
     if success then
         controller:Print("Now tracking |cff00ff00" .. result .. "|r item cooldown")

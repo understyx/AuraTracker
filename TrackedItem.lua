@@ -51,7 +51,8 @@ function TrackedItem:New(id, trackType, options)
     end
     
     -- Get name/texture based on track type
-    if trackType == Config.TrackType.ITEM then
+    if trackType == Config.TrackType.ITEM
+    or trackType == Config.TrackType.INTERNAL_CD then
         local itemName, _, _, _, _, _, _, _, _, itemTexture = GetItemInfo(id)
         self.name = itemName
         self.texture = itemTexture
@@ -75,6 +76,24 @@ function TrackedItem:New(id, trackType, options)
         self.auraDuration = 0
         self.auraExpiration = 0
         self.auraStacks = 0
+    end
+
+    -- Internal cooldown state
+    if trackType == Config.TrackType.INTERNAL_CD then
+        local procSpells = Config:GetTrinketProcSpells(id)
+        if procSpells then
+            if type(procSpells) == "number" then
+                self.procSpellIds = { procSpells }
+            else
+                self.procSpellIds = procSpells
+            end
+            -- Use the ICD of the first proc spell as the default
+            self.icdDuration = Config:GetTrinketProcCooldown(self.procSpellIds[1])
+        else
+            self.procSpellIds = {}
+            self.icdDuration = Config.DEFAULT_ICD
+        end
+        self.icdExpiration = 0
     end
     
     return self
@@ -145,6 +164,8 @@ function TrackedItem:Update(gcdStart, gcdDuration, ignoreGCD)
         return self:UpdateItem()
     elseif self.trackType == Config.TrackType.COOLDOWN_AURA then
         return self:UpdateCooldownAura(gcdStart, gcdDuration, ignoreGCD)
+    elseif self.trackType == Config.TrackType.INTERNAL_CD then
+        return self:UpdateInternalCD()
     end
     return false
 end
@@ -351,6 +372,47 @@ function TrackedItem:UpdateCooldownAura(gcdStart, gcdDuration, ignoreGCD)
         or wasAuraActive ~= self.auraActive or prevStacks ~= self.auraStacks
 
     return changed
+end
+
+-- ==========================================================
+-- INTERNAL COOLDOWN
+-- ==========================================================
+
+function TrackedItem:UpdateInternalCD()
+    local wasActive = self.active
+    local now = GetTime()
+
+    if self.icdExpiration > 0 and now < self.icdExpiration then
+        -- ICD is still running
+        self.active = false
+        self.duration = self.icdDuration
+        self.expiration = self.icdExpiration
+    else
+        -- ICD has expired or never started; trinket is ready
+        self.active = true
+        self.duration = 0
+        self.expiration = 0
+    end
+
+    return wasActive ~= self.active
+end
+
+--- Called from CLEU handler when a matching proc spell is detected on the player.
+--- Sets the ICD timer based on when the proc buff was applied.
+function TrackedItem:OnProcDetected(procSpellId, buffAppliedTime)
+    local icd = Config:GetTrinketProcCooldown(procSpellId)
+    if icd and icd > 0 then
+        self.icdDuration = icd
+        self.icdExpiration = buffAppliedTime + icd
+        self.active = false
+        self.duration = icd
+        self.expiration = self.icdExpiration
+    end
+end
+
+--- Returns the list of proc spell IDs this item watches for.
+function TrackedItem:GetProcSpellIds()
+    return self.procSpellIds
 end
 
 -- ==========================================================

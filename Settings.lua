@@ -50,6 +50,7 @@ local L = {
         ["aura"]          = "Aura",
         ["item"]          = "Item",
         ["cooldown_aura"] = "Cooldown + Aura",
+        ["internal_cd"]   = "Trinket ICD",
     },
     DUAL_DISPLAY_MODES = {
         ["always"]       = "Always Show",
@@ -82,7 +83,7 @@ local function GetItemNameByID(itemId)
 end
 
 local function GetTrackedNameAndIcon(id, trackType)
-    if trackType == "item" then
+    if trackType == "item" or trackType == "internal_cd" then
         return GetItemNameByID(id)
     end
     return GetSpellNameByID(id)
@@ -95,6 +96,9 @@ local function GetTrackTypeLabel(trackType, filterKey)
     end
     if trackType == "item" then
         return "|cFFFFD700item|r"
+    end
+    if trackType == "internal_cd" then
+        return "|cFFFF8800trinket ICD|r"
     end
     if trackType == "cooldown_aura" then
         local src = filterKey and L.AURA_SOURCES[filterKey] or "aura"
@@ -260,6 +264,7 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
     local isItem = (data.trackType == "item")
     local isAura = (data.trackType == "aura")
     local isCooldownAura = (data.trackType == "cooldown_aura")
+    local isInternalCD = (data.trackType == "internal_cd")
     local hasAuraOptions = isAura or isCooldownAura
     local currentIndex, totalIcons = GetSortedIconIndex(barData, spellId)
 
@@ -290,7 +295,7 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
     local displayValues
     if isCooldownAura then
         displayValues = L.DUAL_DISPLAY_MODES
-    elseif isCooldown or isItem then
+    elseif isCooldown or isItem or isInternalCD then
         displayValues = L.COOLDOWN_DISPLAY_MODES
     else
         displayValues = L.AURA_DISPLAY_MODES

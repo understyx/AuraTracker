@@ -14,6 +14,7 @@ local pairs, ipairs, wipe = pairs, ipairs, wipe
 local GetSpellInfo, GetItemInfo = GetSpellInfo, GetItemInfo
 local UnitGUID, UnitClass = UnitGUID, UnitClass
 local IsSpellKnown = IsSpellKnown
+local GetTime = GetTime
 local math_max = math.max
 local string_upper, string_lower = string.upper, string.lower
 local table_sort = table.sort
@@ -280,6 +281,10 @@ function AuraTracker:ReleaseBarIcons(barKey)
     if self.items[barKey] then
         wipe(self.items[barKey])
     end
+    -- Clear proc→item reverse lookup; it gets rebuilt in CreateInternalCDIcon
+    if self._procToItems then
+        wipe(self._procToItems)
+    end
 end
 
 function AuraTracker:RebuildBar(barKey)
@@ -330,6 +335,8 @@ function AuraTracker:RebuildBar(barKey)
                 local filterKey = data.type and string_upper(data.type) or "TARGET_DEBUFF"
                 local icon = self:CreateCooldownAuraIcon(barKey, spellId, filterKey, data.auraId, order, styleOptions, data.displayMode, data.onlyMine, data.exclusiveSpells)
                 if icon then icon.showSnapshotText = data.showSnapshotText or false end
+            elseif data.trackType == Config.TrackType.INTERNAL_CD then
+                self:CreateInternalCDIcon(barKey, spellId, order, styleOptions, data.displayMode)
             end
         end
     end
@@ -586,6 +593,61 @@ function AuraTracker:AddItem(barKey, itemId)
     return true, name
 end
 
+function AuraTracker:CreateInternalCDIcon(barKey, itemId, order, styleOptions, displayMode)
+    local bar = self.bars[barKey]
+    local db = self:GetBarDB(barKey)
+    if not bar or not db then return nil end
+
+    local item = TrackedItem:New(itemId, Config.TrackType.INTERNAL_CD)
+    if not item:GetName() then return nil end
+
+    local frame = LibFramePool:Acquire(Icon.POOL_KEY, bar:GetFrame())
+
+    local finalDisplayMode = displayMode or Config:GetDefaultDisplayMode(Config.TrackType.INTERNAL_CD)
+    local icon = Icon:New(frame, item, finalDisplayMode)
+    icon.order = order
+    icon:ApplyStyle(styleOptions)
+
+    self.items[barKey]["icd_" .. itemId] = item
+    bar:AddIcon(icon)
+
+    -- Register proc spell IDs for CLEU lookup
+    local procSpells = item:GetProcSpellIds()
+    if procSpells then
+        self._procToItems = self._procToItems or {}
+        for _, procId in ipairs(procSpells) do
+            self._procToItems[procId] = self._procToItems[procId] or {}
+            self._procToItems[procId][item] = true
+        end
+    end
+
+    return icon
+end
+
+function AuraTracker:AddInternalCD(barKey, itemId)
+    local db = self:GetBarDB(barKey)
+    if not db then return false, "Bar not found" end
+
+    local name = GetItemInfo(itemId)
+    if not name then return false, "Item not found" end
+
+    if not Config:IsTrinketWithICD(itemId) then
+        return false, "No ICD data for this item"
+    end
+
+    db.trackedItems = db.trackedItems or {}
+    if db.trackedItems[itemId] then return false, "Already tracked" end
+
+    db.trackedItems[itemId] = {
+        order = GetNextOrder(db.trackedItems),
+        trackType = Config.TrackType.INTERNAL_CD,
+        displayMode = Config.DisplayMode.ALWAYS,
+    }
+    self:RebuildBar(barKey)
+
+    return true, name
+end
+
 function AuraTracker:CreateCooldownAuraIcon(barKey, spellId, filterKey, auraId, order, styleOptions, displayMode, onlyMine, exclusiveSpells)
     local bar = self.bars[barKey]
     local db = self:GetBarDB(barKey)
@@ -698,6 +760,21 @@ end
 
 function AuraTracker:OnCLEU(event, ...)
     SnapshotTracker:HandleCLEU(...)
+
+    -- Trinket ICD tracking via proc buff detection
+    if self._procToItems and next(self._procToItems) then
+        local timestamp, subEvent, _, sourceGUID, _, _, _, destGUID, _, _, _, spellId = ...
+        if destGUID == playerGUID
+        and (subEvent == "SPELL_AURA_APPLIED" or subEvent == "SPELL_AURA_REFRESH") then
+            local trackedItems = self._procToItems[spellId]
+            if trackedItems then
+                local now = GetTime()
+                for trackedItem in pairs(trackedItems) do
+                    trackedItem:OnProcDetected(spellId, now)
+                end
+            end
+        end
+    end
 end
 
 function AuraTracker:OnUnitAura(event, unit)
