@@ -345,7 +345,7 @@ Config.ExclusivePresets = {
         label  = "Spell Crit (Debuff)",
         spells = {
             [22959] = true,  -- Improved Scorch (debuff)
-            [17800] = true,  -- Shadow Mastery (from Improved Shadow Bolt)
+            [17800] = true,  -- Shadow Mastery (debuff applied by Improved Shadow Bolt talent)
             [28593] = true,  -- Winter's Chill
         },
     },
@@ -360,7 +360,7 @@ Config.ExclusivePresets = {
     DEBUFF_SPELL_HIT = {
         label  = "Spell Hit Chance (Debuff)",
         spells = {
-            [770]   = true,  -- Faerie Fire (includes spell hit when Improved Faerie Fire is talented)
+            [770]   = true,  -- Faerie Fire (spell hit component added by Improved Faerie Fire talent, same aura ID)
             [33198] = true,  -- Misery
         },
     },
