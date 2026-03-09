@@ -838,7 +838,7 @@ function AuraTracker:SyncTrinketEquipState()
         for key, item in pairs(itemTable) do
             if item:GetTrackType() == Config.TrackType.INTERNAL_CD then
                 local wasEquipped = item:IsEquipped()
-                local isNowEquipped = equippedIds[item:GetId()] or false
+                local isNowEquipped = equippedIds[item:GetId()]
                 item:SetEquipped(isNowEquipped)
                 if isNowEquipped and not wasEquipped then
                     newlyEquipped[item:GetId()] = item

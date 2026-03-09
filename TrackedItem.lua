@@ -417,7 +417,7 @@ function TrackedItem:GetProcSpellIds()
 end
 
 function TrackedItem:IsEquipped()
-    return self.equipped or false
+    return self.equipped
 end
 
 function TrackedItem:SetEquipped(val)
@@ -430,7 +430,7 @@ local SWAP_CD = 30
 --- Starts a 30-second swap cooldown unless ICD is already running longer.
 function TrackedItem:OnEquipSwap(now)
     now = now or GetTime()
-    -- If existing ICD extends past the 30s swap CD, keep it
+    -- If existing ICD extends past the 30s swap CD, preserve the longer ICD
     if self.icdExpiration > now + SWAP_CD then return end
     self.icdDuration = SWAP_CD
     self.icdExpiration = now + SWAP_CD
