@@ -94,6 +94,7 @@ function TrackedItem:New(id, trackType, options)
             self.icdDuration = Config.DEFAULT_ICD
         end
         self.icdExpiration = 0
+        self.equipped = false
     end
     
     return self
@@ -413,6 +414,29 @@ end
 --- Returns the list of proc spell IDs this item watches for.
 function TrackedItem:GetProcSpellIds()
     return self.procSpellIds
+end
+
+function TrackedItem:IsEquipped()
+    return self.equipped or false
+end
+
+function TrackedItem:SetEquipped(val)
+    self.equipped = val
+end
+
+local SWAP_CD = 30
+
+--- Called when the trinket is newly equipped.
+--- Starts a 30-second swap cooldown unless ICD is already running longer.
+function TrackedItem:OnEquipSwap(now)
+    now = now or GetTime()
+    -- If existing ICD extends past the 30s swap CD, keep it
+    if self.icdExpiration > now + SWAP_CD then return end
+    self.icdDuration = SWAP_CD
+    self.icdExpiration = now + SWAP_CD
+    self.active = false
+    self.duration = SWAP_CD
+    self.expiration = self.icdExpiration
 end
 
 -- ==========================================================

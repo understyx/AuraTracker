@@ -15,6 +15,7 @@ local GetSpellInfo, GetItemInfo = GetSpellInfo, GetItemInfo
 local UnitGUID, UnitClass = UnitGUID, UnitClass
 local IsSpellKnown = IsSpellKnown
 local GetTime = GetTime
+local GetInventoryItemID = GetInventoryItemID
 local math_max = math.max
 local string_upper, string_lower = string.upper, string.lower
 local table_sort = table.sort
@@ -131,6 +132,7 @@ function AuraTracker:OnEnable()
     self:RegisterEvent("ACTIONBAR_SHOWGRID", "OnDragStart")
     self:RegisterEvent("ACTIONBAR_HIDEGRID", "OnDragEnd")
     self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", "OnCLEU")
+    self:RegisterEvent("PLAYER_EQUIPMENT_CHANGED", "OnEquipmentChanged")
 
     DragDrop:HookBuffButtons()
     hooksecurefunc("AuraButton_Update", function(buttonName, index, filter)
@@ -342,6 +344,7 @@ function AuraTracker:RebuildBar(barKey)
     end
     
     self:SortBarIcons(barKey)
+    self:SyncTrinketEquipState()
 
     -- Initial update so icons reflect correct state before syncing mover size
     UpdateEngine:UpdateAllCooldowns()
@@ -806,6 +809,57 @@ end
 
 function AuraTracker:OnSpellsChanged()
     self:RebuildAllBars()
+end
+
+-- ==========================================================
+-- TRINKET EQUIP STATE
+-- ==========================================================
+
+local TRINKET_SLOT1 = 13
+local TRINKET_SLOT2 = 14
+
+--- Returns a set of trinket item IDs currently equipped in slots 13 and 14.
+local function GetEquippedTrinketIds()
+    local ids = {}
+    local id1 = GetInventoryItemID("player", TRINKET_SLOT1)
+    local id2 = GetInventoryItemID("player", TRINKET_SLOT2)
+    if id1 then ids[id1] = true end
+    if id2 then ids[id2] = true end
+    return ids
+end
+
+--- Syncs the equipped flag on all INTERNAL_CD tracked items across all bars.
+--- Returns a table of item IDs that were newly equipped (previously unequipped).
+function AuraTracker:SyncTrinketEquipState()
+    local equippedIds = GetEquippedTrinketIds()
+    local newlyEquipped = {}
+
+    for barKey, itemTable in pairs(self.items) do
+        for key, item in pairs(itemTable) do
+            if item:GetTrackType() == Config.TrackType.INTERNAL_CD then
+                local wasEquipped = item:IsEquipped()
+                local isNowEquipped = equippedIds[item:GetId()] or false
+                item:SetEquipped(isNowEquipped)
+                if isNowEquipped and not wasEquipped then
+                    newlyEquipped[item:GetId()] = item
+                end
+            end
+        end
+    end
+
+    return newlyEquipped
+end
+
+function AuraTracker:OnEquipmentChanged(event, slot)
+    if slot ~= TRINKET_SLOT1 and slot ~= TRINKET_SLOT2 then return end
+
+    local newlyEquipped = self:SyncTrinketEquipState()
+
+    -- Start 30s swap cooldown on newly equipped trinkets
+    local now = GetTime()
+    for _, item in pairs(newlyEquipped) do
+        item:OnEquipSwap(now)
+    end
 end
 
 -- ==========================================================

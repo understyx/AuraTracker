@@ -138,6 +138,12 @@ function Icon:ShouldShow()
     if not self.trackedItem then
         return false
     end
+
+    -- Hide unequipped trinkets
+    if self.trackedItem:GetTrackType() == Config.TrackType.INTERNAL_CD
+    and not self.trackedItem:IsEquipped() then
+        return false
+    end
     
     local isActive = self.trackedItem:IsActive()
     
