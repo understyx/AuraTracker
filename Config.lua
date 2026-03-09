@@ -101,7 +101,6 @@ Config.ExclusivePresets = {
         spells = {
             [57623] = true,  -- Horn of Winter
             [58643] = true,  -- Strength of Earth Totem
-            [52456] = true,  -- Enhancing Totems (talent)
         },
     },
     BUFF_ATTACK_POWER = {
@@ -109,7 +108,6 @@ Config.ExclusivePresets = {
         spells = {
             [47436] = true,  -- Battle Shout
             [48934] = true,  -- Blessing of Might
-            [20045] = true,  -- Improved Blessing of Might (talent)
         },
     },
     BUFF_ATTACK_POWER_PCT = {
@@ -139,13 +137,13 @@ Config.ExclusivePresets = {
         label  = "3% Haste",
         spells = {
             [48396] = true,  -- Improved Moonkin Form
-            [53648] = true,  -- Swift Retribution
+            [54153] = true,  -- Swift Retribution (aura)
         },
     },
     BUFF_HEALING_RECEIVED = {
         label  = "Healing Received Increase",
         spells = {
-            [20140] = true,  -- Improved Devotion Aura
+            [63514] = true,  -- Improved Devotion Aura (healing increase effect)
             [34123] = true,  -- Tree of Life
         },
     },
@@ -167,9 +165,8 @@ Config.ExclusivePresets = {
         label  = "Mana per 5",
         spells = {
             [48938] = true,  -- Blessing of Wisdom
-            [20245] = true,  -- Improved Blessing of Wisdom (talent)
             [58774] = true,  -- Mana Spring Totem
-            [16190] = true,  -- Restorative Totems (Mana Tide Totem)
+            [16190] = true,  -- Mana Tide Totem
         },
     },
     BUFF_MELEE_HASTE = {
@@ -177,7 +174,6 @@ Config.ExclusivePresets = {
         spells = {
             [55610] = true,  -- Improved Icy Talons
             [8512]  = true,  -- Windfury Totem
-            [29193] = true,  -- Improved Windfury Totem (talent)
         },
     },
     BUFF_PHYSICAL_CRIT = {
@@ -190,18 +186,14 @@ Config.ExclusivePresets = {
     BUFF_PHYSICAL_DAMAGE_REDUCTION = {
         label  = "Physical Damage Reduction (Armor)",
         spells = {
-            [16237] = true,  -- Ancestral Healing
+            [16236] = true,  -- Ancestral Healing (buff)
             [15363] = true,  -- Inspiration
         },
     },
     BUFF_REPLENISHMENT = {
         label  = "Replenishment",
         spells = {
-            [44561] = true,  -- Enduring Winter (Replenishment proc)
-            [53292] = true,  -- Hunting Party (Replenishment proc)
-            [54118] = true,  -- Improved Soul Leech (Replenishment proc)
-            [31878] = true,  -- Judgements of the Wise (Replenishment proc)
-            [48160] = true,  -- Vampiric Touch
+            [57669] = true,  -- Replenishment (all sources apply this same buff)
         },
     },
     BUFF_SPELL_CRIT = {
@@ -236,14 +228,12 @@ Config.ExclusivePresets = {
         label  = "Stamina",
         spells = {
             [48162] = true,  -- Power Word: Fortitude / Prayer of Fortitude
-            [14767] = true,  -- Improved Power Word: Fortitude (talent)
         },
     },
     BUFF_STATS = {
         label  = "Stats (Mark of the Wild)",
         spells = {
             [48470] = true,  -- Mark of the Wild / Gift of the Wild
-            [17055] = true,  -- Improved Mark of the Wild (talent)
         },
     },
     BUFF_STATS_PCT = {
@@ -277,23 +267,18 @@ Config.ExclusivePresets = {
         label  = "Attack Power Reduction",
         spells = {
             [50511] = true,  -- Curse of Weakness
-            [30909] = true,  -- Improved Curse of Weakness (talent)
             [48560] = true,  -- Demoralizing Roar
-            [16862] = true,  -- Feral Aggression (talent)
             [47437] = true,  -- Demoralizing Shout
-            [12879] = true,  -- Improved Demoralizing Shout (talent)
-            [26017] = true,  -- Vindication
+            [26016] = true,  -- Vindication (debuff)
         },
     },
     DEBUFF_ATTACK_SPEED_REDUCTION = {
         label  = "Attack Speed Reduction",
         spells = {
-            [45477] = true,  -- Icy Touch
-            [55610] = true,  -- Improved Icy Talons (also reduces attack speed via debuff)
+            [55095] = true,  -- Frost Fever (from Icy Touch)
             [48484] = true,  -- Infected Wounds
             [53696] = true,  -- Judgements of the Just
             [47502] = true,  -- Thunder Clap
-            [12666] = true,  -- Improved Thunder Clap (talent)
         },
     },
     DEBUFF_BLEED_DAMAGE = {
@@ -302,7 +287,7 @@ Config.ExclusivePresets = {
             [48564] = true,  -- Mangle (Bear)
             [48566] = true,  -- Mangle (Cat)
             [57386] = true,  -- Stampede (Rhino pet)
-            [46855] = true,  -- Trauma
+            [46857] = true,  -- Trauma (debuff)
         },
     },
     DEBUFF_CAST_SPEED_REDUCTION = {
@@ -318,7 +303,6 @@ Config.ExclusivePresets = {
         label  = "Crit Chance (Debuff)",
         spells = {
             [20337] = true,  -- Heart of the Crusader
-            [58410] = true,  -- Master Poisoner
             [57722] = true,  -- Totem of Wrath
         },
     },
@@ -353,15 +337,15 @@ Config.ExclusivePresets = {
     DEBUFF_PHYSICAL_DAMAGE_INCREASE = {
         label  = "Physical Damage Increase",
         spells = {
-            [29859] = true,  -- Blood Frenzy
-            [58413] = true,  -- Savage Combat
+            [30070] = true,  -- Blood Frenzy (debuff)
+            [58683] = true,  -- Savage Combat (debuff)
         },
     },
     DEBUFF_SPELL_CRIT = {
         label  = "Spell Crit (Debuff)",
         spells = {
-            [22959] = true,  -- Improved Scorch
-            [17803] = true,  -- Improved Shadow Bolt
+            [22959] = true,  -- Improved Scorch (debuff)
+            [17800] = true,  -- Shadow Mastery (from Improved Shadow Bolt)
             [28593] = true,  -- Winter's Chill
         },
     },
@@ -369,14 +353,14 @@ Config.ExclusivePresets = {
         label  = "Spell Damage Increase",
         spells = {
             [47864] = true,  -- Curse of the Elements
-            [48511] = true,  -- Earth and Moon
-            [51161] = true,  -- Ebon Plaguebringer
+            [60433] = true,  -- Earth and Moon (debuff)
+            [51735] = true,  -- Ebon Plague (debuff)
         },
     },
     DEBUFF_SPELL_HIT = {
         label  = "Spell Hit Chance (Debuff)",
         spells = {
-            [33602] = true,  -- Improved Faerie Fire
+            [770]   = true,  -- Faerie Fire (includes spell hit when Improved Faerie Fire is talented)
             [33198] = true,  -- Misery
         },
     },
