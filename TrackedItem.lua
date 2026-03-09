@@ -401,7 +401,7 @@ end
 --- Sets the ICD timer based on when the proc buff was applied.
 function TrackedItem:OnProcDetected(procSpellId, buffAppliedTime)
     local icd = Config:GetTrinketProcCooldown(procSpellId)
-    if icd and icd > 0 then
+    if icd > 0 then
         self.icdDuration = icd
         self.icdExpiration = buffAppliedTime + icd
         self.active = false

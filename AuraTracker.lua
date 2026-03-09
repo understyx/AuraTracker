@@ -763,7 +763,7 @@ function AuraTracker:OnCLEU(event, ...)
 
     -- Trinket ICD tracking via proc buff detection
     if self._procToItems and next(self._procToItems) then
-        local timestamp, subEvent, _, sourceGUID, _, _, _, destGUID, _, _, _, spellId = ...
+        local _, subEvent, _, _, _, _, _, destGUID, _, _, _, spellId = ...
         if destGUID == playerGUID
         and (subEvent == "SPELL_AURA_APPLIED" or subEvent == "SPELL_AURA_REFRESH") then
             local trackedItems = self._procToItems[spellId]
