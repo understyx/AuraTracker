@@ -291,14 +291,21 @@ skinners["TreeGroup"] = function(widget)
             origRefreshTree(self, ...)
             if self.buttons then
                 for _, btn in pairs(self.buttons) do
-                    if btn:IsShown() and not btn._flatSkinned then
-                        btn._flatSkinned = true
-                        -- Remove the default highlight
-                        local hl = btn:GetHighlightTexture()
-                        if hl then
-                            hl:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-                            hl:SetVertexColor(unpack(C.accent))
-                            hl:SetAlpha(0.2)
+                    if btn:IsShown() then
+                        if not btn._flatSkinned then
+                            btn._flatSkinned = true
+                            -- Remove the default highlight
+                            local hl = btn:GetHighlightTexture()
+                            if hl then
+                                hl:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
+                                hl:SetVertexColor(unpack(C.accent))
+                                hl:SetAlpha(0.2)
+                            end
+                        end
+                        -- Apply consistent font to tree button text
+                        local text = btn.text or btn:GetFontString()
+                        if text and text.SetFont then
+                            text:SetFont(TAB_FONT, TAB_FONTSIZE, "")
                         end
                     end
                 end
@@ -360,7 +367,16 @@ local function SkinOneTab(tab)
             if self._SetText then
                 self:_SetText(text)
             end
+            -- Ensure consistent font size each time text is set
+            if self.text then
+                self.text:SetFont(TAB_FONT, TAB_FONTSIZE, "")
+            end
         end
+    end
+
+    -- Set initial font size
+    if tab.text then
+        tab.text:SetFont(TAB_FONT, TAB_FONTSIZE, "")
     end
 
     -- Replace SetSelected / SetDisabled so they no longer call PanelTemplates
@@ -386,9 +402,11 @@ local function SkinOneTab(tab)
     end)
 end
 
-local TAB_PADDING = 8   -- horizontal text padding per side
-local TAB_HEIGHT  = 22
-local TAB_GAP     = 2   -- gap between flat tabs
+local TAB_FONT     = "Fonts\\FRIZQT__.TTF"
+local TAB_FONTSIZE = 12
+local TAB_PADDING  = 8   -- horizontal text padding per side
+local TAB_HEIGHT   = 24
+local TAB_GAP      = 2   -- gap between flat tabs
 
 skinners["TabGroup"] = function(widget)
     -- Content border
