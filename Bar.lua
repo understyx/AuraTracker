@@ -136,6 +136,19 @@ end
 -- ==========================================================
 
 function Bar:UpdateLayout()
+    if self._layoutPending then return end
+    self._layoutPending = true
+
+    -- Defer layout to the next frame so multiple visibility changes
+    -- within the same tick are coalesced into a single layout pass.
+    local bar = self
+    C_Timer.After(0, function()
+        bar._layoutPending = false
+        bar:DoLayout()
+    end)
+end
+
+function Bar:DoLayout()
     local prev, w, h = nil, 0, 0
     local horiz = self.direction == "HORIZONTAL"
     
@@ -177,12 +190,12 @@ end
 
 function Bar:SetDirection(direction)
     self.direction = direction
-    self:UpdateLayout()
+    self:DoLayout()
 end
 
 function Bar:SetSpacing(spacing)
     self.spacing = spacing
-    self:UpdateLayout()
+    self:DoLayout()
 end
 
 function Bar:SetIconSize(size)

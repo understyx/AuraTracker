@@ -79,6 +79,10 @@ end
 -- ==========================================================
 
 function UpdateEngine:UpdateAllCooldowns()
+    -- Refresh GCD state once per tick so every cooldown check
+    -- uses the latest values instead of stale event-driven data.
+    self:UpdateGCDState()
+
     local controller = self.controller
     for barKey, bar in pairs(controller.bars) do
         local db = controller:GetBarDB(barKey)
