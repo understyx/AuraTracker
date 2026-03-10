@@ -480,7 +480,6 @@ function SnapshotTracker:GetCritDamage()
     local critDamageBonus = 0
     local critDamage = 1.5
 
-    -- Talent-based periodic crit damage bonus
     -- Talent-based periodic crit damage bonus (only one per class)
     for indices, val in pairs(critModDamageBonusTalents[playerClass] or {}) do
         local talentIndex = indices % 100

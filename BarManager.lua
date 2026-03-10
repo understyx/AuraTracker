@@ -38,7 +38,8 @@ local BAR_DEFAULTS = {
     textColor = { r = 1, g = 1, b = 1, a = 1 },
 }
 
--- Builds the common style options table from a bar's DB entry
+-- Builds the style options table from a bar's DB entry.
+-- Exposed on ns.AuraTracker so UpdateEngine.lua can reuse it without duplication.
 local function BuildStyleOptions(db)
     return {
         size = db.iconSize,
@@ -48,6 +49,7 @@ local function BuildStyleOptions(db)
         showCooldownText = db.showCooldownText,
     }
 end
+ns.AuraTracker.BuildStyleOptions = BuildStyleOptions
 
 -- ==========================================================
 -- BAR MANAGEMENT
@@ -187,6 +189,9 @@ end
 function AuraTracker:RebuildBar(barKey)
     local db = self:GetBarDB(barKey)
     if not db then return end
+
+    -- Class/talent restrictions may have changed via settings; clear this bar's cache.
+    self:InvalidateBarStaticCache(barKey)
 
     if not self:ShouldShowBar(barKey) then
         local bar = self.bars[barKey]
@@ -330,49 +335,78 @@ end
 -- CLASS/TALENT RESTRICTION CHECK
 -- ==========================================================
 
+-- Cache for static (class + talent) visibility checks.
+-- Keyed by barKey; value is true/false.
+-- Populated lazily in ShouldShowBar; cleared by RebuildBar (per-bar)
+-- and by OnTalentsChanged (all bars) since those are the only events
+-- that can change the static result.
+local barStaticCache = {}
+
+function AuraTracker:InvalidateBarStaticCache(barKey)
+    if barKey then
+        barStaticCache[barKey] = nil
+    else
+        wipe(barStaticCache)
+    end
+end
+
 function AuraTracker:ShouldShowBar(barKey)
     local db = self:GetBarDB(barKey)
     if not db or not db.enabled then
         return false
     end
 
-    if db.classRestriction and db.classRestriction ~= "NONE" then
-        local _, playerClass = UnitClass("player")
-        if playerClass ~= db.classRestriction then
-            return false
-        end
-    end
+    -- Static checks: class restriction + talent requirements.
+    -- These never change mid-session except on talent events,
+    -- so cache the result to avoid repeated API calls every tick.
+    local staticOk = barStaticCache[barKey]
+    if staticOk == nil then
+        staticOk = true
 
-    -- Legacy single-talent-name check (backward compatibility)
-    if db.talentRestriction and db.talentRestriction ~= "NONE" then
-        local SP = ns.AuraTracker.SettingsPanel
-        if SP and not SP:CheckTalentRestriction(db.talentRestriction) then
-            return false
+        if db.classRestriction and db.classRestriction ~= "NONE" then
+            local _, playerClass = UnitClass("player")
+            if playerClass ~= db.classRestriction then
+                staticOk = false
+            end
         end
-    end
 
-    -- New multi-talent requirement check
-    if db.talentRequirements and next(db.talentRequirements) then
-        local numTabs = GetNumTalentTabs and GetNumTalentTabs() or 0
-        local maxTalents = MAX_NUM_TALENTS or 30
-        if numTabs > 0 then
-            for combinedIndex, requiredState in pairs(db.talentRequirements) do
-                local tab = math.ceil(combinedIndex / maxTalents)
-                local talentIndex = combinedIndex - (tab - 1) * maxTalents
-                if tab >= 1 and tab <= numTabs then
-                    local name, iconTex, tier, col, rank = GetTalentInfo(tab, talentIndex)
-                    local hasRank = rank and rank > 0
-                    if requiredState == true and not hasRank then
-                        return false
-                    elseif requiredState == false and hasRank then
-                        return false
+        -- Legacy single-talent-name check (backward compatibility)
+        if staticOk and db.talentRestriction and db.talentRestriction ~= "NONE" then
+            local SP = ns.AuraTracker.SettingsPanel
+            if SP and not SP:CheckTalentRestriction(db.talentRestriction) then
+                staticOk = false
+            end
+        end
+
+        -- New multi-talent requirement check
+        if staticOk and db.talentRequirements and next(db.talentRequirements) then
+            local numTabs = GetNumTalentTabs and GetNumTalentTabs() or 0
+            local maxTalents = MAX_NUM_TALENTS or 30
+            if numTabs > 0 then
+                for combinedIndex, requiredState in pairs(db.talentRequirements) do
+                    local tab = math.ceil(combinedIndex / maxTalents)
+                    local talentIndex = combinedIndex - (tab - 1) * maxTalents
+                    if tab >= 1 and tab <= numTabs then
+                        local _, _, _, _, rank = GetTalentInfo(tab, talentIndex)
+                        local hasRank = rank and rank > 0
+                        if requiredState == true and not hasRank then
+                            staticOk = false
+                            break
+                        elseif requiredState == false and hasRank then
+                            staticOk = false
+                            break
+                        end
                     end
                 end
             end
         end
+
+        barStaticCache[barKey] = staticOk
     end
 
-    -- Bar-level load conditions
+    if not staticOk then return false end
+
+    -- Dynamic checks: load conditions change at runtime (combat, mount, group, etc.)
     if db.loadConditions and #db.loadConditions > 0 then
         local Conditionals = ns.AuraTracker.Conditionals
         if Conditionals and not Conditionals:CheckAllLoadConditions(db.loadConditions) then
