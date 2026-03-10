@@ -132,6 +132,7 @@ end
 -- ==========================================================
 
 function AuraTracker:OnTalentsChanged()
+    self:InvalidateBarStaticCache()
     self:RebuildAllBars()
 end
 
@@ -142,10 +143,6 @@ end
 function AuraTracker:OnCLEU(event, ...)
     SnapshotTracker:HandleCLEU(...)
 
-    -- Trinket ICD tracking via proc buff detection
-    -- WotLK 3.3.5 CLEU format: timestamp(1), subEvent(2), sourceGUID(3),
-    -- sourceName(4), sourceFlags(5), destGUID(6), destName(7), destFlags(8),
-    -- spellId(9), spellName(10), spellSchool(11), ...
     if self._procToItems and next(self._procToItems) then
         local _, subEvent, _, _, _, destGUID, _, _, spellId = ...
         if destGUID == playerGUID
@@ -165,12 +162,12 @@ function AuraTracker:OnUnitAura(event, unit)
     if unit == "player" or unit == "target" or unit == "focus" then
         UpdateEngine:UpdateAurasForUnit(unit)
     end
-    -- Player buffs and target debuffs affect snapshot calculations;
-    -- skip invalidation for unrelated units (e.g. party members).
+    -- Snapshots are only affected by player buffs and target debuffs;
+    -- skip the full bar traversal for unrelated units (e.g. focus, party).
     if unit == "player" or unit == "target" then
         SnapshotTracker:InvalidateCache()
+        UpdateEngine:UpdateSnapshotText()
     end
-    UpdateEngine:UpdateSnapshotText()
 end
 
 function AuraTracker:OnTargetChanged()
@@ -182,6 +179,7 @@ end
 function AuraTracker:OnPlayerEnteringWorld()
     playerGUID = UnitGUID("player")
     SnapshotTracker:ResetPlayerInfo()
+    self:InvalidateBarStaticCache()
     self:RebuildAllBars()
 end
 

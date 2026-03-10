@@ -16,6 +16,21 @@ ns.AuraTracker.UpdateEngine = UpdateEngine
 local gcdStart, gcdDuration = nil, nil
 
 -- ==========================================================
+-- PRIVATE HELPERS
+-- ==========================================================
+
+-- Iterates all active (enabled) bars, calling fn(bar, db) for each.
+-- Avoids repeating the pairs/GetBarDB/enabled boilerplate across update functions.
+local function ForEnabledBars(controller, fn)
+    for barKey, bar in pairs(controller.bars) do
+        local db = controller:GetBarDB(barKey)
+        if db and db.enabled then
+            fn(bar, db)
+        end
+    end
+end
+
+-- ==========================================================
 -- INITIALIZATION
 -- ==========================================================
 
@@ -40,7 +55,6 @@ function UpdateEngine:CreateUpdateFrame()
             frame.elapsed = 0
             engine.controller:RecheckBarConditions()
             engine:UpdateAllCooldowns()
-            engine:UpdateCooldownText()
         end
     end)
     self.updateFrame:Show()
@@ -85,88 +99,81 @@ function UpdateEngine:UpdateAllCooldowns()
     self:UpdateGCDState()
 
     local controller = self.controller
-    for barKey, bar in pairs(controller.bars) do
-        local db = controller:GetBarDB(barKey)
-        if db and db.enabled then
-            local needsLayout = false
+    ForEnabledBars(controller, function(bar, db)
+        local needsLayout = false
 
-            for _, icon in ipairs(bar:GetIcons()) do
-                local item = icon:GetTrackedItem()
-                if item then
-                    local tt = item:GetTrackType()
-                    if tt == Config.TrackType.COOLDOWN
-                    or tt == Config.TrackType.ITEM
-                    or tt == Config.TrackType.COOLDOWN_AURA
-                    or tt == Config.TrackType.INTERNAL_CD then
-                        local changed = item:Update(gcdStart, gcdDuration, db.ignoreGCD)
-                        local visChanged = icon:Refresh()
-                        needsLayout = needsLayout or visChanged
-                    end
+        for _, icon in ipairs(bar:GetIcons()) do
+            local item = icon:GetTrackedItem()
+            if item then
+                local tt = item:GetTrackType()
+                if tt == Config.TrackType.COOLDOWN
+                or tt == Config.TrackType.ITEM
+                or tt == Config.TrackType.COOLDOWN_AURA
+                or tt == Config.TrackType.INTERNAL_CD then
+                    item:Update(gcdStart, gcdDuration, db.ignoreGCD)
+                    local visChanged = icon:Refresh()
+                    needsLayout = needsLayout or visChanged
+                end
+                -- Update cooldown text for all shown icons in the same pass,
+                -- avoiding a separate bars×icons traversal each tick.
+                if icon:GetFrame():IsShown() then
+                    icon:UpdateCooldownText()
                 end
             end
-
-            if needsLayout then
-                bar:UpdateLayout()
-            end
         end
-    end
+
+        if needsLayout then
+            bar:UpdateLayout()
+        end
+    end)
 end
 
 function UpdateEngine:UpdateAllAuras()
     local controller = self.controller
-    for barKey, bar in pairs(controller.bars) do
-        local db = controller:GetBarDB(barKey)
-        if db and db.enabled then
-            local needsLayout = false
+    ForEnabledBars(controller, function(bar, db)
+        local needsLayout = false
 
-            for _, icon in ipairs(bar:GetIcons()) do
-                local item = icon:GetTrackedItem()
-                if item then
-                    local tt = item:GetTrackType()
-                    if tt == Config.TrackType.AURA
-                    or tt == Config.TrackType.COOLDOWN_AURA then
-                        local changed = item:Update()
-                        local visChanged = icon:Refresh()
-                        needsLayout = needsLayout or visChanged
-                    end
+        for _, icon in ipairs(bar:GetIcons()) do
+            local item = icon:GetTrackedItem()
+            if item then
+                local tt = item:GetTrackType()
+                if tt == Config.TrackType.AURA
+                or tt == Config.TrackType.COOLDOWN_AURA then
+                    item:Update()
+                    local visChanged = icon:Refresh()
+                    needsLayout = needsLayout or visChanged
                 end
             end
-
-            if needsLayout then
-                bar:UpdateLayout()
-            end
         end
-    end
+
+        if needsLayout then
+            bar:UpdateLayout()
+        end
+    end)
 end
 
 function UpdateEngine:UpdateAurasForUnit(unit)
     local controller = self.controller
-    for barKey, bar in pairs(controller.bars) do
-        local db = controller:GetBarDB(barKey)
-        if db and db.enabled then
-            local needsLayout = false
+    ForEnabledBars(controller, function(bar, db)
+        local needsLayout = false
 
-            for _, icon in ipairs(bar:GetIcons()) do
-                local item = icon:GetTrackedItem()
-                if item then
-                    local tt = item:GetTrackType()
-                    if tt == Config.TrackType.AURA
-                    or tt == Config.TrackType.COOLDOWN_AURA then
-                        -- Only update if this item tracks the specified unit
-                        if item.unit == unit then
-                            local changed = item:Update()
-                            local visChanged = icon:Refresh()
-                            needsLayout = needsLayout or visChanged
-                        end
-                    end
+        for _, icon in ipairs(bar:GetIcons()) do
+            local item = icon:GetTrackedItem()
+            if item then
+                local tt = item:GetTrackType()
+                if (tt == Config.TrackType.AURA or tt == Config.TrackType.COOLDOWN_AURA)
+                and item.unit == unit then
+                    item:Update()
+                    local visChanged = icon:Refresh()
+                    needsLayout = needsLayout or visChanged
                 end
             end
-
-            if needsLayout then
-                bar:UpdateLayout()
-            end
         end
-    end
+
+        if needsLayout then
+            bar:UpdateLayout()
+        end
+    end)
 end
 
 function UpdateEngine:UpdateCooldownText()
@@ -201,13 +208,7 @@ function UpdateEngine:RefreshBar(barKey)
     local db = controller:GetBarDB(barKey)
     if not bar or not db then return end
 
-    local styleOptions = {
-        size = db.iconSize,
-        fontSize = db.textSize,
-        fontOutline = db.fontOutline,
-        textColor = db.textColor,
-        showCooldownText = db.showCooldownText,
-    }
+    local styleOptions = ns.AuraTracker.BuildStyleOptions(db)
     local needsLayout = false
 
     for _, icon in ipairs(bar:GetIcons()) do

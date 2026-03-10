@@ -31,6 +31,22 @@ local function GetNextOrder(trackedItems)
     return maxOrder + 1
 end
 
+-- If spellId belongs to a preset exclusive group, adds all other group members
+-- to entry.exclusiveSpells. Used by AddAura and AddCooldownAura.
+local function ApplyExclusiveGroup(trackedItems, spellId)
+    local presetKey = Config:GetPresetForSpell(spellId)
+    if not presetKey then return end
+    local preset = Config.ExclusivePresets[presetKey]
+    if not preset then return end
+    local entry = trackedItems[spellId]
+    entry.exclusiveSpells = entry.exclusiveSpells or {}
+    for groupSpellId in pairs(preset.spells) do
+        if groupSpellId ~= spellId then
+            entry.exclusiveSpells[groupSpellId] = true
+        end
+    end
+end
+
 -- ==========================================================
 -- ICON CREATION
 -- ==========================================================
@@ -239,20 +255,8 @@ function AuraTracker:AddAura(barKey, spellId, filterKey, specificAuraId, display
         onlyMine = onlyMine,
     }
 
-    -- Auto-link exclusive groups: if the spell belongs to a preset, add the whole group
-    local presetKey = Config:GetPresetForSpell(spellId)
-    if presetKey then
-        local preset = Config.ExclusivePresets[presetKey]
-        if preset then
-            local entry = db.trackedItems[spellId]
-            entry.exclusiveSpells = entry.exclusiveSpells or {}
-            for groupSpellId in pairs(preset.spells) do
-                if groupSpellId ~= spellId then
-                    entry.exclusiveSpells[groupSpellId] = true
-                end
-            end
-        end
-    end
+    -- Auto-link exclusive groups
+    ApplyExclusiveGroup(db.trackedItems, spellId)
 
     self:RebuildBar(barKey)
 
@@ -342,20 +346,8 @@ function AuraTracker:AddCooldownAura(barKey, spellId, filterKey, specificAuraId,
         onlyMine = onlyMine or false,
     }
 
-    -- Auto-link exclusive groups: if the spell belongs to a preset, add the whole group
-    local presetKey = Config:GetPresetForSpell(spellId)
-    if presetKey then
-        local preset = Config.ExclusivePresets[presetKey]
-        if preset then
-            local entry = db.trackedItems[spellId]
-            entry.exclusiveSpells = entry.exclusiveSpells or {}
-            for groupSpellId in pairs(preset.spells) do
-                if groupSpellId ~= spellId then
-                    entry.exclusiveSpells[groupSpellId] = true
-                end
-            end
-        end
-    end
+    -- Auto-link exclusive groups
+    ApplyExclusiveGroup(db.trackedItems, spellId)
 
     self:RebuildBar(barKey)
     

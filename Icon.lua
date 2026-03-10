@@ -81,10 +81,9 @@ function Icon:New(frame, trackedItem, displayMode)
     self._eventGlowActive = false
     self._eventGlowColor  = nil
 
-    -- Previous shown state (to detect show/hide transitions)
+    -- Previous shown state (nil = first run, used to suppress spurious onShow/onHide on rebuild)
     self._prevShown = nil
 
-    -- Create the border frame once per icon instance
     if not self.frame.border then
         local border = CreateFrame("Frame", nil, self.frame)
         border:SetPoint("TOPLEFT", -1, 1)
@@ -214,13 +213,13 @@ function Icon:Refresh()
         return false
     end
     
-    -- Update texture in case it changed (e.g., exclusive group)
+    -- Update texture in case it changed (e.g. exclusive group rank swap)
     self.frame.icon:SetTexture(self.trackedItem:GetTexture())
 
     local shouldShow = self:ShouldShow()
     local wasShown = self.frame:IsShown()
 
-    -- Detect first-run (nil) vs genuine transitions
+    -- Detect first-run (nil) vs genuine show/hide transitions
     local prevShown = self._prevShown
     self._prevShown = shouldShow
 
@@ -235,13 +234,11 @@ function Icon:Refresh()
         else
             self:RenderInactive()
         end
-        -- Fire onShow actions on genuine false→true transitions
         if prevShown == false then
             self:FireEventActions("onShow")
         end
         self:EvaluateConditionals()
     else
-        -- Fire onHide actions on genuine true→false transitions
         if prevShown == true then
             self:FireEventActions("onHide")
             -- Clear any event glow when icon is hidden
