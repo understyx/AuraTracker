@@ -49,6 +49,110 @@ local actionCheckLabels = {
 }
 
 -- ==========================================================
+-- BAR LOAD CONDITION TRISTATE HELPERS
+-- ==========================================================
+
+-- Color codes for tristate toggle labels.
+local TRISTATE_YES_COLOR = "|cFF00CC00"  -- green  (required / yes)
+local TRISTATE_NO_COLOR  = "|cFFCC0000"  -- red    (excluded / no)
+local TRISTATE_COLOR_END = "|r"
+
+-- Mapping: check type → {trueVal, falseVal} used in the loadConditions array.
+local barTristateMap = {
+    in_combat      = { trueVal = "yes",   falseVal = "no" },
+    alive          = { trueVal = "alive", falseVal = "dead" },
+    mounted        = { trueVal = "yes",   falseVal = "no" },
+    has_vehicle_ui = { trueVal = "yes",   falseVal = "no" },
+    in_group       = { trueVal = "group", falseVal = "solo" },
+}
+
+--- Read the tristate value for a simple boolean condition.
+--- Returns nil (any/off), true (must be yes), or false (must be no).
+local function GetBarTristateCond(condList, checkType)
+    local map = barTristateMap[checkType]
+    if not map then return nil end
+    for _, cond in ipairs(condList) do
+        if cond.check == checkType then
+            -- For in_group, the new tristate maps true → "group" and false → "solo".
+            -- Older DB entries may have stored "party" or "raid" instead of "group";
+            -- treat any non-solo value as true (in-group) for backward compatibility.
+            if checkType == "in_group" then
+                return cond.value ~= "solo"
+            end
+            return cond.value == map.trueVal
+        end
+    end
+    return nil
+end
+
+--- Write a tristate value for a simple boolean condition.
+--- val: nil = remove condition, true = set to trueVal, false = set to falseVal.
+local function SetBarTristateCond(condList, checkType, val)
+    local map = barTristateMap[checkType]
+    if not map then return end
+    for i, cond in ipairs(condList) do
+        if cond.check == checkType then
+            if val == nil then
+                table.remove(condList, i)
+            else
+                cond.value = val and map.trueVal or map.falseVal
+            end
+            return
+        end
+    end
+    -- Not found; add a new entry only when not nil.
+    if val ~= nil then
+        table.insert(condList, {
+            check = checkType,
+            value = val and map.trueVal or map.falseVal,
+        })
+    end
+end
+
+--- Read the tristate value for the glyph condition.
+--- Returns nil (any), true (has glyph), or false (doesn't have glyph).
+local function GetBarGlyphTristate(condList)
+    for _, cond in ipairs(condList) do
+        if cond.check == "glyph" then
+            return not cond.glyphNegate
+        end
+    end
+    return nil
+end
+
+--- Set the tristate value for the glyph condition.
+local function SetBarGlyphTristate(condList, val, spellId)
+    for i, cond in ipairs(condList) do
+        if cond.check == "glyph" then
+            if val == nil then
+                table.remove(condList, i)
+            else
+                cond.glyphNegate = (val == false) or nil
+                if spellId then cond.glyphSpellId = spellId end
+            end
+            return
+        end
+    end
+    if val ~= nil then
+        table.insert(condList, {
+            check       = "glyph",
+            glyphSpellId = spellId,
+            glyphNegate  = (val == false) or nil,
+        })
+    end
+end
+
+--- Return the spell ID stored in the glyph condition entry (if any).
+local function GetBarGlyphSpellId(condList)
+    for _, cond in ipairs(condList) do
+        if cond.check == "glyph" then
+            return cond.glyphSpellId
+        end
+    end
+    return nil
+end
+
+-- ==========================================================
 -- UI: LOAD CONDITION BUILDER
 -- ==========================================================
 
@@ -62,21 +166,137 @@ local actionCheckLabels = {
 function Conditionals:BuildLoadConditionUI(args, owner, orderBase, barKey, notifyFn, mode)
     mode = mode or "bar"
 
-    local checkLabels = (mode == "icon") and loadCheckLabelsIcon or loadCheckLabelsShared
-
     owner.loadConditions = owner.loadConditions or {}
+
+    if mode == "bar" then
+        -- -------------------------------------------------------
+        -- BAR MODE: fixed set of tristate toggles, one per type.
+        -- No sub-header is added here; the Load tab itself acts as
+        -- the "Load Conditions" container together with the top-level
+        -- loadTabDesc description in BarSettingsUI.lua.
+        -- -------------------------------------------------------
+        local condList = owner.loadConditions
+        local o = orderBase + 0.5
+
+        local simpleTypes = {
+            { check = "in_combat",      label = "In Combat",
+              hint  = "Yes = bar shows only in combat.  No = bar shows only out of combat." },
+            { check = "alive",          label = "Alive",
+              hint  = "Yes = bar shows only while alive.  No = bar shows only while dead." },
+            { check = "mounted",        label = "Mounted",
+              hint  = "Yes = bar shows only while mounted.  No = bar shows only while not mounted." },
+            { check = "has_vehicle_ui", label = "Has Vehicle UI",
+              hint  = "Yes = bar shows only while in a vehicle.  No = bar shows only outside a vehicle." },
+            { check = "in_group",       label = "In Group",
+              hint  = "Yes = bar shows only in a party or raid.  No = bar shows only while solo." },
+        }
+
+        for _, ct in ipairs(simpleTypes) do
+            local check = ct.check
+            local label = ct.label
+            args["barCond_" .. check] = {
+                type     = "toggle",
+                tristate = true,
+                name     = function()
+                    local v = GetBarTristateCond(condList, check)
+                    if v == true  then return TRISTATE_YES_COLOR .. label .. TRISTATE_COLOR_END end
+                    if v == false then return TRISTATE_NO_COLOR  .. label .. TRISTATE_COLOR_END end
+                    return label
+                end,
+                desc     = ct.hint,
+                order    = o,
+                width    = "double",
+                get = function()
+                    return GetBarTristateCond(condList, check)
+                end,
+                set = function(_, val)
+                    SetBarTristateCond(condList, check, val)
+                    notifyFn(barKey)
+                end,
+            }
+            o = o + 0.05
+        end
+
+        -- Glyph: tristate toggle + spell-ID input (shown when not nil)
+        local glyphState = GetBarGlyphTristate(condList)
+        args.barCond_glyph_toggle = {
+            type     = "toggle",
+            tristate = true,
+            name     = function()
+                local v = GetBarGlyphTristate(condList)
+                if v == true  then return TRISTATE_YES_COLOR .. "Glyph" .. TRISTATE_COLOR_END end
+                if v == false then return TRISTATE_NO_COLOR  .. "Glyph" .. TRISTATE_COLOR_END end
+                return "Glyph"
+            end,
+            desc     = "Yes = bar shows only when glyph is equipped.  "
+                    .. "No = bar shows only when glyph is NOT equipped.",
+            order    = o,
+            width    = "double",
+            get = function()
+                return GetBarGlyphTristate(condList)
+            end,
+            set = function(_, val)
+                local sid = GetBarGlyphSpellId(condList)
+                SetBarGlyphTristate(condList, val, sid)
+                notifyFn(barKey)
+            end,
+        }
+        o = o + 0.05
+
+        if glyphState ~= nil then
+            args.barCond_glyph_spellId = {
+                type  = "input",
+                name  = "Glyph Spell ID",
+                desc  = "Enter the spell ID of the glyph to check.\n"
+                     .. "Find glyph IDs on Wowhead or with /script print(GetSpellInfo(id)) in-game.",
+                order = o,
+                width = "normal",
+                get   = function()
+                    return tostring(GetBarGlyphSpellId(condList) or "")
+                end,
+                set   = function(_, val)
+                    local n = tonumber(val)
+                    local sid = (n and n > 0) and n or nil
+                    local state = GetBarGlyphTristate(condList)
+                    SetBarGlyphTristate(condList, state, sid)
+                    notifyFn(barKey)
+                end,
+            }
+            o = o + 0.05
+
+            local spellId = GetBarGlyphSpellId(condList)
+            args.barCond_glyph_name = {
+                type  = "description",
+                name  = function()
+                    if spellId then
+                        local name = GetSpellInfo(spellId)
+                        if name then return "|cFF00FF00" .. name .. "|r" end
+                        return "|cFFFF4400Unknown spell ID|r"
+                    end
+                    return "|cFFAAAAFFEnter a spell ID above.|r"
+                end,
+                order = o,
+                width = "normal",
+            }
+        end
+
+        return
+    end
+
+    -- -------------------------------------------------------
+    -- ICON MODE: add/remove with dropdowns (unchanged)
+    -- -------------------------------------------------------
+    local checkLabels = loadCheckLabelsIcon
     local maxCond = self.MAX_LOAD_CONDITIONS
 
     args.loadCondHeader = {
-        type = "header",
-        name = "Load Conditions",
+        type  = "header",
+        name  = "Load Conditions",
         order = orderBase,
     }
     args.loadCondDesc = {
-        type = "description",
-        name = "|cFFAAAAFFAll conditions must be met for this "
-            .. (mode == "bar" and "bar" or "icon")
-            .. " to be visible.|r",
+        type  = "description",
+        name  = "|cFFAAAAFFAll conditions must be met for this icon to be visible.|r",
         order = orderBase + 0.1,
         width = "full",
     }
@@ -492,6 +712,13 @@ local iconActionTypeLabels = {
     ["glow"]  = "Glow",
 }
 
+-- On Hide: glow has no meaningful effect (the icon is already hidden),
+-- so we expose only chat and sound for that trigger.
+local iconActionTypeLabelsNoGlow = {
+    ["chat"]  = "Send Chat Message",
+    ["sound"] = "Play Sound",
+}
+
 local chatChannelLabels = {
     ["SAY"]   = "Say",
     ["YELL"]  = "Yell",
@@ -503,7 +730,7 @@ local chatChannelLabels = {
 local iconActionTriggerInfo = {
     { key = "onClickActions", label = "On Click",  desc = "Actions fired when the icon is clicked." },
     { key = "onShowActions",  label = "On Show",   desc = "Actions fired when the icon becomes visible." },
-    { key = "onHideActions",  label = "On Hide",   desc = "Actions fired when the icon becomes hidden." },
+    { key = "onHideActions",  label = "On Hide",   desc = "Actions fired when the icon becomes hidden.", noGlow = true },
 }
 
 --- Build AceConfig args for icon event actions (On Click / On Show / On Hide).
@@ -566,7 +793,7 @@ function Conditionals:BuildIconActionsUI(args, owner, orderBase, barKey, notifyF
             args[prefix .. "type"] = {
                 type   = "select",
                 name   = triggerInfo.label .. " " .. ai,
-                values = iconActionTypeLabels,
+                values = triggerInfo.noGlow and iconActionTypeLabelsNoGlow or iconActionTypeLabels,
                 order  = aBase,
                 get    = function() return action.type or "sound" end,
                 set    = function(_, val)

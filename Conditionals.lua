@@ -160,7 +160,11 @@ function Conditionals:CheckLoadCondition(cond)
         if not talentKey then return false end
         local maxTalents = MAX_NUM_TALENTS or 30
         local numTabs = GetNumTalentTabs and GetNumTalentTabs() or 0
-        if numTabs == 0 then return false end
+        -- Talent data not yet loaded at login; pass optimistically so the icon
+        -- isn't incorrectly hidden before the API is ready.  Unlike the bar-level
+        -- check in ShouldShowBar(), this path is not cached and re-runs every tick,
+        -- so it will self-correct as soon as talent data becomes available.
+        if numTabs == 0 then return true end
         local tab = math.ceil(talentKey / maxTalents)
         local talentIndex = talentKey - (tab - 1) * maxTalents
         if tab < 1 or tab > numTabs then return false end
@@ -176,13 +180,19 @@ function Conditionals:CheckLoadCondition(cond)
         if not glyphSpellId then return false end
         -- Scan all glyph sockets (use GetNumGlyphSockets if available, else 6)
         local numSockets = (GetNumGlyphSockets and GetNumGlyphSockets()) or 6
+        local found = false
         for i = 1, numSockets do
             local enabled, _, glyphTooltipIndex, glyphSpell = GetGlyphSocketInfo(i)
             if enabled and self:_GetGlyphSocketSpellId(glyphTooltipIndex, glyphSpell) == glyphSpellId then
-                return true
+                found = true
+                break
             end
         end
-        return false
+        -- glyphNegate = true means the condition passes when the glyph is NOT equipped
+        if cond.glyphNegate then
+            return not found
+        end
+        return found
 
     elseif check == "unit_hp" then
         local unit = cond.unit or "target"

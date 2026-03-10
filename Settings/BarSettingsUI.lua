@@ -61,7 +61,10 @@ local function CreateBarSettings(barKey, barData)
             type  = "description",
             name  = "Configure when this bar should be visible.\n"
                 .. "Class and talent restrictions are checked at login. "
-                .. "Load conditions are checked dynamically during play.",
+                .. "Dynamic conditions are re-evaluated during play.\n"
+                .. "|cFF00CC00Green|r = required   "
+                .. "|cFFCC0000Red|r = excluded   "
+                .. "Unchecked = ignored",
             order = 1,
             width = "full",
         },
