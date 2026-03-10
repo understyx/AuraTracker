@@ -52,6 +52,11 @@ local actionCheckLabels = {
 -- BAR LOAD CONDITION TRISTATE HELPERS
 -- ==========================================================
 
+-- Color codes for tristate toggle labels.
+local TRISTATE_YES_COLOR = "|cFF00CC00"  -- green  (required / yes)
+local TRISTATE_NO_COLOR  = "|cFFCC0000"  -- red    (excluded / no)
+local TRISTATE_COLOR_END = "|r"
+
 -- Mapping: check type → {trueVal, falseVal} used in the loadConditions array.
 local barTristateMap = {
     in_combat      = { trueVal = "yes",   falseVal = "no" },
@@ -163,26 +168,12 @@ function Conditionals:BuildLoadConditionUI(args, owner, orderBase, barKey, notif
 
     owner.loadConditions = owner.loadConditions or {}
 
-    args.loadCondHeader = {
-        type = "header",
-        name = "Load Conditions",
-        order = orderBase,
-    }
-    args.loadCondDesc = {
-        type = "description",
-        name = "|cFFAAAAFFAll checked conditions must be met for this "
-            .. (mode == "bar" and "bar" or "icon")
-            .. " to be visible.\n"
-            .. "|cFFFFFFFFClick = Yes (required)   "
-            .. "Click again = No (excluded)   "
-            .. "Click again = Any (ignored)|r",
-        order = orderBase + 0.1,
-        width = "full",
-    }
-
     if mode == "bar" then
         -- -------------------------------------------------------
-        -- BAR MODE: fixed set of tristate toggles, one per type
+        -- BAR MODE: fixed set of tristate toggles, one per type.
+        -- No sub-header is added here; the Load tab itself acts as
+        -- the "Load Conditions" container together with the top-level
+        -- loadTabDesc description in BarSettingsUI.lua.
         -- -------------------------------------------------------
         local condList = owner.loadConditions
         local o = orderBase + 0.5
@@ -202,10 +193,16 @@ function Conditionals:BuildLoadConditionUI(args, owner, orderBase, barKey, notif
 
         for _, ct in ipairs(simpleTypes) do
             local check = ct.check
+            local label = ct.label
             args["barCond_" .. check] = {
                 type     = "toggle",
                 tristate = true,
-                name     = ct.label,
+                name     = function()
+                    local v = GetBarTristateCond(condList, check)
+                    if v == true  then return TRISTATE_YES_COLOR .. label .. TRISTATE_COLOR_END end
+                    if v == false then return TRISTATE_NO_COLOR  .. label .. TRISTATE_COLOR_END end
+                    return label
+                end,
                 desc     = ct.hint,
                 order    = o,
                 width    = "double",
@@ -225,7 +222,12 @@ function Conditionals:BuildLoadConditionUI(args, owner, orderBase, barKey, notif
         args.barCond_glyph_toggle = {
             type     = "toggle",
             tristate = true,
-            name     = "Glyph",
+            name     = function()
+                local v = GetBarGlyphTristate(condList)
+                if v == true  then return TRISTATE_YES_COLOR .. "Glyph" .. TRISTATE_COLOR_END end
+                if v == false then return TRISTATE_NO_COLOR  .. "Glyph" .. TRISTATE_COLOR_END end
+                return "Glyph"
+            end,
             desc     = "Yes = bar shows only when glyph is equipped.  "
                     .. "No = bar shows only when glyph is NOT equipped.",
             order    = o,
@@ -286,6 +288,18 @@ function Conditionals:BuildLoadConditionUI(args, owner, orderBase, barKey, notif
     -- -------------------------------------------------------
     local checkLabels = loadCheckLabelsIcon
     local maxCond = self.MAX_LOAD_CONDITIONS
+
+    args.loadCondHeader = {
+        type  = "header",
+        name  = "Load Conditions",
+        order = orderBase,
+    }
+    args.loadCondDesc = {
+        type  = "description",
+        name  = "|cFFAAAAFFAll conditions must be met for this icon to be visible.|r",
+        order = orderBase + 0.1,
+        width = "full",
+    }
 
     if #owner.loadConditions < maxCond then
         args.loadCondAdd = {
