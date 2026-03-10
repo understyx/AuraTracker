@@ -88,9 +88,14 @@ function Icon.CreateFrame(parent)
     f.stackText:SetFont([[Fonts\FRIZQT__.ttf]], 10, "THICKOUTLINE")
     f.stackText:SetPoint("BOTTOMRIGHT", -2, 2)
 
+    f.snapshotBG = f:CreateTexture(nil, "OVERLAY")
+    f.snapshotBG:SetTexture(0, 0, 0, 0.75)
+    f.snapshotBG:Hide()
+
     f.snapshotText = f:CreateFontString(nil, "OVERLAY")
     f.snapshotText:SetFont([[Fonts\FRIZQT__.ttf]], 9, "THICKOUTLINE")
     f.snapshotText:SetPoint("TOP", 0, 8)
+    f.snapshotBG:SetPoint("CENTER", f.snapshotText, "CENTER", 0, 0)
 
     return f
 end
@@ -159,6 +164,7 @@ function Icon:New(frame, trackedItem, displayMode)
     self.frame.stackText:Hide()
     self.frame.snapshotText:SetText("")
     self.frame.snapshotText:Hide()
+    self.frame.snapshotBG:Hide()
     
     return self
 end
@@ -327,6 +333,7 @@ function Icon:RenderInactive()
     self.frame.cooldown:Hide()
     self.frame.stackText:Hide()
     self.frame.snapshotText:Hide()
+    self.frame.snapshotBG:Hide()
     -- Do NOT clear frame.text here. UpdateCooldownText() owns frame.text and
     -- runs immediately after Refresh() in the same update pass. Clearing text
     -- here would beat the _prevCooldownText cache, causing the cooldown
@@ -562,6 +569,7 @@ function Icon:UpdateSnapshotText()
     if not self.showSnapshotText or not self.trackedItem then
         if self._prevSnapshotActive ~= false then
             self.frame.snapshotText:Hide()
+            self.frame.snapshotBG:Hide()
             self.frame.text:ClearAllPoints()
             self.frame.text:SetPoint("CENTER")
             self._prevSnapshotActive = false
@@ -584,6 +592,7 @@ function Icon:UpdateSnapshotText()
     if not isAuraActive then
         if self._prevSnapshotActive ~= false then
             self.frame.snapshotText:Hide()
+            self.frame.snapshotBG:Hide()
             self.frame.text:ClearAllPoints()
             self.frame.text:SetPoint("CENTER")
             self._prevSnapshotActive = false
@@ -599,6 +608,7 @@ function Icon:UpdateSnapshotText()
     if not SnapshotTracker then
         if self._prevSnapshotActive ~= false then
             self.frame.snapshotText:Hide()
+            self.frame.snapshotBG:Hide()
             self.frame.text:ClearAllPoints()
             self.frame.text:SetPoint("CENTER")
             self._prevSnapshotActive = false
@@ -616,15 +626,22 @@ function Icon:UpdateSnapshotText()
         if self._prevSnapshotText ~= diffText then
             self.frame.snapshotText:SetText(diffText)
             self._prevSnapshotText = diffText
+            -- Resize background to fit the new text
+            local tw = self.frame.snapshotText:GetStringWidth()
+            local th = self.frame.snapshotText:GetStringHeight()
+            self.frame.snapshotBG:SetWidth(math_max(1, tw + 4))
+            self.frame.snapshotBG:SetHeight(math_max(1, th + 2))
         end
-        -- Shift cooldown text down only on state transition
+        -- Show on state transition
         if self._prevSnapshotActive ~= true then
+            self.frame.snapshotBG:Show()
             self.frame.snapshotText:Show()
             self._prevSnapshotActive = true
         end
     else
         if self._prevSnapshotActive ~= false then
             self.frame.snapshotText:Hide()
+            self.frame.snapshotBG:Hide()
             self._prevSnapshotActive = false
             self._prevSnapshotText   = nil
         end
