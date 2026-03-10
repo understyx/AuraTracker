@@ -217,7 +217,7 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
             type     = "execute",
             name     = "<  Move Left",
             order    = 51,
-            width    = "half",
+            width    = "0.75",
             disabled = (currentIndex <= 1),
             func     = function() MoveIconToPosition(barKey, barData, spellId, currentIndex - 1) end,
         }
@@ -225,7 +225,7 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
             type     = "execute",
             name     = "Move Right  >",
             order    = 52,
-            width    = "half",
+            width    = "0.75",
             disabled = (currentIndex >= totalIcons),
             func     = function() MoveIconToPosition(barKey, barData, spellId, currentIndex + 1) end,
         }
