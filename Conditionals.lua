@@ -9,6 +9,7 @@ local UnitInVehicle = UnitInVehicle
 local GetNumRaidMembers = GetNumRaidMembers
 local GetNumPartyMembers = GetNumPartyMembers
 local GetTalentInfo, GetNumTalentTabs, GetNumTalents = GetTalentInfo, GetNumTalentTabs, GetNumTalents
+local GetTalentTabInfo = GetTalentTabInfo
 
 -- ==========================================================
 -- ENUMS / CONSTANTS
