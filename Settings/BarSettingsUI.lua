@@ -261,6 +261,21 @@ local function CreateBarSettings(barKey, barData)
                                 RebuildBar(barKey)
                             end,
                         },
+                        snapshotTextSize = {
+                            type     = "range",
+                            name     = "Snapshot Font Size",
+                            desc     = "Font size for snapshot diff text. Defaults to 80% of Font Size when unset.",
+                            min      = 8, max = 32, step = 1,
+                            order    = 33,
+                            width    = "double",
+                            get      = function()
+                                return barData.snapshotTextSize or math_floor((barData.textSize or 12) * 0.8)
+                            end,
+                            set      = function(_, val)
+                                barData.snapshotTextSize = val
+                                RebuildBar(barKey)
+                            end,
+                        },
                         fontOutline = {
                             type     = "select",
                             name     = "Font Outline",
@@ -270,7 +285,7 @@ local function CreateBarSettings(barKey, barData)
                                 ["OUTLINE"]       = "Thin",
                                 ["THICKOUTLINE"]  = "Thick",
                             },
-                            order    = 33,
+                            order    = 34,
                             width    = "double",
                             get      = function() return barData.fontOutline or "THICKOUTLINE" end,
                             set      = function(_, val)
@@ -290,7 +305,7 @@ local function CreateBarSettings(barKey, barData)
                                 end
                                 return t
                             end,
-                            order  = 34,
+                            order  = 35,
                             width  = "double",
                             get    = function()
                                 return barData.font or "Friz Quadrata TT"
@@ -304,7 +319,7 @@ local function CreateBarSettings(barKey, barData)
                             type     = "color",
                             name     = "Text Color",
                             hasAlpha = true,
-                            order    = 35,
+                            order    = 36,
                             width    = "normal",
                             get      = function()
                                 local c = barData.textColor or DEFAULT_TEXT_COLOR
