@@ -392,6 +392,7 @@ function AuraTracker:RebuildBar(barKey)
             if icon then
                 icon.soundOnShow = data.soundOnShow
                 icon.soundOnMissing = data.soundOnMissing
+                icon.conditionals = data.conditionals
             end
         end
     end

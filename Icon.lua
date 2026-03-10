@@ -64,6 +64,10 @@ function Icon:New(frame, trackedItem, displayMode)
     self.soundOnShow = nil   -- sound key to play when becoming active
     self.soundOnMissing = nil -- sound key to play when becoming inactive
 
+    -- Conditional system state
+    self.conditionals = nil  -- array of conditional definitions (from DB)
+    self._condState = {}     -- tracks previous evaluation result per conditional (for sound transitions)
+
     -- Create the border frame once per icon instance
     if not self.frame.border then
         local border = CreateFrame("Frame", nil, self.frame)
@@ -210,8 +214,10 @@ function Icon:Refresh()
         else
             self:RenderInactive()
         end
+        self:EvaluateConditionals()
     else
         self.frame:Hide()
+        self:SetGlow(false)
     end
     
     return wasShown ~= shouldShow
@@ -313,6 +319,116 @@ function Icon:RenderDualTrack()
         self.frame.stackText:Hide()
         self.frame.text:SetText("")
     end
+end
+
+-- ==========================================================
+-- CONDITIONAL SYSTEM
+-- ==========================================================
+
+function Icon:SetGlow(show, color)
+    if show then
+        if not self.frame.glowBorder then
+            local glow = CreateFrame("Frame", nil, self.frame)
+            glow:SetPoint("TOPLEFT", -3, 3)
+            glow:SetPoint("BOTTOMRIGHT", 3, -3)
+            glow:SetBackdrop({
+                edgeFile = "Interface\\Buttons\\WHITE8X8",
+                edgeSize = 3,
+            })
+            glow:SetFrameLevel(self.frame:GetFrameLevel() + 2)
+            glow._elapsed = 0
+            glow._dir = 1
+            glow._alpha = 1
+            glow:SetScript("OnUpdate", function(f, elapsed)
+                f._elapsed = f._elapsed + elapsed
+                if f._elapsed < 0.03 then return end
+                f._elapsed = 0
+                f._alpha = f._alpha + f._dir * 0.05
+                if f._alpha >= 1 then
+                    f._alpha = 1
+                    f._dir = -1
+                elseif f._alpha <= 0.3 then
+                    f._alpha = 0.3
+                    f._dir = 1
+                end
+                f:SetAlpha(f._alpha)
+            end)
+            self.frame.glowBorder = glow
+        end
+        local c = color or { r = 1, g = 1, b = 0 }  -- default yellow
+        self.frame.glowBorder:SetBackdropBorderColor(c.r, c.g, c.b, 1)
+        self.frame.glowBorder:Show()
+    else
+        if self.frame.glowBorder then
+            self.frame.glowBorder:Hide()
+        end
+    end
+end
+
+function Icon:CompareValue(actual, op, expected)
+    if not actual or not expected then return false end
+    if op == "<" then return actual < expected
+    elseif op == "<=" then return actual <= expected
+    elseif op == ">" then return actual > expected
+    elseif op == ">=" then return actual >= expected
+    elseif op == "==" then return actual == expected
+    end
+    return false
+end
+
+function Icon:CheckCondition(cond, item)
+    local check = cond.check
+
+    if check == "active" then
+        return item:IsActive()
+    elseif check == "inactive" then
+        return not item:IsActive()
+    elseif check == "remaining" then
+        local remaining = item:GetRemaining()
+        -- Only evaluate when there is an active timer
+        if remaining <= 0 then return false end
+        return self:CompareValue(remaining, cond.op, cond.value)
+    elseif check == "stacks" then
+        local stacks = item:GetStacks() or 0
+        return self:CompareValue(stacks, cond.op, cond.value)
+    end
+
+    return false
+end
+
+function Icon:EvaluateConditionals()
+    if not self.conditionals or not self.trackedItem then
+        self:SetGlow(false)
+        return
+    end
+
+    local item = self.trackedItem
+    local glowActive = false
+    local glowColor = nil
+
+    for i, cond in ipairs(self.conditionals) do
+        local met = self:CheckCondition(cond, item)
+        local wasMet = self._condState[i]
+
+        if met then
+            -- Visual actions from this conditional
+            if cond.glow then
+                glowActive = true
+                if cond.glowColor then
+                    glowColor = cond.glowColor
+                end
+            end
+
+            -- Sound: only on transition into the condition (skip first evaluation)
+            if wasMet == false and cond.sound and cond.sound ~= "NONE" then
+                self:PlaySoundForKey(cond.sound)
+            end
+        end
+
+        self._condState[i] = met
+    end
+
+    self:SetGlow(glowActive, glowColor)
 end
 
 function Icon:UpdateCooldownText()

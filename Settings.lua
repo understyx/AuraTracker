@@ -361,6 +361,161 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
         end,
     }
 
+    -- ==========================================================
+    -- CONDITIONAL ACTIONS  (WeakAura-style)
+    -- ==========================================================
+
+    local condCheckLabels = {
+        ["active"]    = "Active",
+        ["inactive"]  = "Inactive",
+        ["remaining"] = "Remaining Time",
+        ["stacks"]    = "Stacks",
+    }
+    local condOpLabels = {
+        ["<"]  = "< (Less Than)",
+        ["<="] = "<= (At Most)",
+        [">"]  = "> (Greater Than)",
+        [">="] = ">= (At Least)",
+        ["=="] = "== (Equal To)",
+    }
+
+    data.conditionals = data.conditionals or {}
+    local maxCond = (Config and Config.MAX_CONDITIONALS) or 3
+
+    args.editorCondHeader = {
+        type = "header",
+        name = "Conditional Actions",
+        order = orderBase + 15,
+    }
+    args.editorCondDesc = {
+        type = "description",
+        name = "|cFFAAAAFFDefine conditions that trigger glow, sound, or color changes on this icon.\n"
+            .. "Conditions are evaluated each update; sounds play only on transition.|r",
+        order = orderBase + 15.1,
+        width = "full",
+    }
+
+    if #data.conditionals < maxCond then
+        args.editorCondAdd = {
+            type = "execute",
+            name = "+ Add Condition",
+            order = orderBase + 15.2,
+            width = "normal",
+            func = function()
+                table_insert(data.conditionals, {
+                    check = "active",
+                    op = "<=",
+                    value = 5,
+                    glow = false,
+                    sound = nil,
+                    glowColor = nil,
+                })
+                NotifyAndRebuild(barKey)
+            end,
+        }
+    end
+
+    for ci, cond in ipairs(data.conditionals) do
+        local condBase = orderBase + 15.5 + (ci - 1) * 0.1
+        local prefix = "editorCond" .. ci .. "_"
+        local isNumeric = (cond.check == "remaining" or cond.check == "stacks")
+
+        args[prefix .. "header"] = {
+            type = "header",
+            name = "Condition " .. ci,
+            order = condBase,
+        }
+        args[prefix .. "check"] = {
+            type = "select",
+            name = "When",
+            desc = "What state to check.",
+            values = condCheckLabels,
+            order = condBase + 0.01,
+            get = function() return cond.check or "active" end,
+            set = function(_, val)
+                cond.check = val
+                NotifyAndRebuild(barKey)
+            end,
+        }
+        if isNumeric then
+            args[prefix .. "op"] = {
+                type = "select",
+                name = "Operator",
+                values = condOpLabels,
+                order = condBase + 0.02,
+                width = "half",
+                get = function() return cond.op or "<=" end,
+                set = function(_, val)
+                    cond.op = val
+                    NotifyAndRebuild(barKey)
+                end,
+            }
+            args[prefix .. "value"] = {
+                type = "input",
+                name = "Value",
+                desc = cond.check == "remaining" and "Seconds" or "Stack count",
+                order = condBase + 0.03,
+                width = "half",
+                get = function() return tostring(cond.value or 5) end,
+                set = function(_, val)
+                    cond.value = tonumber(val) or 5
+                    NotifyAndRebuild(barKey)
+                end,
+            }
+        end
+        args[prefix .. "glow"] = {
+            type = "toggle",
+            name = "Glow",
+            desc = "Show a pulsing glow border when this condition is met.",
+            order = condBase + 0.04,
+            width = "half",
+            get = function() return cond.glow or false end,
+            set = function(_, val)
+                cond.glow = val
+                NotifyAndRebuild(barKey)
+            end,
+        }
+        args[prefix .. "sound"] = {
+            type = "select",
+            name = "Sound",
+            desc = "Play a sound when entering this condition.",
+            values = soundValues,
+            order = condBase + 0.05,
+            get = function() return cond.sound or "NONE" end,
+            set = function(_, val)
+                cond.sound = (val ~= "NONE") and val or nil
+                NotifyAndRebuild(barKey)
+            end,
+        }
+        if cond.glow then
+            args[prefix .. "glowColor"] = {
+                type = "color",
+                name = "Glow Color",
+                desc = "Color of the glow border.",
+                order = condBase + 0.06,
+                hasAlpha = false,
+                get = function()
+                    local c = cond.glowColor or { r = 1, g = 1, b = 0 }
+                    return c.r, c.g, c.b
+                end,
+                set = function(_, r, g, b)
+                    cond.glowColor = { r = r, g = g, b = b }
+                    NotifyAndRebuild(barKey)
+                end,
+            }
+        end
+        args[prefix .. "remove"] = {
+            type = "execute",
+            name = "Remove",
+            order = condBase + 0.07,
+            width = "half",
+            func = function()
+                table_remove(data.conditionals, ci)
+                NotifyAndRebuild(barKey)
+            end,
+        }
+    end
+
     -- Aura options: source, aura-ID override, "only mine" toggle
     if hasAuraOptions then
         args.editorAuraSource = {

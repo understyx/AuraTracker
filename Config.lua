@@ -67,6 +67,30 @@ Config.SoundOptions = {
     BELL         = { label = "Bell",         file = [[Sound\Spells\ShaysBell.wav]] },
 }
 
+-- ==========================================================
+-- CONDITIONAL SYSTEM  (WeakAura-style)
+-- ==========================================================
+
+-- What to check:
+Config.ConditionCheck = {
+    ACTIVE   = "active",     -- item is active (aura present / off cooldown)
+    INACTIVE = "inactive",   -- item is inactive (aura missing / on cooldown)
+    REMAINING = "remaining", -- seconds remaining on the active timer (> 0 only)
+    STACKS   = "stacks",    -- buff/debuff stack count
+}
+
+-- Comparison operators for numeric checks (remaining, stacks):
+Config.ConditionOp = {
+    LT  = "<",
+    LTE = "<=",
+    GT  = ">",
+    GTE = ">=",
+    EQ  = "==",
+}
+
+-- Maximum number of conditionals allowed per icon
+Config.MAX_CONDITIONALS = 3
+
 Config.GCD_SPELL_ID = 61304
 Config.GCD_THRESHOLD = 1.6
 
