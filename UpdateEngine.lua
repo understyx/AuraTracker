@@ -38,6 +38,7 @@ function UpdateEngine:CreateUpdateFrame()
         frame.elapsed = frame.elapsed + elapsed
         if frame.elapsed >= 0.1 then
             frame.elapsed = 0
+            engine.controller:RecheckBarConditions()
             engine:UpdateAllCooldowns()
             engine:UpdateCooldownText()
         end
