@@ -421,8 +421,6 @@ function TrackedItem:GetWeaponSlot()
     return self.weaponSlot
 end
 
-
-
 function TrackedItem:UpdateInternalCD()
     local wasActive = self.active
     local now = GetTime()

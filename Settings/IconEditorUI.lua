@@ -138,7 +138,8 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
         displayValues = L.COOLDOWN_DISPLAY_MODES
     else
         displayValues = L.AURA_DISPLAY_MODES
-    end    generalArgs.editorDisplayMode = {
+    end
+    generalArgs.editorDisplayMode = {
         type   = "select",
         name   = "Visibility",
         desc   = "When should this icon be visible?",
