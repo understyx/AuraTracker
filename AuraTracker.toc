@@ -8,9 +8,7 @@
 
 Libraries\Load_Libraries.xml
 Libraries\Ace.xml
-
-LibFramepool-1.0\LibFramepool-1.0.lua
-LibEditmode-1.0\LibEditmode-1.0.xml
+Libraries\MyLibs.xml
 
 Config.lua
 TrinketData.lua

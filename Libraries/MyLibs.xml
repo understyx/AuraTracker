@@ -1,0 +1,4 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+	<Script file="LibFramepool-1.0\LibFramepool-1.0.lua"/>
+	<Include file="LibEditmode-1.0\LibEditmode-1.0.xml"/>
+</Ui>
