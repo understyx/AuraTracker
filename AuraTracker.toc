@@ -13,7 +13,6 @@ Config.lua
 TrinketData.lua
 Skin.lua
 Conditionals.lua
-ConditionUI.lua
 
 SnapshotTracker.lua
 TrackedItem.lua
@@ -26,7 +25,8 @@ BarManager.lua
 ItemFactory.lua
 EquipmentManager.lua
 MiniTalentWidget.lua
-Settings.lua
-IconEditorUI.lua
-BarSettingsUI.lua
-SettingsMappings.lua
+Settings\ConditionUI.lua
+Settings\Settings.lua
+Settings\IconEditorUI.lua
+Settings\BarSettingsUI.lua
+Settings\SettingsMappings.lua

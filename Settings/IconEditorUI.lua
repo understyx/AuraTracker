@@ -405,46 +405,37 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
     end
 
     -- ----------------------------------------------------------
-    -- Assemble sub-tab structure and inject into outer args
+    -- Inject tab groups directly into outer args.
+    -- The icons group (childGroups="tab") renders these as tabs;
+    -- non-group items (header, icon strip, preview) appear above.
     -- ----------------------------------------------------------
 
-    local tabArgs = {
-        general = {
-            type  = "group",
-            name  = "General",
-            order = 1,
-            args  = generalArgs,
-        },
-        load = {
-            type  = "group",
-            name  = "Load",
-            order = 2,
-            args  = loadArgs,
-        },
-        action = {
-            type  = "group",
-            name  = "Action",
-            order = 3,
-            args  = actionArgs,
-        },
+    args.iconEditorGeneral = {
+        type  = "group",
+        name  = "General",
+        order = 1,
+        args  = generalArgs,
     }
-
+    args.iconEditorLoad = {
+        type  = "group",
+        name  = "Load",
+        order = 2,
+        args  = loadArgs,
+    }
+    args.iconEditorAction = {
+        type  = "group",
+        name  = "Action",
+        order = 3,
+        args  = actionArgs,
+    }
     if hasAuraOptions then
-        tabArgs.alternative = {
+        args.iconEditorAlternative = {
             type  = "group",
             name  = "Also Track",
             order = 4,
             args  = altArgs,
         }
     end
-
-    args.iconEditorTabs = {
-        type        = "group",
-        name        = "",
-        childGroups = "tab",
-        order       = orderBase + 5,
-        args        = tabArgs,
-    }
 end
 
 -- ==========================================================
@@ -511,12 +502,14 @@ local function CreateIconListOptions(barKey, barData)
         InjectIconEditorArgs(args, barKey, barData, editState.selectedAura, 100)
     end
 
-    -- No childGroups: children render inline so the injected tab group
-    -- appears as embedded tabs below the icon list.
+    -- childGroups="tab": non-group children (icon list, editor header)
+    -- render above the tab control; group children (injected by
+    -- InjectIconEditorArgs) become the General/Load/Action/Also Track tabs.
     return {
-        type = "group",
-        name = "Icons",
-        args = args,
+        type        = "group",
+        name        = "Icons",
+        childGroups = "tab",
+        args        = args,
     }
 end
 
