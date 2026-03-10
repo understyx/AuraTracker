@@ -291,15 +291,19 @@ function ns.GetAuraTrackerOptions()
                         order = 41,
                         width = "full",
                         name  = "Click any icon in a bar's |cFFFFFF00Icons|r tab to open its inline editor. "
-                            .. "From there you can:\n\n"
-                            .. "• Change |cFFFFFF00Visibility|r (Always, Active Only, Missing Only).\n"
-                            .. "• Set the |cFFFFFF00Aura Source|r (player/target/focus, buff/debuff).\n"
-                            .. "• Toggle |cFFFFFF00Only Mine|r to track only your own auras.\n"
-                            .. "• Enable |cFFFFFF00Show Snapshot Diff|r to see whether refreshing a DoT "
-                            .. "now would increase or decrease its damage.\n"
-                            .. "• Add |cFFFFFF00Also Track (Alternatives)|r spell IDs so one icon "
-                            .. "covers an entire spell family (e.g. all Warlock curses).\n"
-                            .. "• Reorder icons with the Move Left / Move Right buttons.",
+                            .. "The editor is split into sub-tabs:\n\n"
+                            .. "|cFFFFFF00General|r – Change |cFFFFFF00Visibility|r (Always, Active Only, Missing Only), "
+                            .. "set the |cFFFFFF00Aura Source|r (player/target/focus, buff/debuff), "
+                            .. "toggle |cFFFFFF00Only Mine|r to track only your own auras, "
+                            .. "enable |cFFFFFF00Show Snapshot Diff|r to see whether refreshing a DoT "
+                            .. "now would increase or decrease its damage, "
+                            .. "and reorder icons with the Move Left / Move Right buttons.\n\n"
+                            .. "|cFFFFFF00Load|r – Add conditions that control when this icon is shown "
+                            .. "(e.g. only above a certain HP, only in combat).\n\n"
+                            .. "|cFFFFFF00Action|r – Add conditional effects such as a pulsing glow or "
+                            .. "sound alert when a threshold is crossed.\n\n"
+                            .. "|cFFFFFF00Also Track|r – Add alternative spell IDs so one icon covers an "
+                            .. "entire spell family (e.g. all Warlock curses). Available for aura icons only.",
                     },
 
                     -- Bar Settings
@@ -308,11 +312,18 @@ function ns.GetAuraTrackerOptions()
                         type  = "description",
                         order = 51,
                         width = "full",
-                        name  = "Each bar has two tabs:\n\n"
-                            .. "|cFFFFFF00Bar Configuration|r – Bar name, layout direction, Ignore GCD toggle, "
-                            .. "Show Only Known Spells, class restriction, icon size, spacing, scale, "
-                            .. "font size, outline, and text color.\n\n"
-                            .. "|cFFFFFF00Icons|r – Add or remove tracked spells/items and configure each icon.",
+                        name  = "Each bar has two top-level tabs:\n\n"
+                            .. "|cFFFFFF00Bar Configuration|r – Split into two sub-tabs:\n"
+                            .. "  • |cFFFFFF00General|r – Bar name, layout direction, Ignore GCD, Show Only Known Spells, "
+                            .. "icon size, spacing, scale, font size, outline, and text color.\n"
+                            .. "  • |cFFFFFF00Load|r – Class restriction, talent requirements, and load conditions "
+                            .. "that control when the bar is shown (e.g. only in combat, only in a group).\n\n"
+                            .. "|cFFFFFF00Icons|r – Lists all tracked icons. Click an icon to open its inline editor, "
+                            .. "which has up to four sub-tabs:\n"
+                            .. "  • |cFFFFFF00General|r – Visibility mode, aura source, Only Mine, Snapshot Diff, and reorder controls.\n"
+                            .. "  • |cFFFFFF00Load|r – Conditions controlling when this icon is shown.\n"
+                            .. "  • |cFFFFFF00Action|r – Conditional effects (glow, sound) triggered during play.\n"
+                            .. "  • |cFFFFFF00Also Track|r – Alternative spell IDs for aura icons (shown for aura/cooldown+aura only).",
                     },
 
                     -- Tips

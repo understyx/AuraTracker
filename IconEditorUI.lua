@@ -74,43 +74,62 @@ local function GetSortedIconIndex(barData, targetSpellId)
     return nil, #sorted
 end
 
+-- Injects the icon editor into the outer args table as:
+--   editorHeader / editorIconPreview / editorDeselect  (flat, above tabs)
+--   iconEditorTabs  (childGroups="tab" group containing General/Load/Action/Also Track)
 local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
     local data = barData.trackedItems[spellId]
     if not data then return end
 
     local name, icon = GetTrackedNameAndIcon(spellId, data.trackType)
-    local isCooldown = (data.trackType == "cooldown")
-    local isItem = (data.trackType == "item")
-    local isAura = (data.trackType == "aura")
+    local isCooldown    = (data.trackType == "cooldown")
+    local isItem        = (data.trackType == "item")
+    local isAura        = (data.trackType == "aura")
     local isCooldownAura = (data.trackType == "cooldown_aura")
-    local isInternalCD = (data.trackType == "internal_cd")
+    local isInternalCD  = (data.trackType == "internal_cd")
     local hasAuraOptions = isAura or isCooldownAura
     local currentIndex, totalIcons = GetSortedIconIndex(barData, spellId)
 
+    -- ----------------------------------------------------------
+    -- Flat section: header / preview / deselect  (above the tabs)
+    -- ----------------------------------------------------------
     args.editorHeader = {
-        type = "header",
-        name = string_format("Selected: %s  (ID: %d)", name, spellId),
+        type  = "header",
+        name  = string_format("Selected: %s  (ID: %d)", name, spellId),
         order = orderBase,
     }
     args.editorIconPreview = {
-        type = "description",
-        name = "",
-        image = icon,
-        imageWidth = 32,
+        type        = "description",
+        name        = "",
+        image       = icon,
+        imageWidth  = 32,
         imageHeight = 32,
-        order = orderBase + 1,
-        width = 0.25,
+        order       = orderBase + 1,
+        width       = 0.25,
     }
     args.editorDeselect = {
-        type = "execute",
-        name = "Deselect",
+        type  = "execute",
+        name  = "Deselect",
         order = orderBase + 2,
         width = "half",
-        func = function()
+        func  = function()
             editState.selectedAura = nil
             NotifyChange()
         end,
     }
+
+    -- ----------------------------------------------------------
+    -- Build args tables for each sub-tab
+    -- ----------------------------------------------------------
+
+    local generalArgs = {}
+    local loadArgs    = {}
+    local actionArgs  = {}
+    local altArgs     = {}
+
+    -- ---- GENERAL TAB ----------------------------------------
+
+    -- Display mode
     local displayValues
     if isCooldownAura then
         displayValues = L.DUAL_DISPLAY_MODES
@@ -119,39 +138,29 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
     else
         displayValues = L.AURA_DISPLAY_MODES
     end
-    args.editorDisplayMode = {
-        type = "select",
-        name = "Visibility",
-        desc = "When should this icon be visible?",
+    generalArgs.editorDisplayMode = {
+        type   = "select",
+        name   = "Visibility",
+        desc   = "When should this icon be visible?",
         values = displayValues,
-        order = orderBase + 10,
-        get = function() return data.displayMode or "always" end,
-        set = function(_, val)
+        order  = 1,
+        get    = function() return data.displayMode or "always" end,
+        set    = function(_, val)
             data.displayMode = val
             NotifyAndRebuild(barKey)
         end,
     }
 
-    -- ==========================================================
-    -- LOAD CONDITIONS + ACTION CONDITIONALS  (shared module)
-    -- ==========================================================
-
-    local Conditionals = ns.AuraTracker and ns.AuraTracker.Conditionals
-    if Conditionals then
-        Conditionals:BuildLoadConditionUI(args, data, orderBase + 15, barKey, NotifyAndRebuild, "icon")
-        Conditionals:BuildActionConditionUI(args, data, orderBase + 45, barKey, NotifyAndRebuild)
-    end
-
-    -- Aura options: source, aura-ID override, "only mine" toggle
+    -- Aura-specific options
     if hasAuraOptions then
-        args.editorAuraSource = {
-            type = "select",
-            name = "Track From",
-            desc = "Which unit and buff/debuff type to monitor.",
+        generalArgs.editorAuraSource = {
+            type   = "select",
+            name   = "Track From",
+            desc   = "Which unit and buff/debuff type to monitor.",
             values = L.AURA_SOURCES,
-            order = orderBase + 11,
-            get = function() return data.type or "target_debuff" end,
-            set = function(_, val)
+            order  = 2,
+            get    = function() return data.type or "target_debuff" end,
+            set    = function(_, val)
                 data.type = val
                 local fd = GetFilterData(val)
                 if fd then
@@ -161,68 +170,121 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
                 NotifyAndRebuild(barKey)
             end,
         }
-        args.editorAuraIdOverride = {
-            type = "input",
-            name = "Aura ID Override",
-            desc = "Override which spell ID is scanned as the aura. Leave blank to use the same ID as the spell.",
-            order = orderBase + 12,
-            get = function()
+        generalArgs.editorAuraIdOverride = {
+            type  = "input",
+            name  = "Aura ID Override",
+            desc  = "Override which spell ID is scanned as the aura. Leave blank to use the same ID as the spell.",
+            order = 3,
+            get   = function()
                 return tostring(data.auraId or spellId)
             end,
-            set = function(_, val)
+            set   = function(_, val)
                 local n = tonumber(val)
                 data.auraId = (n and n ~= spellId) and n or nil
                 NotifyAndRebuild(barKey)
             end,
         }
-        args.editorOnlyMine = {
-            type = "toggle",
-            name = "Only Mine",
-            desc = "Only track auras cast by you. Uncheck to track auras from any player (e.g. Improved Scorch from another mage).",
-            order = orderBase + 13,
+        generalArgs.editorOnlyMine = {
+            type  = "toggle",
+            name  = "Only Mine",
+            desc  = "Only track auras cast by you. Uncheck to track auras from any player (e.g. Improved Scorch from another mage).",
+            order = 4,
             width = "full",
-            get = function() return data.onlyMine or false end,
-            set = function(_, val)
+            get   = function() return data.onlyMine or false end,
+            set   = function(_, val)
                 data.onlyMine = val
                 NotifyAndRebuild(barKey)
             end,
         }
-        args.editorShowSnapshotText = {
-            type = "toggle",
-            name = "Show Snapshot Diff",
-            desc = "Show a percentage indicating whether refreshing this DoT now would increase (+) or decrease (-) its damage compared to when it was applied.",
-            order = orderBase + 14,
+        generalArgs.editorShowSnapshotText = {
+            type  = "toggle",
+            name  = "Show Snapshot Diff",
+            desc  = "Show a percentage indicating whether refreshing this DoT now would increase (+) or decrease (-) its damage compared to when it was applied.",
+            order = 5,
             width = "full",
-            get = function() return data.showSnapshotText or false end,
-            set = function(_, val)
+            get   = function() return data.showSnapshotText or false end,
+            set   = function(_, val)
                 data.showSnapshotText = val
                 NotifyAndRebuild(barKey)
             end,
         }
+    end
 
-        -- "Also Track" section: user-defined exclusive/alternative spell IDs
-        args.editorAlsoTrackHeader = {
-            type = "header",
-            name = "Also Track (Alternatives)",
-            order = orderBase + 20,
+    -- Reorder controls
+    if currentIndex and totalIcons > 1 then
+        generalArgs.editorReorderHeader = { type = "header", name = "Order", order = 50 }
+        generalArgs.editorMoveLeft = {
+            type     = "execute",
+            name     = "<  Move Left",
+            order    = 51,
+            width    = "half",
+            disabled = (currentIndex <= 1),
+            func     = function() MoveIconToPosition(barKey, barData, spellId, currentIndex - 1) end,
         }
-        args.editorAlsoTrackDesc = {
-            type = "description",
-            name = "|cFFAAAAFFAdd alternative spell IDs that this icon should also scan for.\n"
+        generalArgs.editorMoveRight = {
+            type     = "execute",
+            name     = "Move Right  >",
+            order    = 52,
+            width    = "half",
+            disabled = (currentIndex >= totalIcons),
+            func     = function() MoveIconToPosition(barKey, barData, spellId, currentIndex + 1) end,
+        }
+    end
+
+    -- Danger zone in General tab
+    generalArgs.editorDangerHeader = { type = "header", name = "", order = 99 }
+    generalArgs.editorDelete = {
+        type        = "execute",
+        name        = "Remove from Bar",
+        desc        = "Stop tracking this spell on this bar.",
+        order       = 100,
+        confirm     = true,
+        confirmText = "Remove " .. name .. " from this bar?",
+        func        = function()
+            barData.trackedItems[spellId] = nil
+            editState.selectedAura = nil
+            NotifyAndRebuild(barKey)
+        end,
+    }
+
+    -- ---- LOAD TAB -------------------------------------------
+
+    local Conditionals = ns.AuraTracker and ns.AuraTracker.Conditionals
+    if Conditionals then
+        Conditionals:BuildLoadConditionUI(loadArgs, data, 1, barKey, NotifyAndRebuild, "icon")
+    end
+
+    -- ---- ACTION TAB -----------------------------------------
+
+    if Conditionals then
+        Conditionals:BuildActionConditionUI(actionArgs, data, 1, barKey, NotifyAndRebuild)
+    end
+
+    -- ---- ALSO TRACK TAB (aura-only) -------------------------
+
+    if hasAuraOptions then
+        altArgs.editorAlsoTrackHeader = {
+            type  = "header",
+            name  = "Also Track (Alternatives)",
+            order = 1,
+        }
+        altArgs.editorAlsoTrackDesc = {
+            type  = "description",
+            name  = "|cFFAAAAFFAdd alternative spell IDs that this icon should also scan for.\n"
                 .. "The icon will show whichever spell is active (e.g. add all curse variants so one icon tracks any curse).\n"
                 .. "Lower-level spell ranks are matched automatically by name.|r",
-            order = orderBase + 21,
+            order = 2,
             width = "full",
         }
-        args.editorAlsoTrackAdd = {
-            type = "input",
-            name = "Add Spell ID",
-            desc = "Enter a spell ID to add as an alternative for this icon.\n"
+        altArgs.editorAlsoTrackAdd = {
+            type  = "input",
+            name  = "Add Spell ID",
+            desc  = "Enter a spell ID to add as an alternative for this icon.\n"
                 .. "If the spell belongs to an exclusive group preset, all spells from that group will be added automatically.",
-            order = orderBase + 22,
+            order = 3,
             width = "full",
-            get = function() return "" end,
-            set = function(_, val)
+            get   = function() return "" end,
+            set   = function(_, val)
                 local sid = tonumber(val)
                 if not sid then return end
                 if sid == spellId then
@@ -268,17 +330,17 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
             for key, preset in pairs(Config.ExclusivePresets) do
                 presetValues[key] = preset.label
             end
-            args.editorAlsoTrackPreset = {
-                type = "select",
-                name = "Load WotLK Preset",
-                desc = "Load a predefined set of alternative spell IDs.\n"
+            altArgs.editorAlsoTrackPreset = {
+                type  = "select",
+                name  = "Load WotLK Preset",
+                desc  = "Load a predefined set of alternative spell IDs.\n"
                     .. "These are WotLK-era (level 80) spell IDs. "
                     .. "Lower-level ranks are matched automatically by name.",
                 values = presetValues,
-                order = orderBase + 22.5,
-                width = "double",
-                get = function() return "" end,
-                set = function(_, key)
+                order  = 4,
+                width  = "double",
+                get    = function() return "" end,
+                set    = function(_, key)
                     if key == "" then return end
                     local preset = Config.ExclusivePresets[key]
                     if not preset then return end
@@ -306,20 +368,20 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
             for exclId in pairs(excl) do
                 exclOrder = exclOrder + 1
                 local exclName, exclIcon = GetSpellNameByID(exclId)
-                args["editorExcl_icon_" .. exclId] = {
+                altArgs["editorExcl_icon_" .. exclId] = {
                     type        = "description",
                     name        = "",
                     image       = exclIcon,
                     imageWidth  = 20,
                     imageHeight = 20,
-                    order       = orderBase + 23 + (exclOrder * 2),
+                    order       = 5 + (exclOrder * 2),
                     width       = 0.15,
                 }
-                args["editorExcl_remove_" .. exclId] = {
+                altArgs["editorExcl_remove_" .. exclId] = {
                     type  = "execute",
                     name  = exclName .. "  (ID: " .. exclId .. ")  x",
                     desc  = "Remove " .. exclName .. " from the alternatives list.",
-                    order = orderBase + 24 + (exclOrder * 2),
+                    order = 6 + (exclOrder * 2),
                     width = "normal",
                     func  = function()
                         if data.exclusiveSpells then
@@ -333,49 +395,55 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
                 }
             end
         else
-            args.editorAlsoTrackEmpty = {
-                type = "description",
-                name = "No alternatives defined. This icon only tracks the primary spell.",
-                order = orderBase + 23,
+            altArgs.editorAlsoTrackEmpty = {
+                type  = "description",
+                name  = "No alternatives defined. This icon only tracks the primary spell.",
+                order = 5,
                 width = "full",
             }
         end
     end
 
-    -- Reorder controls
-    if currentIndex and totalIcons > 1 then
-        args.editorReorderHeader = { type = "header", name = "Order", order = orderBase + 50 }
-        args.editorMoveLeft = {
-            type     = "execute",
-            name     = "<  Move Left",
-            order    = orderBase + 51,
-            width    = "half",
-            disabled = (currentIndex <= 1),
-            func     = function() MoveIconToPosition(barKey, barData, spellId, currentIndex - 1) end,
-        }
-        args.editorMoveRight = {
-            type     = "execute",
-            name     = "Move Right  >",
-            order    = orderBase + 52,
-            width    = "half",
-            disabled = (currentIndex >= totalIcons),
-            func     = function() MoveIconToPosition(barKey, barData, spellId, currentIndex + 1) end,
+    -- ----------------------------------------------------------
+    -- Assemble sub-tab structure and inject into outer args
+    -- ----------------------------------------------------------
+
+    local tabArgs = {
+        general = {
+            type  = "group",
+            name  = "General",
+            order = 1,
+            args  = generalArgs,
+        },
+        load = {
+            type  = "group",
+            name  = "Load",
+            order = 2,
+            args  = loadArgs,
+        },
+        action = {
+            type  = "group",
+            name  = "Action",
+            order = 3,
+            args  = actionArgs,
+        },
+    }
+
+    if hasAuraOptions then
+        tabArgs.alternative = {
+            type  = "group",
+            name  = "Also Track",
+            order = 4,
+            args  = altArgs,
         }
     end
 
-    args.editorDangerHeader = { type = "header", name = "", order = orderBase + 99 }
-    args.editorDelete = {
-        type = "execute",
-        name = "Remove from Bar",
-        desc = "Stop tracking this spell on this bar.",
-        order = orderBase + 100,
-        confirm = true,
-        confirmText = "Remove " .. name .. " from this bar?",
-        func = function()
-            barData.trackedItems[spellId] = nil
-            editState.selectedAura = nil
-            NotifyAndRebuild(barKey)
-        end,
+    args.iconEditorTabs = {
+        type        = "group",
+        name        = "",
+        childGroups = "tab",
+        order       = orderBase + 5,
+        args        = tabArgs,
     }
 end
 
@@ -399,22 +467,22 @@ local function CreateIconListOptions(barKey, barData)
 
     if #sortedItems == 0 then
         args.emptyMsg = {
-            type = "description",
-            name = "No spells tracked yet. Drag spells from your spellbook onto the bar.",
+            type  = "description",
+            name  = "No spells tracked yet. Drag spells from your spellbook onto the bar.",
             order = 11,
             width = "full",
         }
     else
         args.listHint = {
-            type = "description",
-            name = "|cFFAAAAFFClick an icon to configure, reorder, or remove it.|r",
+            type  = "description",
+            name  = "|cFFAAAAFFClick an icon to configure, reorder, or remove it.|r",
             order = 11,
             width = "full",
         }
         for i, item in ipairs(sortedItems) do
-            local spellId     = item.spellId
+            local spellId          = item.spellId
             local spellName, spellIcon = GetTrackedNameAndIcon(spellId, item.data.trackType)
-            local typeLabel   = GetTrackTypeLabel(item.data.trackType, item.data.type)
+            local typeLabel        = GetTrackTypeLabel(item.data.trackType, item.data.type)
 
             -- Compact icon button – click to configure
             args["icon_" .. spellId] = {
@@ -438,16 +506,17 @@ local function CreateIconListOptions(barKey, barData)
         end
     end
 
-    -- If an icon is selected, inject editor inline below the icon strip
+    -- If an icon is selected, inject the tabbed editor inline below the icon strip
     if editState.selectedAura and barData.trackedItems[editState.selectedAura] then
         InjectIconEditorArgs(args, barKey, barData, editState.selectedAura, 100)
     end
 
+    -- No childGroups: children render inline so the injected tab group
+    -- appears as embedded tabs below the icon list.
     return {
-        type        = "group",
-        name        = "Icons",
-        childGroups = "tree",
-        args        = args,
+        type = "group",
+        name = "Icons",
+        args = args,
     }
 end
 
