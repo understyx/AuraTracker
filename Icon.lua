@@ -72,6 +72,18 @@ function Icon:New(frame, trackedItem, displayMode)
     self.conditionals = nil  -- array of action conditional defs (from DB)
     self._condState = {}     -- tracks previous evaluation result per conditional (for sound transitions)
 
+    -- Icon event actions: triggered on click / show / hide
+    self.onClickActions = nil
+    self.onShowActions  = nil
+    self.onHideActions  = nil
+
+    -- Event-glow state (set by onShow/onHide/onClick action defs)
+    self._eventGlowActive = false
+    self._eventGlowColor  = nil
+
+    -- Previous shown state (to detect show/hide transitions)
+    self._prevShown = nil
+
     -- Create the border frame once per icon instance
     if not self.frame.border then
         local border = CreateFrame("Frame", nil, self.frame)
@@ -83,7 +95,17 @@ function Icon:New(frame, trackedItem, displayMode)
         })
         self.frame.border = border
     end
-    
+
+    -- Wire up click handler (mouse must be enabled on the frame)
+    self.frame:EnableMouse(true)
+    -- Keep a reference so the closure can reach the Icon instance
+    local iconRef = self
+    self.frame:SetScript("OnMouseUp", function(_, button)
+        if button == "LeftButton" then
+            iconRef:FireEventActions("onClick")
+        end
+    end)
+
     if trackedItem then
         self.frame.icon:SetTexture(trackedItem:GetTexture())
     end
@@ -197,7 +219,11 @@ function Icon:Refresh()
 
     local shouldShow = self:ShouldShow()
     local wasShown = self.frame:IsShown()
-    
+
+    -- Detect first-run (nil) vs genuine transitions
+    local prevShown = self._prevShown
+    self._prevShown = shouldShow
+
     if shouldShow then
         self.frame:Show()
         if self.trackedItem:GetTrackType() == Config.TrackType.COOLDOWN_AURA then
@@ -209,8 +235,19 @@ function Icon:Refresh()
         else
             self:RenderInactive()
         end
+        -- Fire onShow actions on genuine false→true transitions
+        if prevShown == false then
+            self:FireEventActions("onShow")
+        end
         self:EvaluateConditionals()
     else
+        -- Fire onHide actions on genuine true→false transitions
+        if prevShown == true then
+            self:FireEventActions("onHide")
+            -- Clear any event glow when icon is hidden
+            self._eventGlowActive = false
+            self._eventGlowColor  = nil
+        end
         self.frame:Hide()
         self:SetGlow(false)
     end
@@ -361,24 +398,55 @@ function Icon:SetGlow(show, color)
 end
 
 function Icon:EvaluateConditionals()
-    if not self.conditionals or not self.trackedItem then
-        self:SetGlow(false)
-        return
-    end
-
     -- Lazily resolve Conditionals reference
     if not Conditionals then
         Conditionals = ns.AuraTracker.Conditionals
     end
-    if not Conditionals then
-        self:SetGlow(false)
-        return
+
+    local glowActive = false
+    local glowColor  = nil
+
+    if self.conditionals and self.trackedItem and Conditionals then
+        glowActive, glowColor = Conditionals:Evaluate(
+            self.conditionals, self._condState, self.trackedItem
+        )
     end
 
-    local glowActive, glowColor = Conditionals:Evaluate(
-        self.conditionals, self._condState, self.trackedItem
-    )
+    -- Merge in event glow (from onClick/onShow/onHide actions)
+    if self._eventGlowActive then
+        glowActive = true
+        if not glowColor and self._eventGlowColor then
+            glowColor = self._eventGlowColor
+        end
+    end
+
     self:SetGlow(glowActive, glowColor)
+end
+
+--- Fire all actions registered for `triggerKey` ("onClick"/"onShow"/"onHide").
+function Icon:FireEventActions(triggerKey)
+    local actions
+    if triggerKey == "onClick" then
+        actions = self.onClickActions
+    elseif triggerKey == "onShow" then
+        actions = self.onShowActions
+    elseif triggerKey == "onHide" then
+        actions = self.onHideActions
+    end
+    if not actions or #actions == 0 then return end
+
+    if not Conditionals then
+        Conditionals = ns.AuraTracker.Conditionals
+    end
+    if not Conditionals then return end
+
+    local glowReq, glowColorReq = Conditionals:ExecuteIconActions(actions, self.trackedItem)
+    if glowReq ~= nil then
+        self._eventGlowActive = glowReq
+        self._eventGlowColor  = glowColorReq
+        -- Immediately update glow so onClick feedback is instant
+        self:EvaluateConditionals()
+    end
 end
 
 function Icon:UpdateCooldownText()

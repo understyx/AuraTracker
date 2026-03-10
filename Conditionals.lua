@@ -17,7 +17,13 @@ local GetNumPartyMembers = GetNumPartyMembers
 local GetTalentInfo, GetNumTalentTabs, GetNumTalents = GetTalentInfo, GetNumTalentTabs, GetNumTalents
 local GetTalentTabInfo = GetTalentTabInfo
 local GetGlyphSocketInfo = GetGlyphSocketInfo
+local GetNumGlyphSockets = GetNumGlyphSockets
 local GetSpellInfo = GetSpellInfo
+local SendChatMessage = SendChatMessage
+local UnitName = UnitName
+local math_floor = math.floor
+local string_format = string.format
+local string_gsub = string.gsub
 
 -- ==========================================================
 -- MODULE
@@ -168,10 +174,11 @@ function Conditionals:CheckLoadCondition(cond)
     elseif check == "glyph" then
         local glyphSpellId = cond.glyphSpellId
         if not glyphSpellId then return false end
-        -- Scan all glyph sockets
-        for i = 1, 6 do
-            local enabled, glyphType, glyphTooltipIndex, glyphSpell, icon = GetGlyphSocketInfo(i)
-            if enabled and glyphSpell == glyphSpellId then
+        -- Scan all glyph sockets (use GetNumGlyphSockets if available, else 6)
+        local numSockets = (GetNumGlyphSockets and GetNumGlyphSockets()) or 6
+        for i = 1, numSockets do
+            local enabled, _, glyphTooltipIndex, glyphSpell = GetGlyphSocketInfo(i)
+            if enabled and self:_GetGlyphSocketSpellId(glyphTooltipIndex, glyphSpell) == glyphSpellId then
                 return true
             end
         end
@@ -311,17 +318,31 @@ function Conditionals:CheckAll(condList, item)
 end
 
 -- ==========================================================
+-- GLYPH HELPERS
+-- ==========================================================
+
+--- Return the effective spell ID for a glyph socket.
+--- In WotLK 3.3.5 the API returns (enabled, glyphType, tooltipIndex, spellId).
+--- Some private-server builds only fill one of the two ID positions, so we
+--- prefer position 4 (spellId) and fall back to position 3 (tooltipIndex).
+function Conditionals:_GetGlyphSocketSpellId(tooltipIndex, spellId)
+    return spellId or tooltipIndex
+end
+
+-- ==========================================================
 -- GLYPH LIST BUILDER
 -- ==========================================================
 
 function Conditionals:_BuildGlyphList()
     local list = {}
-    for i = 1, 6 do
-        local enabled, glyphType, glyphTooltipIndex, glyphSpellId, icon = GetGlyphSocketInfo(i)
-        if enabled and glyphSpellId then
-            local name = GetSpellInfo(glyphSpellId)
-            if name and not list[glyphSpellId] then
-                list[glyphSpellId] = name
+    local numSockets = (GetNumGlyphSockets and GetNumGlyphSockets()) or 6
+    for i = 1, numSockets do
+        local enabled, _, glyphTooltipIndex, glyphSpellId = GetGlyphSocketInfo(i)
+        local id = self:_GetGlyphSocketSpellId(glyphTooltipIndex, glyphSpellId)
+        if enabled and id then
+            local name = GetSpellInfo(id)
+            if name and not list[id] then
+                list[id] = name
             end
         end
     end
@@ -363,5 +384,102 @@ function Conditionals:_BuildTalentList()
 end
 
 -- UI builder methods (BuildLoadConditionUI, BuildActionConditionUI,
--- BuildConditionUI) are defined in ConditionUI.lua to keep this file
--- focused on evaluation logic.
+-- BuildConditionUI, BuildIconActionsUI) are defined in ConditionUI.lua
+-- to keep this file focused on evaluation logic.
+
+-- ==========================================================
+-- ICON ACTIONS  (On Click / On Show / On Hide)
+-- ==========================================================
+-- Each trigger (onClick, onShow, onHide) holds an ordered array of
+-- action definitions.  An action has a `type` field:
+--   "chat"  – send a chat message (with text replacements)
+--   "sound" – play a sound via LibSharedMedia
+--   "glow"  – enable or disable the icon glow
+
+Conditionals.IconActionType = {
+    CHAT  = "chat",
+    SOUND = "sound",
+    GLOW  = "glow",
+}
+
+Conditionals.ChatChannels = {
+    SAY   = "SAY",
+    YELL  = "YELL",
+    PARTY = "PARTY",
+    RAID  = "RAID",
+    EMOTE = "EMOTE",
+}
+
+Conditionals.MAX_ICON_ACTIONS = 5  -- per trigger
+
+-- Text replacement tokens (applied to chat messages before sending).
+-- Resolved at fire-time, so the item reference is always fresh.
+function Conditionals:ApplyTextReplacements(msg, item)
+    if not msg or not item then return msg end
+    -- %name → spell / item name
+    msg = string_gsub(msg, "%%name", item:GetName() or "")
+    -- %stack → current stack count (or 0)
+    local stacks = (item.GetStacks and item:GetStacks()) or 0
+    msg = string_gsub(msg, "%%stack", tostring(stacks))
+    -- %remaining → remaining time in seconds (integer)
+    local remaining = (item.GetRemaining and item:GetRemaining()) or 0
+    msg = string_gsub(msg, "%%remaining", tostring(math_floor(remaining)))
+    -- %target → current target name
+    local targetName = UnitName("target") or ""
+    msg = string_gsub(msg, "%%target", targetName)
+    -- %player → player name
+    local playerName = UnitName("player") or ""
+    msg = string_gsub(msg, "%%player", playerName)
+    return msg
+end
+
+--- Execute a single icon action.
+--- `item` is the TrackedItem (may be nil for pure event actions).
+--- Returns the glow request: true = request glow on, false = request off, nil = no change.
+function Conditionals:ExecuteSingleIconAction(action, item)
+    local t = action.type
+    if t == "chat" then
+        local msg = action.message or ""
+        if item then
+            msg = self:ApplyTextReplacements(msg, item)
+        end
+        if msg ~= "" then
+            local channel = action.channel or "SAY"
+            if SendChatMessage then
+                SendChatMessage(msg, channel)
+            end
+        end
+
+    elseif t == "sound" then
+        self:PlaySoundForKey(action.sound)
+
+    elseif t == "glow" then
+        return action.glow  -- true = on, false = off
+    end
+
+    return nil
+end
+
+--- Execute a list of icon actions.
+--- Returns: glowActive (bool|nil), glowColor (table|nil)
+--- glowActive is nil when no glow action was present in the list.
+function Conditionals:ExecuteIconActions(actions, item)
+    if not actions or #actions == 0 then
+        return nil, nil
+    end
+
+    local glowActive = nil
+    local glowColor  = nil
+
+    for _, action in ipairs(actions) do
+        local g = self:ExecuteSingleIconAction(action, item)
+        if g ~= nil then
+            glowActive = g
+            if g and action.glowColor then
+                glowColor = action.glowColor
+            end
+        end
+    end
+
+    return glowActive, glowColor
+end
