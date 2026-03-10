@@ -273,10 +273,10 @@ local function CreateBarSettings(barKey, barData)
                         if ctrl then
                             ctrl:DeleteBar(barKey)
                         end
-                        local es = SU.editState
-                        if es.selectedBar == barKey then
-                            es.selectedBar  = nil
-                            es.selectedAura = nil
+                        local editSt = SU.editState
+                        if editSt.selectedBar == barKey then
+                            editSt.selectedBar  = nil
+                            editSt.selectedAura = nil
                         end
                         NotifyChange()
                     end,

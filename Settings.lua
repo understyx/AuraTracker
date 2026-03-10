@@ -400,7 +400,9 @@ function ns.UpdateBarOptions(options)
         end,
     }
 
-    -- CreateBarSettings is defined in BarSettingsUI.lua and exported at load time.
+    -- CreateBarSettings is defined in BarSettingsUI.lua, which loads after this
+    -- file. It's safe to access here because UpdateBarOptions runs at runtime
+    -- (when the options panel opens), not at parse time.
     local CreateBarSettings = ns.AuraTracker.CreateBarSettings
 
     local order = 1

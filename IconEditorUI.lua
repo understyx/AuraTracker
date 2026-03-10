@@ -11,7 +11,7 @@ local SU = ns.AuraTracker.SettingsUtils
 local pairs, ipairs, next = pairs, ipairs, next
 local tonumber, tostring = tonumber, tostring
 local table_insert, table_sort = table.insert, table.sort
-local math_max, math_min = math.max, math.min
+local math_max = math.max
 local string_format, string_upper = string.format, string.upper
 local GetSpellInfo, GetItemInfo = GetSpellInfo, GetItemInfo
 
