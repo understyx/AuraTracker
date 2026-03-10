@@ -1,6 +1,8 @@
 local addonName, ns = ...
 
-local pairs, ipairs, select, unpack = pairs, ipairs, select, unpack
+local _G = _G
+local pairs, ipairs, select, type, unpack = pairs, ipairs, select, type, unpack
+local hooksecurefunc = hooksecurefunc
 local CreateFrame, UIParent = CreateFrame, UIParent
 
 local AceGUI = LibStub("AceGUI-3.0")
@@ -60,11 +62,28 @@ end
 
 local function SkinCloseButton(btn)
     if not btn then return end
+    if btn.isSkinned then return end
+    btn.isSkinned = true
+
+    -- Strip named subtextures (ElvUI HandleButton pattern)
+    local name = btn.GetName and btn:GetName()
+    if name then
+        local left   = _G[name .. "Left"]
+        local middle = _G[name .. "Middle"]
+        local right  = _G[name .. "Right"]
+        if left   then left:SetAlpha(0)   end
+        if middle then middle:SetAlpha(0) end
+        if right  then right:SetAlpha(0)  end
+    end
+    if btn.Left   then btn.Left:SetAlpha(0)   end
+    if btn.Middle then btn.Middle:SetAlpha(0) end
+    if btn.Right  then btn.Right:SetAlpha(0)  end
+
     StripTextures(btn)
-    btn:SetNormalTexture(nil)
-    btn:SetPushedTexture(nil)
-    btn:SetHighlightTexture(nil)
-    btn:SetDisabledTexture(nil)
+    if btn.SetNormalTexture    then btn:SetNormalTexture("")    end
+    if btn.SetPushedTexture    then btn:SetPushedTexture("")    end
+    if btn.SetHighlightTexture then btn:SetHighlightTexture("") end
+    if btn.SetDisabledTexture  then btn:SetDisabledTexture("")  end
 
     if not btn._flatBG then
         local bg = btn:CreateTexture(nil, "BACKGROUND")
@@ -98,14 +117,28 @@ local function SkinCloseButton(btn)
 end
 
 local function SkinFlatButton(frame)
-    if not frame or frame._flatSkinned then return end
-    frame._flatSkinned = true
+    if not frame or frame.isSkinned then return end
+    frame.isSkinned = true
+
+    -- Strip named subtextures (ElvUI HandleButton pattern)
+    local name = frame.GetName and frame:GetName()
+    if name then
+        local left   = _G[name .. "Left"]
+        local middle = _G[name .. "Middle"]
+        local right  = _G[name .. "Right"]
+        if left   then left:SetAlpha(0)   end
+        if middle then middle:SetAlpha(0) end
+        if right  then right:SetAlpha(0)  end
+    end
+    if frame.Left   then frame.Left:SetAlpha(0)   end
+    if frame.Middle then frame.Middle:SetAlpha(0) end
+    if frame.Right  then frame.Right:SetAlpha(0)  end
 
     StripTextures(frame)
-    frame:SetNormalTexture(nil)
-    frame:SetPushedTexture(nil)
-    frame:SetHighlightTexture(nil)
-    if frame.SetDisabledTexture then frame:SetDisabledTexture(nil) end
+    if frame.SetNormalTexture   then frame:SetNormalTexture("")   end
+    if frame.SetPushedTexture   then frame:SetPushedTexture("")   end
+    if frame.SetHighlightTexture then frame:SetHighlightTexture("") end
+    if frame.SetDisabledTexture then frame:SetDisabledTexture("") end
 
     if not frame._flatBG then
         local bg = frame:CreateTexture(nil, "BACKGROUND")
@@ -146,8 +179,8 @@ local function SkinFlatButton(frame)
 end
 
 local function SkinEditBoxFrame(editbox)
-    if not editbox or editbox._flatSkinned then return end
-    editbox._flatSkinned = true
+    if not editbox or editbox.isSkinned then return end
+    editbox.isSkinned = true
 
     -- Remove InputBoxTemplate textures (Left, Right, Middle)
     local name = editbox:GetName()
@@ -296,8 +329,8 @@ skinners["TreeGroup"] = function(widget)
             if self.buttons then
                 for _, btn in pairs(self.buttons) do
                     if btn:IsShown() then
-                        if not btn._flatSkinned then
-                            btn._flatSkinned = true
+                        if not btn.isSkinned then
+                            btn.isSkinned = true
                             -- Remove the default highlight
                             local hl = btn:GetHighlightTexture()
                             if hl then
@@ -336,8 +369,8 @@ local function FlatTab_UpdateLook(tab)
 end
 
 local function SkinOneTab(tab)
-    if tab._flatSkinned then return end
-    tab._flatSkinned = true
+    if tab.isSkinned then return end
+    tab.isSkinned = true
 
     -- Strip Blizzard tab textures
     StripTextures(tab)
@@ -521,8 +554,8 @@ end
 -- ------- CheckBox Widget ----------
 skinners["CheckBox"] = function(widget)
     if not widget.checkbg then return end
-    if widget.checkbg._flatSkinned then return end
-    widget.checkbg._flatSkinned = true
+    if widget.checkbg.isSkinned then return end
+    widget.checkbg.isSkinned = true
 
     -- Replace checkbox background texture with flat square
     widget.checkbg:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
@@ -547,6 +580,25 @@ skinners["CheckBox"] = function(widget)
         borderFrame:SetBackdropBorderColor(unpack(C.border))
         borderFrame:SetFrameLevel(widget.frame:GetFrameLevel())
         widget.frame._checkBorder = borderFrame
+    end
+
+    -- Use hooksecurefunc to prevent Blizzard/AceGUI from restoring stock textures
+    -- (mirrors ElvUI's HandleCheckBox pattern; the "" guard breaks any re-entry)
+    local frame = widget.frame
+    if frame.SetNormalTexture then
+        hooksecurefunc(frame, "SetNormalTexture", function(self, texPath)
+            if texPath and texPath ~= "" then self:SetNormalTexture("") end
+        end)
+    end
+    if frame.SetPushedTexture then
+        hooksecurefunc(frame, "SetPushedTexture", function(self, texPath)
+            if texPath and texPath ~= "" then self:SetPushedTexture("") end
+        end)
+    end
+    if frame.SetHighlightTexture then
+        hooksecurefunc(frame, "SetHighlightTexture", function(self, texPath)
+            if texPath and texPath ~= "" then self:SetHighlightTexture("") end
+        end)
     end
 
     -- Override SetType to keep flat look for both checkbox and radio
@@ -580,8 +632,8 @@ end
 -- ------- Slider Widget ----------
 skinners["Slider"] = function(widget)
     local slider = widget.slider
-    if not slider or slider._flatSkinned then return end
-    slider._flatSkinned = true
+    if not slider or slider.isSkinned then return end
+    slider.isSkinned = true
 
     -- Flat track
     slider:SetBackdrop(flatBackdrop)
@@ -628,20 +680,20 @@ end
 
 -- ------- Dropdown Widget ----------
 skinners["Dropdown"] = function(widget)
-    if not widget.dropdown or widget.dropdown._flatSkinned then return end
-    widget.dropdown._flatSkinned = true
+    if not widget.dropdown or widget.dropdown.isSkinned then return end
+    widget.dropdown.isSkinned = true
 
     local dropdown = widget.dropdown
     local name = dropdown:GetName()
     if not name then return end
 
-    -- Hide the Blizzard dropdown textures
+    -- Hide the Blizzard dropdown textures (ElvUI HandleDropDownBox pattern)
     local left = _G[name .. "Left"]
     local middle = _G[name .. "Middle"]
     local right = _G[name .. "Right"]
-    if left then left:SetAlpha(0) end
+    if left   then left:SetAlpha(0)   end
     if middle then middle:SetAlpha(0) end
-    if right then right:SetAlpha(0) end
+    if right  then right:SetAlpha(0)  end
 
     -- Create flat background
     if not dropdown._flatBG then
@@ -667,10 +719,10 @@ skinners["Dropdown"] = function(widget)
     -- Style the dropdown button (arrow)
     local button = _G[name .. "Button"]
     if button then
-        button:SetNormalTexture(nil)
-        button:SetPushedTexture(nil)
-        button:SetHighlightTexture(nil)
-        if button.SetDisabledTexture then button:SetDisabledTexture(nil) end
+        if button.SetNormalTexture   then button:SetNormalTexture("")   end
+        if button.SetPushedTexture   then button:SetPushedTexture("")   end
+        if button.SetHighlightTexture then button:SetHighlightTexture("") end
+        if button.SetDisabledTexture then button:SetDisabledTexture("") end
 
         if not button._flatBG then
             local bg = button:CreateTexture(nil, "BACKGROUND")
@@ -717,8 +769,8 @@ end
 -- ------- Dropdown Items (shared skinner for all item types) ----------
 local function SkinDropdownItem(widget)
     if not widget.highlight then return end
-    if widget.highlight._flatSkinned then return end
-    widget.highlight._flatSkinned = true
+    if widget.highlight.isSkinned then return end
+    widget.highlight.isSkinned = true
 
     widget.highlight:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
     widget.highlight:SetBlendMode("BLEND")
@@ -765,8 +817,8 @@ end
 -- ------- Icon Widget ----------
 skinners["Icon"] = function(widget)
     local frame = widget.frame
-    if not frame or frame._flatSkinned then return end
-    frame._flatSkinned = true
+    if not frame or frame.isSkinned then return end
+    frame.isSkinned = true
 
     -- Flat border around the icon image
     if not frame._flatBorder then
