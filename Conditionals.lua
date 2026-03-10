@@ -284,17 +284,27 @@ function Conditionals:CheckActionCondition(cond, item)
 end
 
 --- Evaluate action conditionals. Returns glow state + triggers sounds on transitions.
+--- Also returns:
+---   shouldDesaturate  (bool) – true when at least one met conditional has desaturate=true.
+---   hasDesaturateConds (bool) – true when at least one conditional has desaturate=true at all.
+--- The caller should only touch icon saturation when hasDesaturateConds is true.
 function Conditionals:EvaluateActions(condList, condState, item)
     if not condList then
-        return false, nil
+        return false, nil, false, false
     end
 
     local glowActive = false
     local glowColor = nil
+    local shouldDesaturate = false
+    local hasDesaturateConds = false
 
     for i, cond in ipairs(condList) do
         local met = self:CheckActionCondition(cond, item)
         local wasMet = condState[i]
+
+        if cond.desaturate then
+            hasDesaturateConds = true
+        end
 
         if met then
             if cond.glow then
@@ -302,6 +312,9 @@ function Conditionals:EvaluateActions(condList, condState, item)
                 if cond.glowColor then
                     glowColor = cond.glowColor
                 end
+            end
+            if cond.desaturate then
+                shouldDesaturate = true
             end
             if wasMet == false and cond.sound and cond.sound ~= "NONE" and cond.sound ~= "None" then
                 self:PlaySoundForKey(cond.sound)
@@ -311,7 +324,7 @@ function Conditionals:EvaluateActions(condList, condState, item)
         condState[i] = met
     end
 
-    return glowActive, glowColor
+    return glowActive, glowColor, shouldDesaturate, hasDesaturateConds
 end
 
 -- ==========================================================

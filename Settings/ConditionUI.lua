@@ -522,7 +522,7 @@ function Conditionals:BuildActionConditionUI(args, owner, orderBase, barKey, not
     }
     args.actionCondDesc = {
         type = "description",
-        name = "|cFFAAAAFFTrigger glow or sound on this icon when conditions are met.\n"
+        name = "|cFFAAAAFFTrigger glow, desaturate, or sound on this icon when conditions are met.\n"
             .. "Sounds play only on transition (false→true).|r",
         order = orderBase + 0.1,
         width = "full",
@@ -541,6 +541,7 @@ function Conditionals:BuildActionConditionUI(args, owner, orderBase, barKey, not
                     value = 5,
                     unit = "target",
                     glow = false,
+                    desaturate = false,
                     sound = nil,
                     glowColor = nil,
                 })
@@ -634,6 +635,18 @@ function Conditionals:BuildActionConditionUI(args, owner, orderBase, barKey, not
             get = function() return cond.glow or false end,
             set = function(_, val)
                 cond.glow = val
+                notifyFn(barKey)
+            end,
+        }
+        args[prefix .. "desaturate"] = {
+            type = "toggle",
+            name = "Desaturate",
+            desc = "Desaturate (grey out) the icon when this condition is met.",
+            order = condBase + 0.045,
+            width = "half",
+            get = function() return cond.desaturate or false end,
+            set = function(_, val)
+                cond.desaturate = val
                 notifyFn(barKey)
             end,
         }

@@ -151,6 +151,7 @@ function Icon:New(frame, trackedItem, displayMode)
     end
     
     self.frame.icon:SetDesaturated(false)
+    self._renderDesaturated = false
     self.frame:SetAlpha(1)
     self.frame.cooldown:Hide()
     self.frame.text:SetText("")
@@ -302,6 +303,7 @@ function Icon:RenderActive()
     
     self.frame:SetAlpha(1)
     self.frame.icon:SetDesaturated(false)
+    self._renderDesaturated = false
     
     local duration = item:GetDuration()
     local expiration = item:GetExpiration()
@@ -320,6 +322,7 @@ end
 function Icon:RenderInactive()
     self.frame:SetAlpha(1)
     self.frame.icon:SetDesaturated(true)
+    self._renderDesaturated = true
     self.frame.cooldown:Hide()
     self.frame.stackText:Hide()
     self.frame.snapshotText:Hide()
@@ -338,12 +341,14 @@ function Icon:RenderInternalCD()
         -- ICD is running: show cooldown sweep on desaturated icon
         self.frame:SetAlpha(1)
         self.frame.icon:SetDesaturated(true)
+        self._renderDesaturated = true
         self.frame.cooldown:SetCooldown(expiration - duration, duration)
         self.frame.cooldown:Show()
     else
         -- Trinket is ready: full color, no sweep
         self.frame:SetAlpha(1)
         self.frame.icon:SetDesaturated(false)
+        self._renderDesaturated = false
         self.frame.cooldown:Hide()
     end
 
@@ -366,6 +371,7 @@ function Icon:RenderDualTrack()
         -- On cooldown: desaturated icon, show CD sweep
         self.frame:SetAlpha(1)
         self.frame.icon:SetDesaturated(true)
+        self._renderDesaturated = true
         local duration = item:GetDuration()
         local expiration = item:GetExpiration()
         if duration and duration > 0 and expiration and expiration > 0 then
@@ -379,6 +385,7 @@ function Icon:RenderDualTrack()
         -- Ready + aura active: full color, show aura sweep + stacks
         self.frame:SetAlpha(1)
         self.frame.icon:SetDesaturated(false)
+        self._renderDesaturated = false
         local auraDur = item:GetAuraDuration()
         local auraExp = item:GetAuraExpiration()
         if auraDur and auraDur > 0 and auraExp and auraExp > 0 then
@@ -392,6 +399,7 @@ function Icon:RenderDualTrack()
         -- Ready + no aura: full color, no sweep
         self.frame:SetAlpha(1)
         self.frame.icon:SetDesaturated(false)
+        self._renderDesaturated = false
         self.frame.cooldown:Hide()
         self.frame.stackText:Hide()
         -- Do NOT clear frame.text here; UpdateCooldownText() owns it.
@@ -437,9 +445,11 @@ function Icon:EvaluateConditionals()
 
     local glowActive = false
     local glowColor  = nil
+    local shouldDesaturate = false
+    local hasDesaturateConds = false
 
     if self.conditionals and self.trackedItem and Conditionals then
-        glowActive, glowColor = Conditionals:Evaluate(
+        glowActive, glowColor, shouldDesaturate, hasDesaturateConds = Conditionals:Evaluate(
             self.conditionals, self._condState, self.trackedItem
         )
     end
@@ -453,6 +463,20 @@ function Icon:EvaluateConditionals()
     end
 
     self:SetGlow(glowActive, glowColor)
+
+    -- Apply conditional desaturation.  Only touch saturation when at least
+    -- one conditional has desaturate=true; otherwise leave the icon exactly
+    -- as the preceding render method (RenderActive / RenderInactive / etc.)
+    -- set it.  When conditions clear we restore the render's baseline by
+    -- reading _renderDesaturated, which every render method keeps up to date.
+    -- This prevents a false "saturate" from overriding cooldown greying.
+    if hasDesaturateConds then
+        if shouldDesaturate then
+            self.frame.icon:SetDesaturated(true)
+        else
+            self.frame.icon:SetDesaturated(self._renderDesaturated)
+        end
+    end
 end
 
 --- Fire all actions registered for `triggerKey` ("onClick"/"onShow"/"onHide").
