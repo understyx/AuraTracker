@@ -178,24 +178,24 @@ end
 
 function UpdateEngine:UpdateCooldownText()
     local controller = self.controller
-    for _, bar in pairs(controller.bars) do
+    ForEnabledBars(controller, function(bar, db)
         for _, icon in ipairs(bar:GetIcons()) do
             if icon:GetFrame():IsShown() then
                 icon:UpdateCooldownText()
             end
         end
-    end
+    end)
 end
 
 function UpdateEngine:UpdateSnapshotText()
     local controller = self.controller
-    for _, bar in pairs(controller.bars) do
+    ForEnabledBars(controller, function(bar, db)
         for _, icon in ipairs(bar:GetIcons()) do
             if icon:GetFrame():IsShown() then
                 icon:UpdateSnapshotText()
             end
         end
-    end
+    end)
 end
 
 -- ==========================================================
