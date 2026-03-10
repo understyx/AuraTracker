@@ -360,21 +360,73 @@ end
 
 -- Returns a mapping action table for a spellId, or nil if no mapping is defined.
 -- Custom (user) mappings take precedence over built-in Config.SpellToAuraMap.
-function AuraTracker:GetDropAction(spellId)
+-- isShift controls whether the built-in SpellToAuraMap entries activate:
+--   shift=true  → Icy Touch maps to Frost Fever aura, Plague Strike to Blood Plague
+--   shift=false → falls through so the spell tracks as a cooldown
+function AuraTracker:GetDropAction(spellId, isShift)
     local db = self:GetDB()
-    -- User-defined custom mappings take precedence
+    -- User-defined custom mappings take precedence (always apply regardless of shift)
     if db and db.customMappings then
         local m = db.customMappings[spellId]
         if m then return m end
     end
-    -- Built-in static mapping: spell applies a different aura ID
-    local mappedAuraId = Config.SpellToAuraMap[spellId]
-    if mappedAuraId and mappedAuraId ~= spellId then
-        return {
-            trackType = Config.TrackType.AURA,
-            auraId = mappedAuraId,
-            filterKey = "TARGET_DEBUFF",
-        }
+    -- Built-in static mapping: spell applies a different aura ID.
+    -- Only activate on shift-drag so a normal drag still tracks as a cooldown.
+    if isShift then
+        local mappedAuraId = Config.SpellToAuraMap[spellId]
+        if mappedAuraId and mappedAuraId ~= spellId then
+            return {
+                trackType = Config.TrackType.AURA,
+                auraId = mappedAuraId,
+                filterKey = "TARGET_DEBUFF",
+            }
+        end
     end
     return nil
+end
+
+-- ==========================================================
+-- WEAPON ENCHANT
+-- ==========================================================
+
+function AuraTracker:CreateWeaponEnchantIcon(barKey, itemId, slot, order, styleOptions, displayMode)
+    local bar = self.bars[barKey]
+    local db = self:GetBarDB(barKey)
+    if not bar or not db then return nil end
+
+    local item = TrackedItem:New(itemId, Config.TrackType.WEAPON_ENCHANT, { slot = slot })
+    if not item:GetName() then return nil end
+
+    local frame = LibFramePool:Acquire(Icon.POOL_KEY, bar:GetFrame())
+
+    local finalDisplayMode = displayMode or Config:GetDefaultDisplayMode(Config.TrackType.WEAPON_ENCHANT)
+    local icon = Icon:New(frame, item, finalDisplayMode)
+    icon.order = order
+    icon:ApplyStyle(styleOptions)
+
+    self.items[barKey]["wenchant_" .. itemId] = item
+    bar:AddIcon(icon)
+
+    return icon
+end
+
+function AuraTracker:AddWeaponEnchant(barKey, itemId, slot)
+    local db = self:GetBarDB(barKey)
+    if not db then return false, "Bar not found" end
+
+    local name = GetItemInfo(itemId)
+    if not name then return false, "Item not found" end
+
+    db.trackedItems = db.trackedItems or {}
+    if db.trackedItems[itemId] then return false, "Already tracked" end
+
+    db.trackedItems[itemId] = {
+        order = GetNextOrder(db.trackedItems),
+        trackType = Config.TrackType.WEAPON_ENCHANT,
+        slot = slot or "mainhand",
+        displayMode = Config.DisplayMode.ALWAYS,
+    }
+    self:RebuildBar(barKey)
+
+    return true, name
 end

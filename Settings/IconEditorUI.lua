@@ -82,11 +82,12 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
     if not data then return end
 
     local name, icon = GetTrackedNameAndIcon(spellId, data.trackType)
-    local isCooldown    = (data.trackType == "cooldown")
-    local isItem        = (data.trackType == "item")
-    local isAura        = (data.trackType == "aura")
+    local isCooldown     = (data.trackType == "cooldown")
+    local isItem         = (data.trackType == "item")
+    local isAura         = (data.trackType == "aura")
     local isCooldownAura = (data.trackType == "cooldown_aura")
-    local isInternalCD  = (data.trackType == "internal_cd")
+    local isInternalCD   = (data.trackType == "internal_cd")
+    local isWeaponEnchant = (data.trackType == "weapon_enchant")
     local hasAuraOptions = isAura or isCooldownAura
     local currentIndex, totalIcons = GetSortedIconIndex(barData, spellId)
 
@@ -137,8 +138,7 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
         displayValues = L.COOLDOWN_DISPLAY_MODES
     else
         displayValues = L.AURA_DISPLAY_MODES
-    end
-    generalArgs.editorDisplayMode = {
+    end    generalArgs.editorDisplayMode = {
         type   = "select",
         name   = "Visibility",
         desc   = "When should this icon be visible?",
@@ -205,6 +205,22 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
             get   = function() return data.showSnapshotText or false end,
             set   = function(_, val)
                 data.showSnapshotText = val
+                NotifyAndRebuild(barKey)
+            end,
+        }
+    end
+
+    -- Weapon enchant slot option
+    if isWeaponEnchant then
+        generalArgs.editorWeaponSlot = {
+            type   = "select",
+            name   = "Weapon Slot",
+            desc   = "Which weapon slot to check for a temporary enchant.",
+            values = { ["mainhand"] = "Main Hand", ["offhand"] = "Off Hand" },
+            order  = 2,
+            get    = function() return data.slot or "mainhand" end,
+            set    = function(_, val)
+                data.slot = val
                 NotifyAndRebuild(barKey)
             end,
         }

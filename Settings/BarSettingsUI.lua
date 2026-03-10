@@ -395,6 +395,31 @@ local function CreateBarSettings(barKey, barData)
                                 NotifyChange()
                             end,
                         },
+
+                        exportHeader = { type = "header", name = "Share / Export", order = 110 },
+                        exportDesc = {
+                            type  = "description",
+                            name  = "Copy the string below to share this bar with other players or "
+                                .. "import it on another character via the |cFFFFFF00Import Bar|r panel.",
+                            order = 111,
+                            width = "full",
+                        },
+                        exportString = {
+                            type  = "input",
+                            name  = "Export String",
+                            desc  = "Select all and copy (Ctrl+A, Ctrl+C) to share this bar.",
+                            order = 112,
+                            width = "full",
+                            get   = function()
+                                local ctrl = ns.AuraTracker and ns.AuraTracker.Controller
+                                if ctrl then
+                                    local str = ctrl:ExportBar(barKey)
+                                    return str or ""
+                                end
+                                return ""
+                            end,
+                            set   = function() end,  -- read-only; no-op on Enter
+                        },
                     },
                 },
 

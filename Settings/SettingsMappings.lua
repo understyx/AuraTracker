@@ -10,10 +10,11 @@ local GetSpellInfo = GetSpellInfo
 -- ==========================================================
 
 local TRACK_TYPES = {
-    ["cooldown"]      = "Cooldown",
-    ["aura"]          = "Aura",
-    ["item"]          = "Item",
-    ["cooldown_aura"] = "Cooldown + Aura",
+    ["cooldown"]       = "Cooldown",
+    ["aura"]           = "Aura",
+    ["item"]           = "Item",
+    ["cooldown_aura"]  = "Cooldown + Aura",
+    ["weapon_enchant"] = "Weapon Enchant",
 }
 
 local AURA_SOURCES = {
@@ -37,6 +38,9 @@ local function GetTrackTypeLabel(trackType, filterKey)
     end
     if trackType == "item" then
         return "|cFFFFD700item|r"
+    end
+    if trackType == "weapon_enchant" then
+        return "|cFFAAFF88weapon enchant|r"
     end
     if trackType == "cooldown_aura" then
         local src = filterKey and AURA_SOURCES[filterKey] or "aura"
@@ -266,7 +270,14 @@ function ns.CreateMappingsOptions()
     -- Built-in mappings (read-only display)
     local Config = ns.AuraTracker and ns.AuraTracker.Config
     if Config and next(Config.SpellToAuraMap) then
-        args.builtinHeader = { type = "header", name = "Built-in Mappings (read only)", order = 50 }
+        args.builtinHeader = { type = "header", name = "Built-in Mappings – Shift-Drag Only (read only)", order = 50 }
+        args.builtinDesc = {
+            type  = "description",
+            name  = "These spells map to a different aura when |cFFAAAAFFshift-dragged|r. "
+                 .. "Without shift they track as a cooldown.",
+            order = 51,
+            width = "full",
+        }
         local i = 0
         for spellId, auraId in pairs(Config.SpellToAuraMap) do
             if auraId ~= spellId then
@@ -275,8 +286,8 @@ function ns.CreateMappingsOptions()
                 local aName        = GetSpellNameByID(auraId)
                 args["builtin_" .. spellId] = {
                     type     = "description",
-                    name     = string_format("|T%s:16:16|t |cFFFFFFFF%s|r  →  %s (aura)", sIcon or "", sName, aName),
-                    order    = 51 + i,
+                    name     = string_format("|T%s:16:16|t |cFFFFFFFF%s|r  →  %s (aura, shift-drag only)", sIcon or "", sName, aName),
+                    order    = 52 + i,
                     width    = "full",
                 }
             end

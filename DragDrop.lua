@@ -161,8 +161,10 @@ function DragDrop:HandleDrop(barKey, cursorType, id, subType, isShift)
 
     local success, result
 
-    -- Apply global/custom mappings; fall back to shift-key heuristic
-    local mapping = controller:GetDropAction(spellId)
+    -- Apply global/custom mappings; fall back to shift-key heuristic.
+    -- isShift is forwarded so that SpellToAuraMap entries (e.g. Icy Touch →
+    -- Frost Fever, Plague Strike → Blood Plague) only activate on shift-drag.
+    local mapping = controller:GetDropAction(spellId, isShift)
     if mapping then
         if mapping.trackType == Config.TrackType.AURA then
             local fk = mapping.filterKey or "TARGET_DEBUFF"
@@ -190,6 +192,11 @@ function DragDrop:HandleDrop(barKey, cursorType, id, subType, isShift)
         if success then
             controller:Print("Now tracking |cff00ff00" .. result .. "|r cooldown + aura")
         end
+    elseif Config:IsWeaponEnchantSpell(spellId) then
+        success, result = controller:AddAura(barKey, spellId, "PLAYER_BUFF")
+        if success then
+            controller:Print("Now tracking |cff00ff00" .. result .. "|r weapon enchant buff")
+        end
     elseif isShift then
         success, result = controller:AddAura(barKey, spellId, "TARGET_DEBUFF")
         if success then
@@ -213,6 +220,17 @@ end
 
 function DragDrop:HandleItemDrop(barKey, itemId)
     local controller = self.controller
+    -- If the item applies a temporary weapon enchant, track the enchant duration
+    if Config:IsWeaponEnchantItem(itemId) then
+        local slot = Config:GetWeaponEnchantSlot(itemId)
+        local success, result = controller:AddWeaponEnchant(barKey, itemId, slot)
+        if success then
+            controller:Print("Now tracking |cff00ff00" .. result .. "|r weapon enchant")
+        elseif result then
+            controller:Print("Failed: " .. result)
+        end
+        return
+    end
     -- If the item has known trinket ICD data, track as Internal CD
     if Config:IsTrinketWithICD(itemId) then
         local success, result = controller:AddInternalCD(barKey, itemId)

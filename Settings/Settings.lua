@@ -46,11 +46,12 @@ local L = {
         ["missing_only"] = "Show When Missing",
     },
     TRACK_TYPES = {
-        ["cooldown"]      = "Cooldown",
-        ["aura"]          = "Aura",
-        ["item"]          = "Item",
-        ["cooldown_aura"] = "Cooldown + Aura",
-        ["internal_cd"]   = "Trinket ICD",
+        ["cooldown"]       = "Cooldown",
+        ["aura"]           = "Aura",
+        ["item"]           = "Item",
+        ["cooldown_aura"]  = "Cooldown + Aura",
+        ["internal_cd"]    = "Trinket ICD",
+        ["weapon_enchant"] = "Weapon Enchant",
     },
     DUAL_DISPLAY_MODES = {
         ["always"]       = "Always Show",
@@ -99,6 +100,9 @@ local function GetTrackTypeLabel(trackType, filterKey)
     end
     if trackType == "internal_cd" then
         return "|cFFFF8800trinket ICD|r"
+    end
+    if trackType == "weapon_enchant" then
+        return "|cFFAAFF88weapon enchant|r"
     end
     if trackType == "cooldown_aura" then
         local src = filterKey and L.AURA_SOURCES[filterKey] or "aura"
@@ -277,7 +281,14 @@ function ns.GetAuraTrackerOptions()
                             .. "tracks the spell as a |cFFAAD4FFcooldown|r.\n\n"
                             .. "|cFFAAAAFFShift + drag|r from the spellbook onto a bar "
                             .. "tracks the spell as a |cFFAAFFAAtarget debuff aura|r instead.\n\n"
-                            .. "|cFFFFD700Items|r can be dragged from your bags to track item cooldowns.\n\n"
+                            .. "Special spells with a built-in mapping (e.g. |cFFAAFFAAIcy Touch|r → Frost Fever, "
+                            .. "|cFFAAFFAAPlague Strike|r → Blood Plague) automatically track the disease aura "
+                            .. "when |cFFAAAAFFshift-dragged|r.\n\n"
+                            .. "|cFFAAFF88Shaman weapon imbue|r spells (Windfury Weapon, Flametongue Weapon, etc.) "
+                            .. "are automatically tracked as player buffs when dragged.\n\n"
+                            .. "|cFFFFD700Items|r can be dragged from your bags. "
+                            .. "|cFFAAFF88Sharpening stones and other temp-enchant items|r track the weapon "
+                            .. "enchant duration; other items track their use cooldown.\n\n"
                             .. "You can also drag aura buttons from the |cFFFFFFFFbuff/debuff frame|r "
                             .. "(or addon frames like ElvUI) directly onto a bar. "
                             .. "Hold |cFFAAAAFFShift|r while dragging an aura button to set its display "
@@ -340,6 +351,116 @@ function ns.GetAuraTrackerOptions()
                         LibEditmode:ToggleEditMode("AuraTracker")
                     end
                 end,
+            },
+
+            -- Import a bar from a previously exported string
+            importBar = {
+                type        = "group",
+                name        = "Import Bar",
+                order       = 7,
+                childGroups = "tab",
+                args        = {
+                    desc = {
+                        type  = "description",
+                        name  = "Paste an export string below to create a new bar from it.\n"
+                            .. "Export strings start with |cFFFFFF00ATv1:|r and are generated from "
+                            .. "the |cFFFFFF00Export|r button on any bar's General settings tab.",
+                        order = 1,
+                        width = "full",
+                    },
+                    importString = {
+                        type  = "input",
+                        name  = "Import String  (paste here, then press Enter)",
+                        desc  = "Paste the ATv1: export string here and press Enter to import the bar.",
+                        order = 2,
+                        width = "full",
+                        multiline = false,
+                        get   = function() return "" end,
+                        set   = function(_, val)
+                            if not val or val == "" then return end
+                            local ctrl = ns.AuraTracker and ns.AuraTracker.Controller
+                            if not ctrl then return end
+                            local ok, result = ctrl:ImportBar(val, nil)
+                            if ok then
+                                NotifyChange()
+                                print("|cFF00FF00Aura Tracker:|r Bar imported as '" .. result .. "'.")
+                            else
+                                print("|cFFFF0000Aura Tracker:|r Import failed: " .. (result or "unknown error"))
+                            end
+                        end,
+                    },
+                },
+            },
+
+            -- Example bars for common class configurations
+            exampleBars = {
+                type        = "group",
+                name        = "Example Bars",
+                order       = 8,
+                childGroups = "tab",
+                args        = (function()
+                    local args = {
+                        desc = {
+                            type  = "description",
+                            name  = "Click |cFFFFFF00Import|r next to any example to add it as a new bar. "
+                                .. "You can then rename and customise it in the |cFFFFFF00Bars|r section.",
+                            order = 1,
+                            width = "full",
+                        },
+                    }
+                    local Config = ns.AuraTracker and ns.AuraTracker.Config
+                    if Config and Config.ExampleBars then
+                        local L_CLASSES = {
+                            ["NONE"] = "Any Class",
+                            ["WARRIOR"] = "Warrior", ["PALADIN"] = "Paladin",
+                            ["HUNTER"] = "Hunter",   ["ROGUE"] = "Rogue",
+                            ["PRIEST"] = "Priest",   ["DEATHKNIGHT"] = "Death Knight",
+                            ["SHAMAN"] = "Shaman",   ["MAGE"] = "Mage",
+                            ["WARLOCK"] = "Warlock", ["DRUID"] = "Druid",
+                        }
+                        for idx, example in ipairs(Config.ExampleBars) do
+                            local classLabel = L_CLASSES[example.class or "NONE"] or example.class
+                            local i = idx  -- capture for closures
+                            args["example_" .. idx] = {
+                                type   = "group",
+                                name   = "",
+                                inline = true,
+                                order  = 10 + idx,
+                                args   = {
+                                    info = {
+                                        type  = "description",
+                                        name  = string_format(
+                                            "|cFFFFFFFF%s|r  [%s]\n|cFFAAAAAA%s|r",
+                                            example.name or "Example " .. idx,
+                                            classLabel,
+                                            example.desc or ""),
+                                        order = 1,
+                                        width = "double",
+                                    },
+                                    importBtn = {
+                                        type  = "execute",
+                                        name  = "Import",
+                                        desc  = "Create a new bar based on this example.",
+                                        order = 2,
+                                        width = "half",
+                                        func  = function()
+                                            local ctrl = ns.AuraTracker and ns.AuraTracker.Controller
+                                            if not ctrl then return end
+                                            local ok, result = ctrl:ImportExampleBar(i, nil)
+                                            if ok then
+                                                NotifyChange()
+                                                print("|cFF00FF00Aura Tracker:|r Example bar imported as '" .. result .. "'.")
+                                            else
+                                                print("|cFFFF0000Aura Tracker:|r Import failed: " .. (result or ""))
+                                            end
+                                        end,
+                                    },
+                                },
+                            }
+                        end
+                    end
+                    return args
+                end)(),
             },
 
             -- Parent group that holds all individual bar groups + new-bar creation

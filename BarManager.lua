@@ -11,6 +11,9 @@ local math_max = math.max
 local string_upper = string.upper
 local table_sort = table.sort
 local UnitClass = UnitClass
+local type, next, tostring = type, next, tostring
+local math_floor = math.floor
+local string_char, string_byte = string.char, string.byte
 
 -- Library references
 local LibFramePool = LibStub("LibFramePool-1.0")
@@ -18,6 +21,61 @@ local LibEditmode  = LibStub("LibEditmode-1.0")
 
 -- The addon object (created in AuraTracker.lua)
 local AuraTracker = ns.AuraTracker.Controller
+
+-- ==========================================================
+-- BASE64 HELPERS  (used by import/export)
+-- ==========================================================
+
+local B64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+
+local B64_DECODE = {}
+for i = 1, #B64_CHARS do
+    B64_DECODE[B64_CHARS:sub(i, i)] = i - 1
+end
+
+local function B64Encode(data)
+    local result = {}
+    local len = #data
+    local i = 1
+    while i <= len do
+        local b0 = string_byte(data, i)
+        local b1 = string_byte(data, i + 1) or 0
+        local b2 = string_byte(data, i + 2) or 0
+        local n  = b0 * 65536 + b1 * 256 + b2
+        result[#result + 1] = B64_CHARS:sub(math_floor(n / 262144) + 1, math_floor(n / 262144) + 1)
+        result[#result + 1] = B64_CHARS:sub(math_floor((n % 262144) / 4096) + 1, math_floor((n % 262144) / 4096) + 1)
+        result[#result + 1] = (i + 1 <= len) and B64_CHARS:sub(math_floor((n % 4096) / 64) + 1, math_floor((n % 4096) / 64) + 1) or "="
+        result[#result + 1] = (i + 2 <= len) and B64_CHARS:sub((n % 64) + 1, (n % 64) + 1) or "="
+        i = i + 3
+    end
+    return table.concat(result)
+end
+
+local function B64Decode(data)
+    data = data:gsub("[^A-Za-z0-9+/=]", "")
+    local result = {}
+    local len = #data
+    local i = 1
+    while i + 3 <= len do
+        local c0 = B64_DECODE[data:sub(i,     i    )] or 0
+        local c1 = B64_DECODE[data:sub(i + 1, i + 1)] or 0
+        local c2 = B64_DECODE[data:sub(i + 2, i + 2)] or 0
+        local c3 = B64_DECODE[data:sub(i + 3, i + 3)] or 0
+        local n  = c0 * 262144 + c1 * 4096 + c2 * 64 + c3
+        result[#result + 1] = string_char(math_floor(n / 65536))
+        if data:sub(i + 2, i + 2) ~= "=" then
+            result[#result + 1] = string_char(math_floor((n % 65536) / 256))
+        end
+        if data:sub(i + 3, i + 3) ~= "=" then
+            result[#result + 1] = string_char(n % 256)
+        end
+        i = i + 4
+    end
+    return table.concat(result)
+end
+
+-- Export string prefix (version tag for future format changes)
+local EXPORT_PREFIX = "ATv1:"
 
 -- ==========================================================
 -- CONSTANTS
@@ -244,6 +302,8 @@ function AuraTracker:RebuildBar(barKey)
                 if icon then icon.showSnapshotText = data.showSnapshotText or false end
             elseif data.trackType == Config.TrackType.INTERNAL_CD then
                 icon = self:CreateInternalCDIcon(barKey, spellId, order, styleOptions, data.displayMode)
+            elseif data.trackType == Config.TrackType.WEAPON_ENCHANT then
+                icon = self:CreateWeaponEnchantIcon(barKey, spellId, data.slot, order, styleOptions, data.displayMode)
             end
             if icon then
                 icon.conditionals   = data.conditionals
@@ -431,4 +491,139 @@ function AuraTracker:ShouldShowBar(barKey)
     end
 
     return true
+end
+
+-- ==========================================================
+-- IMPORT / EXPORT
+-- ==========================================================
+
+--- Serialises the bar's configuration (name, style, tracked icons) to a
+--- portable string that can be shared and re-imported.  Position and class/
+--- talent restrictions are intentionally excluded so an imported bar starts
+--- at the screen centre and is visible for any character.
+function AuraTracker:ExportBar(barKey)
+    local db = self:GetBarDB(barKey)
+    if not db then return nil, "Bar not found" end
+
+    local exportData = {
+        name             = db.name,
+        direction        = db.direction,
+        iconSize         = db.iconSize,
+        spacing          = db.spacing,
+        scale            = db.scale,
+        textSize         = db.textSize,
+        showCooldownText = db.showCooldownText,
+        ignoreGCD        = db.ignoreGCD,
+        trackedItems     = db.trackedItems,
+    }
+
+    local AceSerializer = LibStub("AceSerializer-3.0")
+    local serialized = AceSerializer:Serialize(exportData)
+    return EXPORT_PREFIX .. B64Encode(serialized)
+end
+
+--- Creates a new bar from an export string produced by ExportBar().
+--- @param str       The export string (must start with "ATv1:")
+--- @param newBarKey Optional key for the new bar; auto-generated if nil/empty.
+--- @return success (bool), newBarKey or errorMessage (string)
+function AuraTracker:ImportBar(str, newBarKey)
+    if not str or str == "" then
+        return false, "Empty import string"
+    end
+    if str:sub(1, #EXPORT_PREFIX) ~= EXPORT_PREFIX then
+        return false, "Invalid format – string must start with " .. EXPORT_PREFIX
+    end
+
+    local encoded = str:sub(#EXPORT_PREFIX + 1)
+    local decoded = B64Decode(encoded)
+    if not decoded or decoded == "" then
+        return false, "Failed to decode import string"
+    end
+
+    local AceSerializer = LibStub("AceSerializer-3.0")
+    local ok, exportData = AceSerializer:Deserialize(decoded)
+    if not ok or type(exportData) ~= "table" then
+        return false, "Failed to parse import data"
+    end
+
+    -- Determine a unique bar key
+    local baseKey = (newBarKey and newBarKey ~= "") and newBarKey
+                    or (exportData.name and exportData.name:gsub("[^%w]", ""))
+                    or "ImportedBar"
+    newBarKey = baseKey
+    local db = self:GetDB()
+    local counter = 1
+    while db.bars[newBarKey] do
+        newBarKey = baseKey .. counter
+        counter   = counter + 1
+    end
+
+    db.bars[newBarKey] = {
+        enabled          = true,
+        name             = exportData.name or newBarKey,
+        direction        = exportData.direction or "HORIZONTAL",
+        iconSize         = exportData.iconSize or 40,
+        spacing          = exportData.spacing or 2,
+        scale            = exportData.scale or 1.0,
+        textSize         = exportData.textSize or 12,
+        showCooldownText = exportData.showCooldownText ~= false,
+        ignoreGCD        = exportData.ignoreGCD ~= false,
+        trackedItems     = exportData.trackedItems or {},
+        point            = "CENTER",
+        x                = 0,
+        y                = -300,
+        textColor        = { r = 1, g = 1, b = 1, a = 1 },
+    }
+
+    self:RebuildBar(newBarKey)
+    return true, newBarKey
+end
+
+--- Creates a new bar from one of the predefined Config.ExampleBars entries.
+--- @param exampleIndex  1-based index into Config.ExampleBars
+--- @param newBarKey     Optional key; auto-generated if nil/empty.
+function AuraTracker:ImportExampleBar(exampleIndex, newBarKey)
+    local example = Config.ExampleBars and Config.ExampleBars[exampleIndex]
+    if not example then return false, "Example not found" end
+
+    local db = self:GetDB()
+
+    -- Unique key
+    local baseKey = (newBarKey and newBarKey ~= "") and newBarKey
+                    or (example.name and example.name:gsub("[^%w]", ""))
+                    or "ExampleBar"
+    newBarKey = baseKey
+    local counter = 1
+    while db.bars[newBarKey] do
+        newBarKey = baseKey .. counter
+        counter   = counter + 1
+    end
+
+    -- Deep-copy example tracked items so edits don't mutate the template
+    local function DeepCopy(t)
+        if type(t) ~= "table" then return t end
+        local copy = {}
+        for k, v in pairs(t) do copy[k] = DeepCopy(v) end
+        return copy
+    end
+
+    db.bars[newBarKey] = {
+        enabled          = true,
+        name             = example.name or newBarKey,
+        direction        = (example.data and example.data.direction) or "HORIZONTAL",
+        iconSize         = 40,
+        spacing          = 2,
+        scale            = 1.0,
+        textSize         = 12,
+        showCooldownText = true,
+        ignoreGCD        = true,
+        trackedItems     = DeepCopy(example.data and example.data.trackedItems or {}),
+        point            = "CENTER",
+        x                = 0,
+        y                = -300,
+        textColor        = { r = 1, g = 1, b = 1, a = 1 },
+    }
+
+    self:RebuildBar(newBarKey)
+    return true, newBarKey
 end
