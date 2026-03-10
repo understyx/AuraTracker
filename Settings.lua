@@ -313,6 +313,16 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
         end,
     }
 
+    -- ==========================================================
+    -- LOAD CONDITIONS + ACTION CONDITIONALS  (shared module)
+    -- ==========================================================
+
+    local Conditionals = ns.AuraTracker and ns.AuraTracker.Conditionals
+    if Conditionals then
+        Conditionals:BuildLoadConditionUI(args, data, orderBase + 15, barKey, NotifyAndRebuild, "icon")
+        Conditionals:BuildActionConditionUI(args, data, orderBase + 20, barKey, NotifyAndRebuild)
+    end
+
     -- Aura options: source, aura-ID override, "only mine" toggle
     if hasAuraOptions then
         args.editorAuraSource = {
@@ -634,7 +644,7 @@ local function CreateBarSettings(barKey, barData)
         return cr ~= playerClass
     end
 
-    return {
+    local result = {
         -- ==============================================
         -- TAB 1: Bar Configuration (merged General + Appearance)
         -- ==============================================
@@ -741,8 +751,6 @@ local function CreateBarSettings(barKey, barData)
                         RebuildBar(barKey)
                     end,
                 },
-
-                -- Size & Spacing (previously in Appearance tab)
                 sizeHeader = { type = "header", name = "Size & Spacing", order = 20 },
                 iconSize = {
                     type     = "range",
@@ -873,6 +881,16 @@ local function CreateBarSettings(barKey, barData)
         -- ==============================================
         icons = CreateIconListOptions(barKey, barData),
     }
+
+    -- Inject bar-level load conditions into the barConfig args
+    local Conditionals = ns.AuraTracker and ns.AuraTracker.Conditionals
+    if Conditionals then
+        Conditionals:BuildLoadConditionUI(
+            result.barConfig.args, barData, 14, barKey, NotifyAndRebuild, "bar"
+        )
+    end
+
+    return result
 end
 
 -- ==========================================================

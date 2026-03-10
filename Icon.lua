@@ -4,10 +4,17 @@ ns.AuraTracker = ns.AuraTracker or {}
 local Config = ns.AuraTracker.Config
 local CreateFrame = CreateFrame
 local GetTime = GetTime
+local PlaySoundFile = PlaySoundFile
 local math_floor, math_max = math.floor, math.max
 local string_format = string.format
 
-local SnapshotTracker = nil  -- resolved lazily
+local SnapshotTracker = nil   -- resolved lazily
+local Conditionals = nil      -- resolved lazily
+
+-- Glow animation constants
+local GLOW_TICK       = 0.03   -- seconds between alpha steps
+local GLOW_FADE_STEP  = 0.05   -- alpha change per step
+local GLOW_MIN_ALPHA  = 0.3    -- lowest alpha during pulse
 
 local Icon = {}
 Icon.__index = Icon
@@ -57,6 +64,13 @@ function Icon:New(frame, trackedItem, displayMode)
     self.trackedItem = trackedItem
     self.displayMode = displayMode or Config.DisplayMode.ALWAYS
     self.showCooldownText = true
+
+    -- Load conditions (visibility): shared with bars
+    self.loadConditions = nil  -- array of load condition defs (from DB)
+
+    -- Action conditionals (glow/sound): icon-only
+    self.conditionals = nil  -- array of action conditional defs (from DB)
+    self._condState = {}     -- tracks previous evaluation result per conditional (for sound transitions)
 
     -- Create the border frame once per icon instance
     if not self.frame.border then
@@ -144,6 +158,16 @@ function Icon:ShouldShow()
     and not self.trackedItem:IsEquipped() then
         return false
     end
+
+    -- Check icon-level load conditions (visibility)
+    if self.loadConditions and #self.loadConditions > 0 then
+        if not Conditionals then
+            Conditionals = ns.AuraTracker.Conditionals
+        end
+        if Conditionals and not Conditionals:CheckAllLoadConditions(self.loadConditions) then
+            return false
+        end
+    end
     
     local isActive = self.trackedItem:IsActive()
     
@@ -170,7 +194,7 @@ function Icon:Refresh()
     
     -- Update texture in case it changed (e.g., exclusive group)
     self.frame.icon:SetTexture(self.trackedItem:GetTexture())
-    
+
     local shouldShow = self:ShouldShow()
     local wasShown = self.frame:IsShown()
     
@@ -185,8 +209,10 @@ function Icon:Refresh()
         else
             self:RenderInactive()
         end
+        self:EvaluateConditionals()
     else
         self.frame:Hide()
+        self:SetGlow(false)
     end
     
     return wasShown ~= shouldShow
@@ -288,6 +314,71 @@ function Icon:RenderDualTrack()
         self.frame.stackText:Hide()
         self.frame.text:SetText("")
     end
+end
+
+-- ==========================================================
+-- CONDITIONAL SYSTEM  (delegates to Conditionals module)
+-- ==========================================================
+
+function Icon:SetGlow(show, color)
+    if show then
+        if not self.frame.glowBorder then
+            local glow = CreateFrame("Frame", nil, self.frame)
+            glow:SetPoint("TOPLEFT", -3, 3)
+            glow:SetPoint("BOTTOMRIGHT", 3, -3)
+            glow:SetBackdrop({
+                edgeFile = "Interface\\Buttons\\WHITE8X8",
+                edgeSize = 3,
+            })
+            glow:SetFrameLevel(self.frame:GetFrameLevel() + 2)
+            glow._elapsed = 0
+            glow._dir = 1
+            glow._alpha = 1
+            glow:SetScript("OnUpdate", function(f, elapsed)
+                f._elapsed = f._elapsed + elapsed
+                if f._elapsed < GLOW_TICK then return end
+                f._elapsed = 0
+                f._alpha = f._alpha + f._dir * GLOW_FADE_STEP
+                if f._alpha >= 1 then
+                    f._alpha = 1
+                    f._dir = -1
+                elseif f._alpha <= GLOW_MIN_ALPHA then
+                    f._alpha = GLOW_MIN_ALPHA
+                    f._dir = 1
+                end
+                f:SetAlpha(f._alpha)
+            end)
+            self.frame.glowBorder = glow
+        end
+        local c = color or { r = 1, g = 1, b = 0 }  -- default yellow
+        self.frame.glowBorder:SetBackdropBorderColor(c.r, c.g, c.b, 1)
+        self.frame.glowBorder:Show()
+    else
+        if self.frame.glowBorder then
+            self.frame.glowBorder:Hide()
+        end
+    end
+end
+
+function Icon:EvaluateConditionals()
+    if not self.conditionals or not self.trackedItem then
+        self:SetGlow(false)
+        return
+    end
+
+    -- Lazily resolve Conditionals reference
+    if not Conditionals then
+        Conditionals = ns.AuraTracker.Conditionals
+    end
+    if not Conditionals then
+        self:SetGlow(false)
+        return
+    end
+
+    local glowActive, glowColor = Conditionals:Evaluate(
+        self.conditionals, self._condState, self.trackedItem
+    )
+    self:SetGlow(glowActive, glowColor)
 end
 
 function Icon:UpdateCooldownText()

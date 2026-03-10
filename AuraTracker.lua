@@ -373,20 +373,25 @@ function AuraTracker:RebuildBar(barKey)
     if db.trackedItems then
         for spellId, data in pairs(db.trackedItems) do
             local order = type(data) == "table" and data.order or 999
+            local icon
             if data.trackType == Config.TrackType.COOLDOWN then
-                self:CreateCooldownIcon(barKey, spellId, order, styleOptions, data.displayMode)
+                icon = self:CreateCooldownIcon(barKey, spellId, order, styleOptions, data.displayMode)
             elseif data.trackType == Config.TrackType.AURA then
                 local filterKey = data.type and string_upper(data.type) or "TARGET_DEBUFF"
-                local icon = self:CreateAuraIcon(barKey, spellId, filterKey, data.auraId, order, styleOptions, data.displayMode, data.onlyMine, data.exclusiveSpells)
+                icon = self:CreateAuraIcon(barKey, spellId, filterKey, data.auraId, order, styleOptions, data.displayMode, data.onlyMine, data.exclusiveSpells)
                 if icon then icon.showSnapshotText = data.showSnapshotText or false end
             elseif data.trackType == Config.TrackType.ITEM then
-                self:CreateItemIcon(barKey, spellId, order, styleOptions, data.displayMode)
+                icon = self:CreateItemIcon(barKey, spellId, order, styleOptions, data.displayMode)
             elseif data.trackType == Config.TrackType.COOLDOWN_AURA then
                 local filterKey = data.type and string_upper(data.type) or "TARGET_DEBUFF"
-                local icon = self:CreateCooldownAuraIcon(barKey, spellId, filterKey, data.auraId, order, styleOptions, data.displayMode, data.onlyMine, data.exclusiveSpells)
+                icon = self:CreateCooldownAuraIcon(barKey, spellId, filterKey, data.auraId, order, styleOptions, data.displayMode, data.onlyMine, data.exclusiveSpells)
                 if icon then icon.showSnapshotText = data.showSnapshotText or false end
             elseif data.trackType == Config.TrackType.INTERNAL_CD then
-                self:CreateInternalCDIcon(barKey, spellId, order, styleOptions, data.displayMode)
+                icon = self:CreateInternalCDIcon(barKey, spellId, order, styleOptions, data.displayMode)
+            end
+            if icon then
+                icon.conditionals = data.conditionals
+                icon.loadConditions = data.loadConditions
             end
         end
     end
@@ -1004,6 +1009,22 @@ function AuraTracker:ShouldShowBar(barKey)
                     end
                 end
             end
+        end
+    end
+
+    -- Bar-level load conditions
+    if db.loadConditions and #db.loadConditions > 0 then
+        local Conditionals = ns.AuraTracker.Conditionals
+        if Conditionals and not Conditionals:CheckAllLoadConditions(db.loadConditions) then
+            return false
+        end
+    end
+
+    -- Legacy: bar-level conditionals (old format, backward compat)
+    if db.conditionals and #db.conditionals > 0 then
+        local Conditionals = ns.AuraTracker.Conditionals
+        if Conditionals and not Conditionals:CheckAll(db.conditionals, nil) then
+            return false
         end
     end
 
