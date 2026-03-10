@@ -8,7 +8,6 @@
 
 Libraries\Load_Libraries.xml
 Libraries\Ace.xml
-Libraries\MyLibs.xml
 
 Config.lua
 TrinketData.lua
