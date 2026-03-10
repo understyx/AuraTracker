@@ -323,7 +323,10 @@ function Icon:RenderInactive()
     self.frame.cooldown:Hide()
     self.frame.stackText:Hide()
     self.frame.snapshotText:Hide()
-    self.frame.text:SetText("")
+    -- Do NOT clear frame.text here. UpdateCooldownText() owns frame.text and
+    -- runs immediately after Refresh() in the same update pass. Clearing text
+    -- here would beat the _prevCooldownText cache, causing the cooldown
+    -- countdown to vanish for all but one 100ms tick per second.
 end
 
 function Icon:RenderInternalCD()
@@ -391,7 +394,7 @@ function Icon:RenderDualTrack()
         self.frame.icon:SetDesaturated(false)
         self.frame.cooldown:Hide()
         self.frame.stackText:Hide()
-        self.frame.text:SetText("")
+        -- Do NOT clear frame.text here; UpdateCooldownText() owns it.
     end
 end
 
