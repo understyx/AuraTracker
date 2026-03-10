@@ -45,6 +45,7 @@ local function BuildStyleOptions(db)
         size = db.iconSize,
         fontSize = db.textSize,
         fontOutline = db.fontOutline,
+        font = db.font,
         textColor = db.textColor,
         showCooldownText = db.showCooldownText,
     }

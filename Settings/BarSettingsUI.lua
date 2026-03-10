@@ -5,6 +5,7 @@ local _, ns = ...
 -- ==========================================================
 
 local SU = ns.AuraTracker.SettingsUtils
+local LSM = LibStub("LibSharedMedia-3.0")
 
 local pairs = pairs
 local string_format = string.format
@@ -277,11 +278,33 @@ local function CreateBarSettings(barKey, barData)
                                 RebuildBar(barKey)
                             end,
                         },
+                        font = {
+                            type   = "select",
+                            name   = "Font",
+                            desc   = "Font used for cooldown and countdown texts on icons.",
+                            values = function()
+                                local fonts = LSM:List("font")
+                                local t = {}
+                                for _, name in ipairs(fonts) do
+                                    t[name] = name
+                                end
+                                return t
+                            end,
+                            order  = 34,
+                            width  = "double",
+                            get    = function()
+                                return barData.font or "Friz Quadrata TT"
+                            end,
+                            set    = function(_, val)
+                                barData.font = val
+                                RebuildBar(barKey)
+                            end,
+                        },
                         textColor = {
                             type     = "color",
                             name     = "Text Color",
                             hasAlpha = true,
-                            order    = 34,
+                            order    = 35,
                             width    = "normal",
                             get      = function()
                                 local c = barData.textColor or DEFAULT_TEXT_COLOR

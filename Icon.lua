@@ -2,6 +2,7 @@ local _, ns = ...
 ns.AuraTracker = ns.AuraTracker or {}
 
 local Config = ns.AuraTracker.Config
+local LSM = LibStub("LibSharedMedia-3.0")
 local CreateFrame = CreateFrame
 local GetTime = GetTime
 local PlaySoundFile = PlaySoundFile
@@ -644,14 +645,17 @@ function Icon:ApplyStyle(styleOptions)
     local fontOutline = styleOptions.fontOutline or "THICKOUTLINE"
     if fontOutline == "NONE" then fontOutline = "" end
 
-    self.frame.text:SetFont([[Fonts\FRIZQT__.ttf]], fontSize, fontOutline)
+    local fontPath = (styleOptions.font and LSM:Fetch("font", styleOptions.font))
+        or [[Fonts\FRIZQT__.ttf]]
+
+    self.frame.text:SetFont(fontPath, fontSize, fontOutline)
     self.frame.stackText:SetFont(
-        [[Fonts\FRIZQT__.ttf]],
+        fontPath,
         fontSize * 0.9,
         fontOutline
     )
     self.frame.snapshotText:SetFont(
-        [[Fonts\FRIZQT__.ttf]],
+        fontPath,
         fontSize * 0.75,
         fontOutline
     )
