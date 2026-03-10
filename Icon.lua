@@ -16,6 +16,47 @@ local GLOW_TICK       = 0.03   -- seconds between alpha steps
 local GLOW_FADE_STEP  = 0.05   -- alpha change per step
 local GLOW_MIN_ALPHA  = 0.3    -- lowest alpha during pulse
 
+-- ==========================================================
+-- SHARED GLOW ANIMATION
+-- A single master OnUpdate handler drives all active glow
+-- frames instead of creating one handler per glowing icon.
+-- ==========================================================
+
+local activeGlows    = {}
+local glowMasterFrame = nil
+
+local function RegisterGlow(glow)
+    if not glowMasterFrame then
+        glowMasterFrame = CreateFrame("Frame")
+        glowMasterFrame._elapsed = 0
+        glowMasterFrame:SetScript("OnUpdate", function(f, elapsed)
+            f._elapsed = f._elapsed + elapsed
+            if f._elapsed < GLOW_TICK then return end
+            f._elapsed = 0
+            for g in pairs(activeGlows) do
+                g._alpha = g._alpha + g._dir * GLOW_FADE_STEP
+                if g._alpha >= 1 then
+                    g._alpha = 1
+                    g._dir  = -1
+                elseif g._alpha <= GLOW_MIN_ALPHA then
+                    g._alpha = GLOW_MIN_ALPHA
+                    g._dir  = 1
+                end
+                g:SetAlpha(g._alpha)
+            end
+        end)
+    end
+    activeGlows[glow] = true
+    glowMasterFrame:Show()
+end
+
+local function UnregisterGlow(glow)
+    activeGlows[glow] = nil
+    if glowMasterFrame and not next(activeGlows) then
+        glowMasterFrame:Hide()
+    end
+end
+
 local Icon = {}
 Icon.__index = Icon
 ns.AuraTracker.Icon = Icon
@@ -214,7 +255,11 @@ function Icon:Refresh()
     end
     
     -- Update texture in case it changed (e.g. exclusive group rank swap)
-    self.frame.icon:SetTexture(self.trackedItem:GetTexture())
+    local newTexture = self.trackedItem:GetTexture()
+    if newTexture ~= self._lastTexture then
+        self.frame.icon:SetTexture(newTexture)
+        self._lastTexture = newTexture
+    end
 
     local shouldShow = self:ShouldShow()
     local wasShown = self.frame:IsShown()
@@ -278,7 +323,10 @@ function Icon:RenderInactive()
     self.frame.cooldown:Hide()
     self.frame.stackText:Hide()
     self.frame.snapshotText:Hide()
-    self.frame.text:SetText("")
+    -- Do NOT clear frame.text here. UpdateCooldownText() owns frame.text and
+    -- runs immediately after Refresh() in the same update pass. Clearing text
+    -- here would beat the _prevCooldownText cache, causing the cooldown
+    -- countdown to vanish for all but one 100ms tick per second.
 end
 
 function Icon:RenderInternalCD()
@@ -346,7 +394,7 @@ function Icon:RenderDualTrack()
         self.frame.icon:SetDesaturated(false)
         self.frame.cooldown:Hide()
         self.frame.stackText:Hide()
-        self.frame.text:SetText("")
+        -- Do NOT clear frame.text here; UpdateCooldownText() owns it.
     end
 end
 
@@ -365,31 +413,18 @@ function Icon:SetGlow(show, color)
                 edgeSize = 3,
             })
             glow:SetFrameLevel(self.frame:GetFrameLevel() + 2)
-            glow._elapsed = 0
             glow._dir = 1
             glow._alpha = 1
-            glow:SetScript("OnUpdate", function(f, elapsed)
-                f._elapsed = f._elapsed + elapsed
-                if f._elapsed < GLOW_TICK then return end
-                f._elapsed = 0
-                f._alpha = f._alpha + f._dir * GLOW_FADE_STEP
-                if f._alpha >= 1 then
-                    f._alpha = 1
-                    f._dir = -1
-                elseif f._alpha <= GLOW_MIN_ALPHA then
-                    f._alpha = GLOW_MIN_ALPHA
-                    f._dir = 1
-                end
-                f:SetAlpha(f._alpha)
-            end)
             self.frame.glowBorder = glow
         end
         local c = color or { r = 1, g = 1, b = 0 }  -- default yellow
         self.frame.glowBorder:SetBackdropBorderColor(c.r, c.g, c.b, 1)
         self.frame.glowBorder:Show()
+        RegisterGlow(self.frame.glowBorder)
     else
         if self.frame.glowBorder then
             self.frame.glowBorder:Hide()
+            UnregisterGlow(self.frame.glowBorder)
         end
     end
 end
@@ -448,38 +483,39 @@ end
 
 function Icon:UpdateCooldownText()
     if not self.showCooldownText or not self.trackedItem then
-        self.frame.text:SetText("")
+        if self._prevCooldownText ~= "" then
+            self.frame.text:SetText("")
+            self._prevCooldownText = ""
+        end
         return
     end
-    
+
     local item = self.trackedItem
-    
+    local newText
+
     if item:GetTrackType() == Config.TrackType.COOLDOWN_AURA then
         if item:IsOnCooldown() then
             local remaining = item:GetRemaining()
             if remaining > 0 then
-                self.frame.text:SetText(self:FormatTime(remaining))
-            else
-                self.frame.text:SetText("")
+                newText = self:FormatTime(remaining)
             end
         elseif item:IsAuraActive() then
             local remaining = item:GetAuraExpiration() - GetTime()
             if remaining > 0 then
-                self.frame.text:SetText(self:FormatTime(remaining))
-            else
-                self.frame.text:SetText("")
+                newText = self:FormatTime(remaining)
             end
-        else
-            self.frame.text:SetText("")
         end
-        return
-    end
-    
-    local remaining = self.trackedItem:GetRemaining()
-    if remaining > 0 then
-        self.frame.text:SetText(self:FormatTime(remaining))
     else
-        self.frame.text:SetText("")
+        local remaining = self.trackedItem:GetRemaining()
+        if remaining > 0 then
+            newText = self:FormatTime(remaining)
+        end
+    end
+
+    newText = newText or ""
+    if self._prevCooldownText ~= newText then
+        self.frame.text:SetText(newText)
+        self._prevCooldownText = newText
     end
 end
 
@@ -499,10 +535,13 @@ end
 
 function Icon:UpdateSnapshotText()
     if not self.showSnapshotText or not self.trackedItem then
-        self.frame.snapshotText:Hide()
-        -- Reset cooldown text to center when snapshot is disabled
-        self.frame.text:ClearAllPoints()
-        self.frame.text:SetPoint("CENTER")
+        if self._prevSnapshotActive ~= false then
+            self.frame.snapshotText:Hide()
+            self.frame.text:ClearAllPoints()
+            self.frame.text:SetPoint("CENTER")
+            self._prevSnapshotActive = false
+            self._prevSnapshotText   = nil
+        end
         return
     end
 
@@ -518,9 +557,13 @@ function Icon:UpdateSnapshotText()
     end
 
     if not isAuraActive then
-        self.frame.snapshotText:Hide()
-        self.frame.text:ClearAllPoints()
-        self.frame.text:SetPoint("CENTER")
+        if self._prevSnapshotActive ~= false then
+            self.frame.snapshotText:Hide()
+            self.frame.text:ClearAllPoints()
+            self.frame.text:SetPoint("CENTER")
+            self._prevSnapshotActive = false
+            self._prevSnapshotText   = nil
+        end
         return
     end
 
@@ -529,9 +572,13 @@ function Icon:UpdateSnapshotText()
         SnapshotTracker = ns.AuraTracker.SnapshotTracker
     end
     if not SnapshotTracker then
-        self.frame.snapshotText:Hide()
-        self.frame.text:ClearAllPoints()
-        self.frame.text:SetPoint("CENTER")
+        if self._prevSnapshotActive ~= false then
+            self.frame.snapshotText:Hide()
+            self.frame.text:ClearAllPoints()
+            self.frame.text:SetPoint("CENTER")
+            self._prevSnapshotActive = false
+            self._prevSnapshotText   = nil
+        end
         return
     end
 
@@ -540,16 +587,27 @@ function Icon:UpdateSnapshotText()
     local diffText = SnapshotTracker:GetSnapshotDiff(unit, spellName)
 
     if diffText then
-        self.frame.snapshotText:SetText(diffText)
-        self.frame.snapshotText:Show()
-        -- Shift cooldown text down so it doesn't overlap the snapshot text
-        self.frame.text:ClearAllPoints()
-        self.frame.text:SetPoint("BOTTOM", 0, 2)
+        -- Update text only when it actually changes
+        if self._prevSnapshotText ~= diffText then
+            self.frame.snapshotText:SetText(diffText)
+            self._prevSnapshotText = diffText
+        end
+        -- Shift cooldown text down only on state transition
+        if self._prevSnapshotActive ~= true then
+            self.frame.snapshotText:Show()
+            self.frame.text:ClearAllPoints()
+            self.frame.text:SetPoint("BOTTOM", 0, 2)
+            self._prevSnapshotActive = true
+        end
     else
-        self.frame.snapshotText:Hide()
-        -- Reset cooldown text to center
-        self.frame.text:ClearAllPoints()
-        self.frame.text:SetPoint("CENTER")
+        if self._prevSnapshotActive ~= false then
+            self.frame.snapshotText:Hide()
+            -- Reset cooldown text to center
+            self.frame.text:ClearAllPoints()
+            self.frame.text:SetPoint("CENTER")
+            self._prevSnapshotActive = false
+            self._prevSnapshotText   = nil
+        end
     end
 end
 
