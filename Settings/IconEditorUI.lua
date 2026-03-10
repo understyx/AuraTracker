@@ -257,7 +257,10 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
     -- ---- ACTION TAB -----------------------------------------
 
     if Conditionals then
-        Conditionals:BuildActionConditionUI(actionArgs, data, 1, barKey, NotifyAndRebuild)
+        -- Icon event actions (On Click / On Show / On Hide) at the top
+        Conditionals:BuildIconActionsUI(actionArgs, data, 1, barKey, NotifyAndRebuild)
+        -- Action conditionals (glow/sound when a threshold is crossed) below
+        Conditionals:BuildActionConditionUI(actionArgs, data, 20, barKey, NotifyAndRebuild)
     end
 
     -- ---- ALSO TRACK TAB (aura-only) -------------------------

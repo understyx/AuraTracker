@@ -237,8 +237,11 @@ function AuraTracker:RebuildBar(barKey)
                 icon = self:CreateInternalCDIcon(barKey, spellId, order, styleOptions, data.displayMode)
             end
             if icon then
-                icon.conditionals = data.conditionals
+                icon.conditionals   = data.conditionals
                 icon.loadConditions = data.loadConditions
+                icon.onClickActions = data.onClickActions
+                icon.onShowActions  = data.onShowActions
+                icon.onHideActions  = data.onHideActions
             end
         end
     end
