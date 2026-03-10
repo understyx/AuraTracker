@@ -391,6 +391,7 @@ function AuraTracker:RebuildBar(barKey)
             end
             if icon then
                 icon.conditionals = data.conditionals
+                icon.loadConditions = data.loadConditions
             end
         end
     end
@@ -1011,7 +1012,15 @@ function AuraTracker:ShouldShowBar(barKey)
         end
     end
 
-    -- Bar-level load conditions (conditionals)
+    -- Bar-level load conditions
+    if db.loadConditions and #db.loadConditions > 0 then
+        local Conditionals = ns.AuraTracker.Conditionals
+        if Conditionals and not Conditionals:CheckAllLoadConditions(db.loadConditions) then
+            return false
+        end
+    end
+
+    -- Legacy: bar-level conditionals (old format, backward compat)
     if db.conditionals and #db.conditionals > 0 then
         local Conditionals = ns.AuraTracker.Conditionals
         if Conditionals and not Conditionals:CheckAll(db.conditionals, nil) then

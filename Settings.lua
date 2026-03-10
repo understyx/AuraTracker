@@ -314,12 +314,13 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
     }
 
     -- ==========================================================
-    -- CONDITIONAL ACTIONS  (shared module)
+    -- LOAD CONDITIONS + ACTION CONDITIONALS  (shared module)
     -- ==========================================================
 
     local Conditionals = ns.AuraTracker and ns.AuraTracker.Conditionals
     if Conditionals then
-        Conditionals:BuildConditionUI(args, data, orderBase + 15, barKey, NotifyAndRebuild, "icon")
+        Conditionals:BuildLoadConditionUI(args, data, orderBase + 15, barKey, NotifyAndRebuild, "icon")
+        Conditionals:BuildActionConditionUI(args, data, orderBase + 20, barKey, NotifyAndRebuild)
     end
 
     -- Aura options: source, aura-ID override, "only mine" toggle
@@ -881,10 +882,10 @@ local function CreateBarSettings(barKey, barData)
         icons = CreateIconListOptions(barKey, barData),
     }
 
-    -- Inject bar-level conditional actions into the barConfig args
+    -- Inject bar-level load conditions into the barConfig args
     local Conditionals = ns.AuraTracker and ns.AuraTracker.Conditionals
     if Conditionals then
-        Conditionals:BuildConditionUI(
+        Conditionals:BuildLoadConditionUI(
             result.barConfig.args, barData, 14, barKey, NotifyAndRebuild, "bar"
         )
     end

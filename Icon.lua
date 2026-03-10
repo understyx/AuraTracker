@@ -65,8 +65,11 @@ function Icon:New(frame, trackedItem, displayMode)
     self.displayMode = displayMode or Config.DisplayMode.ALWAYS
     self.showCooldownText = true
 
-    -- Conditional system state
-    self.conditionals = nil  -- array of conditional definitions (from DB)
+    -- Load conditions (visibility): shared with bars
+    self.loadConditions = nil  -- array of load condition defs (from DB)
+
+    -- Action conditionals (glow/sound): icon-only
+    self.conditionals = nil  -- array of action conditional defs (from DB)
     self._condState = {}     -- tracks previous evaluation result per conditional (for sound transitions)
 
     -- Create the border frame once per icon instance
@@ -154,6 +157,16 @@ function Icon:ShouldShow()
     if self.trackedItem:GetTrackType() == Config.TrackType.INTERNAL_CD
     and not self.trackedItem:IsEquipped() then
         return false
+    end
+
+    -- Check icon-level load conditions (visibility)
+    if self.loadConditions and #self.loadConditions > 0 then
+        if not Conditionals then
+            Conditionals = ns.AuraTracker.Conditionals
+        end
+        if Conditionals and not Conditionals:CheckAllLoadConditions(self.loadConditions) then
+            return false
+        end
     end
     
     local isActive = self.trackedItem:IsActive()
