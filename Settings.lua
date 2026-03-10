@@ -313,207 +313,13 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
         end,
     }
 
-    -- Per-icon sound alerts
-    local Config = ns.AuraTracker and ns.AuraTracker.Config
-    local soundValues = { ["NONE"] = "None" }
-    if Config and Config.SoundOptions then
-        for key, snd in pairs(Config.SoundOptions) do
-            soundValues[key] = snd.label
-        end
-    end
-    args.editorSoundHeader = {
-        type = "header",
-        name = "Sound Alerts",
-        order = orderBase + 14.1,
-    }
-
-    local showLabel  = isAura and "Sound on Show"  or "Sound on Ready"
-    local showDesc   = isAura
-        and "Play a sound when this aura appears."
-        or  "Play a sound when this cooldown becomes ready."
-    local missLabel  = isAura and "Sound on Missing" or "Sound on Cooldown"
-    local missDesc   = isAura
-        and "Play a sound when this aura expires."
-        or  "Play a sound when this spell goes on cooldown."
-
-    args.editorSoundOnShow = {
-        type = "select",
-        name = showLabel,
-        desc = showDesc,
-        values = soundValues,
-        order = orderBase + 14.2,
-        get = function() return data.soundOnShow or "NONE" end,
-        set = function(_, val)
-            data.soundOnShow = (val ~= "NONE") and val or nil
-            NotifyAndRebuild(barKey)
-        end,
-    }
-    args.editorSoundOnMissing = {
-        type = "select",
-        name = missLabel,
-        desc = missDesc,
-        values = soundValues,
-        order = orderBase + 14.3,
-        get = function() return data.soundOnMissing or "NONE" end,
-        set = function(_, val)
-            data.soundOnMissing = (val ~= "NONE") and val or nil
-            NotifyAndRebuild(barKey)
-        end,
-    }
-
     -- ==========================================================
-    -- CONDITIONAL ACTIONS  (WeakAura-style)
+    -- CONDITIONAL ACTIONS  (shared module)
     -- ==========================================================
 
-    local condCheckLabels = {
-        ["active"]    = "Active",
-        ["inactive"]  = "Inactive",
-        ["remaining"] = "Remaining Time",
-        ["stacks"]    = "Stacks",
-    }
-    local condOpLabels = {
-        ["<"]  = "< (Less Than)",
-        ["<="] = "<= (At Most)",
-        [">"]  = "> (Greater Than)",
-        [">="] = ">= (At Least)",
-        ["=="] = "== (Equal To)",
-    }
-
-    data.conditionals = data.conditionals or {}
-    local maxCond = (Config and Config.MAX_CONDITIONALS) or 3
-
-    args.editorCondHeader = {
-        type = "header",
-        name = "Conditional Actions",
-        order = orderBase + 15,
-    }
-    args.editorCondDesc = {
-        type = "description",
-        name = "|cFFAAAAFFDefine conditions that trigger glow, sound, or color changes on this icon.\n"
-            .. "Conditions are evaluated each update; sounds play only on transition.|r",
-        order = orderBase + 15.1,
-        width = "full",
-    }
-
-    if #data.conditionals < maxCond then
-        args.editorCondAdd = {
-            type = "execute",
-            name = "+ Add Condition",
-            order = orderBase + 15.2,
-            width = "normal",
-            func = function()
-                table_insert(data.conditionals, {
-                    check = "active",
-                    op = "<=",
-                    value = 5,
-                    glow = false,
-                    sound = nil,
-                    glowColor = nil,
-                })
-                NotifyAndRebuild(barKey)
-            end,
-        }
-    end
-
-    for ci, cond in ipairs(data.conditionals) do
-        local condBase = orderBase + 15.5 + (ci - 1) * 0.1
-        local prefix = "editorCond" .. ci .. "_"
-        local isNumeric = (cond.check == "remaining" or cond.check == "stacks")
-
-        args[prefix .. "header"] = {
-            type = "header",
-            name = "Condition " .. ci,
-            order = condBase,
-        }
-        args[prefix .. "check"] = {
-            type = "select",
-            name = "When",
-            desc = "What state to check.",
-            values = condCheckLabels,
-            order = condBase + 0.01,
-            get = function() return cond.check or "active" end,
-            set = function(_, val)
-                cond.check = val
-                NotifyAndRebuild(barKey)
-            end,
-        }
-        if isNumeric then
-            args[prefix .. "op"] = {
-                type = "select",
-                name = "Operator",
-                values = condOpLabels,
-                order = condBase + 0.02,
-                width = "half",
-                get = function() return cond.op or "<=" end,
-                set = function(_, val)
-                    cond.op = val
-                    NotifyAndRebuild(barKey)
-                end,
-            }
-            args[prefix .. "value"] = {
-                type = "input",
-                name = "Value",
-                desc = cond.check == "remaining" and "Seconds" or "Stack count",
-                order = condBase + 0.03,
-                width = "half",
-                get = function() return tostring(cond.value or 5) end,
-                set = function(_, val)
-                    cond.value = tonumber(val) or 5
-                    NotifyAndRebuild(barKey)
-                end,
-            }
-        end
-        args[prefix .. "glow"] = {
-            type = "toggle",
-            name = "Glow",
-            desc = "Show a pulsing glow border when this condition is met.",
-            order = condBase + 0.04,
-            width = "half",
-            get = function() return cond.glow or false end,
-            set = function(_, val)
-                cond.glow = val
-                NotifyAndRebuild(barKey)
-            end,
-        }
-        args[prefix .. "sound"] = {
-            type = "select",
-            name = "Sound",
-            desc = "Play a sound when entering this condition.",
-            values = soundValues,
-            order = condBase + 0.05,
-            get = function() return cond.sound or "NONE" end,
-            set = function(_, val)
-                cond.sound = (val ~= "NONE") and val or nil
-                NotifyAndRebuild(barKey)
-            end,
-        }
-        if cond.glow then
-            args[prefix .. "glowColor"] = {
-                type = "color",
-                name = "Glow Color",
-                desc = "Color of the glow border.",
-                order = condBase + 0.06,
-                hasAlpha = false,
-                get = function()
-                    local c = cond.glowColor or { r = 1, g = 1, b = 0 }
-                    return c.r, c.g, c.b
-                end,
-                set = function(_, r, g, b)
-                    cond.glowColor = { r = r, g = g, b = b }
-                    NotifyAndRebuild(barKey)
-                end,
-            }
-        end
-        args[prefix .. "remove"] = {
-            type = "execute",
-            name = "Remove",
-            order = condBase + 0.07,
-            width = "half",
-            func = function()
-                table_remove(data.conditionals, ci)
-                NotifyAndRebuild(barKey)
-            end,
-        }
+    local Conditionals = ns.AuraTracker and ns.AuraTracker.Conditionals
+    if Conditionals then
+        Conditionals:BuildConditionUI(args, data, orderBase + 15, barKey, NotifyAndRebuild, "icon")
     end
 
     -- Aura options: source, aura-ID override, "only mine" toggle
@@ -837,7 +643,7 @@ local function CreateBarSettings(barKey, barData)
         return cr ~= playerClass
     end
 
-    return {
+    local result = {
         -- ==============================================
         -- TAB 1: Bar Configuration (merged General + Appearance)
         -- ==============================================
@@ -944,8 +750,6 @@ local function CreateBarSettings(barKey, barData)
                         RebuildBar(barKey)
                     end,
                 },
-
-                -- Size & Spacing (previously in Appearance tab)
                 sizeHeader = { type = "header", name = "Size & Spacing", order = 20 },
                 iconSize = {
                     type     = "range",
@@ -1076,6 +880,16 @@ local function CreateBarSettings(barKey, barData)
         -- ==============================================
         icons = CreateIconListOptions(barKey, barData),
     }
+
+    -- Inject bar-level conditional actions into the barConfig args
+    local Conditionals = ns.AuraTracker and ns.AuraTracker.Conditionals
+    if Conditionals then
+        Conditionals:BuildConditionUI(
+            result.barConfig.args, barData, 14, barKey, NotifyAndRebuild, "bar"
+        )
+    end
+
+    return result
 end
 
 -- ==========================================================

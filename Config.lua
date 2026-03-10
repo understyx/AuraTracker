@@ -55,42 +55,6 @@ Config.DefaultDisplayMode = {
     INTERNAL_CD   = Config.DisplayMode.ALWAYS,
 }
 
--- Sound files available for per-icon triggers.
--- Keys are stored in saved variables; file paths are WotLK-safe.
-Config.SoundOptions = {
-    NONE         = { label = "None",         file = nil },
-    RAID_WARNING = { label = "Raid Warning", file = [[Sound\Interface\RaidWarning.wav]] },
-    ALARM        = { label = "Alarm Clock",  file = [[Sound\Interface\AlarmClockWarning3.wav]] },
-    MAP_PING     = { label = "Map Ping",     file = [[Sound\Interface\MapPing.wav]] },
-    LEVEL_UP     = { label = "Level Up",     file = [[Sound\Interface\LevelUp.wav]] },
-    PVP_QUEUE    = { label = "PvP Queue",    file = [[Sound\Spells\PVPEnterQueue.wav]] },
-    BELL         = { label = "Bell",         file = [[Sound\Spells\ShaysBell.wav]] },
-}
-
--- ==========================================================
--- CONDITIONAL SYSTEM  (WeakAura-style)
--- ==========================================================
-
--- What to check:
-Config.ConditionCheck = {
-    ACTIVE   = "active",     -- item is active (aura present / off cooldown)
-    INACTIVE = "inactive",   -- item is inactive (aura missing / on cooldown)
-    REMAINING = "remaining", -- seconds remaining on the active timer (> 0 only)
-    STACKS   = "stacks",    -- buff/debuff stack count
-}
-
--- Comparison operators for numeric checks (remaining, stacks):
-Config.ConditionOp = {
-    LT  = "<",
-    LTE = "<=",
-    GT  = ">",
-    GTE = ">=",
-    EQ  = "==",
-}
-
--- Maximum number of conditionals allowed per icon
-Config.MAX_CONDITIONALS = 3
-
 Config.GCD_SPELL_ID = 61304
 Config.GCD_THRESHOLD = 1.6
 

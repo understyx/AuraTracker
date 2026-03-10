@@ -390,8 +390,6 @@ function AuraTracker:RebuildBar(barKey)
                 icon = self:CreateInternalCDIcon(barKey, spellId, order, styleOptions, data.displayMode)
             end
             if icon then
-                icon.soundOnShow = data.soundOnShow
-                icon.soundOnMissing = data.soundOnMissing
                 icon.conditionals = data.conditionals
             end
         end
@@ -1010,6 +1008,14 @@ function AuraTracker:ShouldShowBar(barKey)
                     end
                 end
             end
+        end
+    end
+
+    -- Bar-level load conditions (conditionals)
+    if db.conditionals and #db.conditionals > 0 then
+        local Conditionals = ns.AuraTracker.Conditionals
+        if Conditionals and not Conditionals:CheckAll(db.conditionals, nil) then
+            return false
         end
     end
 

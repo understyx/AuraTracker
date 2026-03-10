@@ -8,7 +8,8 @@ local PlaySoundFile = PlaySoundFile
 local math_floor, math_max = math.floor, math.max
 local string_format = string.format
 
-local SnapshotTracker = nil  -- resolved lazily
+local SnapshotTracker = nil   -- resolved lazily
+local Conditionals = nil      -- resolved lazily
 
 -- Glow animation constants
 local GLOW_TICK       = 0.03   -- seconds between alpha steps
@@ -63,11 +64,6 @@ function Icon:New(frame, trackedItem, displayMode)
     self.trackedItem = trackedItem
     self.displayMode = displayMode or Config.DisplayMode.ALWAYS
     self.showCooldownText = true
-
-    -- Sound trigger state
-    self._prevActive = nil   -- nil = uninitialized (no sound on first load)
-    self.soundOnShow = nil   -- sound key to play when becoming active
-    self.soundOnMissing = nil -- sound key to play when becoming inactive
 
     -- Conditional system state
     self.conditionals = nil  -- array of conditional definitions (from DB)
@@ -177,14 +173,6 @@ end
 -- REFRESH / RENDER
 -- ==========================================================
 
-function Icon:PlaySoundForKey(key)
-    if not key or key == "NONE" then return end
-    local soundData = Config.SoundOptions[key]
-    if soundData and soundData.file then
-        PlaySoundFile(soundData.file)
-    end
-end
-
 function Icon:Refresh()
     if not self.trackedItem then
         self.frame:Hide()
@@ -194,17 +182,6 @@ function Icon:Refresh()
     -- Update texture in case it changed (e.g., exclusive group)
     self.frame.icon:SetTexture(self.trackedItem:GetTexture())
 
-    -- Detect active-state transitions for sound triggers
-    local isActive = self.trackedItem:IsActive()
-    if self._prevActive ~= nil and isActive ~= self._prevActive then
-        if isActive then
-            self:PlaySoundForKey(self.soundOnShow)
-        else
-            self:PlaySoundForKey(self.soundOnMissing)
-        end
-    end
-    self._prevActive = isActive
-    
     local shouldShow = self:ShouldShow()
     local wasShown = self.frame:IsShown()
     
@@ -327,7 +304,7 @@ function Icon:RenderDualTrack()
 end
 
 -- ==========================================================
--- CONDITIONAL SYSTEM
+-- CONDITIONAL SYSTEM  (delegates to Conditionals module)
 -- ==========================================================
 
 function Icon:SetGlow(show, color)
@@ -370,71 +347,24 @@ function Icon:SetGlow(show, color)
     end
 end
 
-function Icon:CompareValue(actual, op, expected)
-    if not actual or not expected then return false end
-    if op == "<" then return actual < expected
-    elseif op == "<=" then return actual <= expected
-    elseif op == ">" then return actual > expected
-    elseif op == ">=" then return actual >= expected
-    elseif op == "==" then return actual == expected
-    end
-    return false
-end
-
-function Icon:CheckCondition(cond, item)
-    local check = cond.check
-
-    if check == "active" then
-        return item:IsActive()
-    elseif check == "inactive" then
-        return not item:IsActive()
-    elseif check == "remaining" then
-        local remaining = item:GetRemaining()
-        -- Only evaluate when there is an active timer
-        if remaining <= 0 then return false end
-        return self:CompareValue(remaining, cond.op, cond.value)
-    elseif check == "stacks" then
-        local stacks = item:GetStacks() or 0
-        return self:CompareValue(stacks, cond.op, cond.value)
-    end
-
-    return false
-end
-
 function Icon:EvaluateConditionals()
     if not self.conditionals or not self.trackedItem then
         self:SetGlow(false)
         return
     end
 
-    local item = self.trackedItem
-    local glowActive = false
-    local glowColor = nil
-
-    for i, cond in ipairs(self.conditionals) do
-        local met = self:CheckCondition(cond, item)
-        local wasMet = self._condState[i]
-
-        if met then
-            -- Visual actions from this conditional
-            if cond.glow then
-                glowActive = true
-                if cond.glowColor then
-                    glowColor = cond.glowColor
-                end
-            end
-
-            -- Sound: play only on transition from false→true.
-            -- wasMet==false (not `not wasMet`) skips the first evaluation (nil)
-            -- to prevent spurious sounds on load/rebuild.
-            if wasMet == false and cond.sound and cond.sound ~= "NONE" then
-                self:PlaySoundForKey(cond.sound)
-            end
-        end
-
-        self._condState[i] = met
+    -- Lazily resolve Conditionals reference
+    if not Conditionals then
+        Conditionals = ns.AuraTracker.Conditionals
+    end
+    if not Conditionals then
+        self:SetGlow(false)
+        return
     end
 
+    local glowActive, glowColor = Conditionals:Evaluate(
+        self.conditionals, self._condState, self.trackedItem
+    )
     self:SetGlow(glowActive, glowColor)
 end
 
