@@ -88,14 +88,20 @@ function Icon.CreateFrame(parent)
     f.stackText:SetFont([[Fonts\FRIZQT__.ttf]], 10, "THICKOUTLINE")
     f.stackText:SetPoint("BOTTOMRIGHT", -2, 2)
 
-    f.snapshotBG = f:CreateTexture(nil, "OVERLAY")
-    f.snapshotBG:SetTexture(0, 0, 0, 0.75)
-    f.snapshotBG:Hide()
+    -- Snapshot diff: own child frame so it layers above the glow border
+    f.snapshotFrame = CreateFrame("Frame", nil, f)
+    f.snapshotFrame:SetPoint("TOP", f, "TOP", 0, 8)
+    f.snapshotFrame:SetSize(1, 1)
 
-    f.snapshotText = f:CreateFontString(nil, "OVERLAY")
+    f.snapshotBG = f.snapshotFrame:CreateTexture(nil, "BACKGROUND")
+    f.snapshotBG:SetAllPoints()
+    f.snapshotBG:SetTexture(0, 0, 0, 1)
+
+    f.snapshotText = f.snapshotFrame:CreateFontString(nil, "OVERLAY")
     f.snapshotText:SetFont([[Fonts\FRIZQT__.ttf]], 9, "THICKOUTLINE")
-    f.snapshotText:SetPoint("TOP", 0, 8)
-    f.snapshotBG:SetPoint("CENTER", f.snapshotText, "CENTER", 0, 0)
+    f.snapshotText:SetPoint("CENTER")
+
+    f.snapshotFrame:Hide()
 
     return f
 end
@@ -163,8 +169,7 @@ function Icon:New(frame, trackedItem, displayMode)
     self.frame.text:SetText("")
     self.frame.stackText:Hide()
     self.frame.snapshotText:SetText("")
-    self.frame.snapshotText:Hide()
-    self.frame.snapshotBG:Hide()
+    self.frame.snapshotFrame:Hide()
     
     return self
 end
@@ -332,8 +337,7 @@ function Icon:RenderInactive()
     self._renderDesaturated = true
     self.frame.cooldown:Hide()
     self.frame.stackText:Hide()
-    self.frame.snapshotText:Hide()
-    self.frame.snapshotBG:Hide()
+    self.frame.snapshotFrame:Hide()
     -- Do NOT clear frame.text here. UpdateCooldownText() owns frame.text and
     -- runs immediately after Refresh() in the same update pass. Clearing text
     -- here would beat the _prevCooldownText cache, causing the cooldown
@@ -568,8 +572,7 @@ end
 function Icon:UpdateSnapshotText()
     if not self.showSnapshotText or not self.trackedItem then
         if self._prevSnapshotActive ~= false then
-            self.frame.snapshotText:Hide()
-            self.frame.snapshotBG:Hide()
+            self.frame.snapshotFrame:Hide()
             self.frame.text:ClearAllPoints()
             self.frame.text:SetPoint("CENTER")
             self._prevSnapshotActive = false
@@ -591,8 +594,7 @@ function Icon:UpdateSnapshotText()
 
     if not isAuraActive then
         if self._prevSnapshotActive ~= false then
-            self.frame.snapshotText:Hide()
-            self.frame.snapshotBG:Hide()
+            self.frame.snapshotFrame:Hide()
             self.frame.text:ClearAllPoints()
             self.frame.text:SetPoint("CENTER")
             self._prevSnapshotActive = false
@@ -607,8 +609,7 @@ function Icon:UpdateSnapshotText()
     end
     if not SnapshotTracker then
         if self._prevSnapshotActive ~= false then
-            self.frame.snapshotText:Hide()
-            self.frame.snapshotBG:Hide()
+            self.frame.snapshotFrame:Hide()
             self.frame.text:ClearAllPoints()
             self.frame.text:SetPoint("CENTER")
             self._prevSnapshotActive = false
@@ -622,26 +623,22 @@ function Icon:UpdateSnapshotText()
     local diffText = SnapshotTracker:GetSnapshotDiff(unit, spellName)
 
     if diffText then
-        -- Update text only when it actually changes
+        -- Update text and resize frame only when text changes
         if self._prevSnapshotText ~= diffText then
             self.frame.snapshotText:SetText(diffText)
             self._prevSnapshotText = diffText
-            -- Resize background to fit the new text
             local tw = self.frame.snapshotText:GetStringWidth()
             local th = self.frame.snapshotText:GetStringHeight()
-            self.frame.snapshotBG:SetWidth(math_max(1, tw + 4))
-            self.frame.snapshotBG:SetHeight(math_max(1, th + 2))
+            self.frame.snapshotFrame:SetSize(math_max(1, tw + 4), math_max(1, th + 2))
         end
         -- Show on state transition
         if self._prevSnapshotActive ~= true then
-            self.frame.snapshotBG:Show()
-            self.frame.snapshotText:Show()
+            self.frame.snapshotFrame:Show()
             self._prevSnapshotActive = true
         end
     else
         if self._prevSnapshotActive ~= false then
-            self.frame.snapshotText:Hide()
-            self.frame.snapshotBG:Hide()
+            self.frame.snapshotFrame:Hide()
             self._prevSnapshotActive = false
             self._prevSnapshotText   = nil
         end
@@ -676,6 +673,11 @@ function Icon:ApplyStyle(styleOptions)
         styleOptions.snapshotFontSize or (fontSize * 0.8),
         fontOutline
     )
+
+    -- Snapshot frame sits above the glow border (border = level+1, snapshot = level+2)
+    self.frame.snapshotFrame:SetFrameLevel(self.frame:GetFrameLevel() + 2)
+    local snapshotBGAlpha = styleOptions.showSnapshotBG == false and 0 or (styleOptions.snapshotBGAlpha or 1.0)
+    self.frame.snapshotBG:SetAlpha(snapshotBGAlpha)
 
     if self.frame.border then
         self.frame.border:SetFrameLevel(self.frame:GetFrameLevel() + 1)

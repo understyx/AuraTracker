@@ -276,6 +276,32 @@ local function CreateBarSettings(barKey, barData)
                                 RebuildBar(barKey)
                             end,
                         },
+                        showSnapshotBG = {
+                            type  = "toggle",
+                            name  = "Show Snapshot Background",
+                            desc  = "Show a black background box behind snapshot diff text.",
+                            order = 34,
+                            width = "full",
+                            get   = function() return barData.showSnapshotBG ~= false end,
+                            set   = function(_, val)
+                                barData.showSnapshotBG = val
+                                RebuildBar(barKey)
+                            end,
+                        },
+                        snapshotBGAlpha = {
+                            type     = "range",
+                            name     = "Snapshot Background Opacity",
+                            desc     = "Opacity of the black background behind snapshot diff text.",
+                            min      = 0.0, max = 1.0, step = 0.05,
+                            order    = 35,
+                            width    = "double",
+                            disabled = function() return barData.showSnapshotBG == false end,
+                            get      = function() return barData.snapshotBGAlpha or 1.0 end,
+                            set      = function(_, val)
+                                barData.snapshotBGAlpha = val
+                                RebuildBar(barKey)
+                            end,
+                        },
                         fontOutline = {
                             type     = "select",
                             name     = "Font Outline",
@@ -285,7 +311,7 @@ local function CreateBarSettings(barKey, barData)
                                 ["OUTLINE"]       = "Thin",
                                 ["THICKOUTLINE"]  = "Thick",
                             },
-                            order    = 34,
+                            order    = 36,
                             width    = "double",
                             get      = function() return barData.fontOutline or "THICKOUTLINE" end,
                             set      = function(_, val)
@@ -305,7 +331,7 @@ local function CreateBarSettings(barKey, barData)
                                 end
                                 return t
                             end,
-                            order  = 35,
+                            order  = 37,
                             width  = "double",
                             get    = function()
                                 return barData.font or "Friz Quadrata TT"
@@ -319,7 +345,7 @@ local function CreateBarSettings(barKey, barData)
                             type     = "color",
                             name     = "Text Color",
                             hasAlpha = true,
-                            order    = 36,
+                            order    = 38,
                             width    = "normal",
                             get      = function()
                                 local c = barData.textColor or DEFAULT_TEXT_COLOR

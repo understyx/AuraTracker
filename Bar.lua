@@ -29,6 +29,7 @@ function Bar:New(name, parent, options)
     self.frame = CreateFrame("Frame", "AuraTracker_Bar_" .. name, parent or UIParent)
     self.frame:SetSize(self.iconSize, self.iconSize)
     self.frame:SetScale(self.scale)
+    self.frame:SetFrameStrata("LOW")
     
     local point = options.point or "CENTER"
     local x = options.x or 0
