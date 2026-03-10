@@ -89,7 +89,7 @@ function Icon.CreateFrame(parent)
 
     f.snapshotText = f:CreateFontString(nil, "OVERLAY")
     f.snapshotText:SetFont([[Fonts\FRIZQT__.ttf]], 9, "THICKOUTLINE")
-    f.snapshotText:SetPoint("TOP", 0, -2)
+    f.snapshotText:SetPoint("TOP", 0, 8)
 
     return f
 end
@@ -595,16 +595,11 @@ function Icon:UpdateSnapshotText()
         -- Shift cooldown text down only on state transition
         if self._prevSnapshotActive ~= true then
             self.frame.snapshotText:Show()
-            self.frame.text:ClearAllPoints()
-            self.frame.text:SetPoint("BOTTOM", 0, 2)
             self._prevSnapshotActive = true
         end
     else
         if self._prevSnapshotActive ~= false then
             self.frame.snapshotText:Hide()
-            -- Reset cooldown text to center
-            self.frame.text:ClearAllPoints()
-            self.frame.text:SetPoint("CENTER")
             self._prevSnapshotActive = false
             self._prevSnapshotText   = nil
         end
