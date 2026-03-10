@@ -281,6 +281,24 @@ function AuraTracker:RebuildAllBars()
     end
 end
 
+--- Re-evaluate bar load conditions and show/hide bars whose visibility
+--- state has changed.  This is intentionally lightweight: it only calls
+--- RebuildBar for bars that actually need to toggle, keeping the per-tick
+--- cost close to zero when nothing changes.
+function AuraTracker:RecheckBarConditions()
+    local db = self:GetDB()
+    if not db or not db.enabled then return end
+
+    for barKey in pairs(db.bars) do
+        local shouldShow = self:ShouldShowBar(barKey)
+        local isShown    = self.bars[barKey] ~= nil
+
+        if shouldShow ~= isShown then
+            self:RebuildBar(barKey)
+        end
+    end
+end
+
 function AuraTracker:DestroyAllBars()
     for barKey, bar in pairs(self.bars) do
         for _, icon in ipairs(bar:GetIcons()) do
