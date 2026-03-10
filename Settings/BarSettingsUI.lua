@@ -250,30 +250,43 @@ local function CreateBarSettings(barKey, barData)
                             end,
                         },
                         textSize = {
-                            type     = "range",
+                            type     = "input",
                             name     = "Font Size",
-                            min      = 8, max = 32, step = 1,
+                            desc     = "Font size for cooldown timer text (8-32).",
                             order    = 32,
                             width    = "double",
-                            get      = function() return barData.textSize or 12 end,
+                            get      = function() return tostring(barData.textSize or 12) end,
                             set      = function(_, val)
-                                barData.textSize = val
-                                RebuildBar(barKey)
+                                local n = tonumber(val)
+                                if n then
+                                    barData.textSize = math_floor(math.max(8, math.min(32, n)))
+                                    RebuildBar(barKey)
+                                end
+                            end,
+                            validate = function(_, val)
+                                if not tonumber(val) then return "Please enter a number (8-32)." end
+                                return true
                             end,
                         },
                         snapshotTextSize = {
-                            type     = "range",
+                            type     = "input",
                             name     = "Snapshot Font Size",
-                            desc     = "Font size for snapshot diff text. Defaults to 80% of Font Size when unset.",
-                            min      = 8, max = 32, step = 1,
+                            desc     = "Font size for snapshot diff text (8-32). Defaults to 80% of Font Size when unset.",
                             order    = 33,
                             width    = "double",
                             get      = function()
-                                return barData.snapshotTextSize or math_floor((barData.textSize or 12) * 0.8)
+                                return tostring(barData.snapshotTextSize or math_floor((barData.textSize or 12) * 0.8))
                             end,
                             set      = function(_, val)
-                                barData.snapshotTextSize = val
-                                RebuildBar(barKey)
+                                local n = tonumber(val)
+                                if n then
+                                    barData.snapshotTextSize = math_floor(math.max(8, math.min(32, n)))
+                                    RebuildBar(barKey)
+                                end
+                            end,
+                            validate = function(_, val)
+                                if not tonumber(val) then return "Please enter a number (8-32)." end
+                                return true
                             end,
                         },
                         showSnapshotBG = {

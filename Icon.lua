@@ -627,9 +627,8 @@ function Icon:UpdateSnapshotText()
         if self._prevSnapshotText ~= diffText then
             self.frame.snapshotText:SetText(diffText)
             self._prevSnapshotText = diffText
-            local tw = self.frame.snapshotText:GetStringWidth()
             local th = self.frame.snapshotText:GetStringHeight()
-            self.frame.snapshotFrame:SetSize(math_max(1, tw + 4), math_max(1, th + 2))
+            self.frame.snapshotFrame:SetSize(math_max(1, self.frame:GetWidth()), math_max(1, th + 2))
         end
         -- Show on state transition
         if self._prevSnapshotActive ~= true then
