@@ -6,7 +6,7 @@ local LSM = LibStub("LibSharedMedia-3.0")
 local CreateFrame = CreateFrame
 local GetTime = GetTime
 local PlaySoundFile = PlaySoundFile
-local math_floor, math_max, math_min = math.floor, math.max, math.min
+local math_floor, math_max = math.floor, math.max
 local string_format = string.format
 
 local SnapshotTracker = nil   -- resolved lazily
@@ -16,10 +16,6 @@ local Conditionals = nil      -- resolved lazily
 local GLOW_TICK       = 0.03   -- seconds between alpha steps
 local GLOW_FADE_STEP  = 0.05   -- alpha change per step
 local GLOW_MIN_ALPHA  = 0.3    -- lowest alpha during pulse
-
--- WoW's SetFont is hard-capped at ~20pt.  For larger sizes we apply SetScale
--- on a wrapper frame so the font renders at the desired visual size.
-local MAX_FONT_SIZE = 20
 
 -- ==========================================================
 -- SHARED GLOW ANIMATION
@@ -84,21 +80,13 @@ function Icon.CreateFrame(parent)
     f.cooldown:SetAllPoints()
     f.cooldown:SetAlpha(0)
     
-    -- Wrapper frame for cooldown/timer text so SetScale can exceed the 20pt cap
-    f.textFrame = CreateFrame("Frame", nil, f)
-    f.textFrame:SetSize(1, 1)
-    f.textFrame:SetPoint("CENTER", f, "CENTER")
-    f.text = f.textFrame:CreateFontString(nil, "OVERLAY")
+    f.text = f:CreateFontString(nil, "OVERLAY")
     f.text:SetFont([[Fonts\FRIZQT__.ttf]], 12, "THICKOUTLINE")
     f.text:SetPoint("CENTER")
-
-    -- Wrapper frame for stack-count text (same scaling approach)
-    f.stackTextFrame = CreateFrame("Frame", nil, f)
-    f.stackTextFrame:SetSize(1, 1)
-    f.stackTextFrame:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -2, 2)
-    f.stackText = f.stackTextFrame:CreateFontString(nil, "OVERLAY")
+    
+    f.stackText = f:CreateFontString(nil, "OVERLAY")
     f.stackText:SetFont([[Fonts\FRIZQT__.ttf]], 10, "THICKOUTLINE")
-    f.stackText:SetPoint("CENTER")
+    f.stackText:SetPoint("BOTTOMRIGHT", -2, 2)
 
     -- Snapshot diff: own child frame so it layers above the glow border
     f.snapshotFrame = CreateFrame("Frame", nil, f)
@@ -109,11 +97,7 @@ function Icon.CreateFrame(parent)
     f.snapshotBG:SetAllPoints()
     f.snapshotBG:SetTexture(0, 0, 0, 1)
 
-    -- Inner wrapper so snapshotText can be scaled independently of snapshotBG
-    f.snapshotTextFrame = CreateFrame("Frame", nil, f.snapshotFrame)
-    f.snapshotTextFrame:SetSize(1, 1)
-    f.snapshotTextFrame:SetPoint("CENTER")
-    f.snapshotText = f.snapshotTextFrame:CreateFontString(nil, "OVERLAY")
+    f.snapshotText = f.snapshotFrame:CreateFontString(nil, "OVERLAY")
     f.snapshotText:SetFont([[Fonts\FRIZQT__.ttf]], 9, "THICKOUTLINE")
     f.snapshotText:SetPoint("CENTER")
 
@@ -644,10 +628,7 @@ function Icon:UpdateSnapshotText()
             self.frame.snapshotText:SetText(diffText)
             self._prevSnapshotText = diffText
             local th = self.frame.snapshotText:GetStringHeight()
-            -- GetStringHeight returns height in snapshotTextFrame's coordinate space.
-            -- Multiply by the font scale to convert to snapshotFrame units.
-            local s = self._snapshotFontScale or 1
-            self.frame.snapshotFrame:SetSize(math_max(1, self.frame:GetWidth()), math_max(1, th * s + 2))
+            self.frame.snapshotFrame:SetSize(math_max(1, self.frame:GetWidth()), math_max(1, th + 2))
         end
         -- Show on state transition
         if self._prevSnapshotActive ~= true then
@@ -680,23 +661,17 @@ function Icon:ApplyStyle(styleOptions)
     local fontPath = (styleOptions.font and LSM:Fetch("font", styleOptions.font))
         or [[Fonts\FRIZQT__.ttf]]
 
-    -- Helper: apply font with a scale workaround for sizes beyond MAX_FONT_SIZE.
-    -- The wrapper frame is scaled so that (capped font size * scale) = desired size.
-    local function applyScaledFont(fontString, wrapperFrame, size, path, outline)
-        local capped = math_min(size, MAX_FONT_SIZE)
-        fontString:SetFont(path, capped, outline)
-        wrapperFrame:SetScale(size / capped)
-    end
-
-    applyScaledFont(self.frame.text,      self.frame.textFrame,      fontSize,
-        fontPath, fontOutline)
-    applyScaledFont(self.frame.stackText, self.frame.stackTextFrame, fontSize * 0.9,
-        fontPath, fontOutline)
-
-    local snapFontSize = styleOptions.snapshotFontSize or (fontSize * 0.8)
-    applyScaledFont(self.frame.snapshotText, self.frame.snapshotTextFrame, snapFontSize,
-        fontPath, fontOutline)
-    self._snapshotFontScale = self.frame.snapshotTextFrame:GetScale()
+    self.frame.text:SetFont(fontPath, fontSize, fontOutline)
+    self.frame.stackText:SetFont(
+        fontPath,
+        fontSize * 0.9,
+        fontOutline
+    )
+    self.frame.snapshotText:SetFont(
+        fontPath,
+        styleOptions.snapshotFontSize or (fontSize * 0.8),
+        fontOutline
+    )
 
     -- Snapshot frame sits above the glow border (border = level+1, snapshot = level+2)
     self.frame.snapshotFrame:SetFrameLevel(self.frame:GetFrameLevel() + 2)
