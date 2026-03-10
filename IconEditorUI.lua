@@ -139,7 +139,7 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
     local Conditionals = ns.AuraTracker and ns.AuraTracker.Conditionals
     if Conditionals then
         Conditionals:BuildLoadConditionUI(args, data, orderBase + 15, barKey, NotifyAndRebuild, "icon")
-        Conditionals:BuildActionConditionUI(args, data, orderBase + 20, barKey, NotifyAndRebuild)
+        Conditionals:BuildActionConditionUI(args, data, orderBase + 45, barKey, NotifyAndRebuild)
     end
 
     -- Aura options: source, aura-ID override, "only mine" toggle

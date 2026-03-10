@@ -2,6 +2,9 @@ local _, ns = ...
 
 local Conditionals = ns.AuraTracker.Conditionals
 
+local LSM = LibStub("LibSharedMedia-3.0")
+local PlaySoundFile = PlaySoundFile
+
 local tonumber, tostring = tonumber, tostring
 
 -- ==========================================================
@@ -271,11 +274,6 @@ end
 
 --- Build AceConfig args for action conditionals (icon-only: glow + sound).
 function Conditionals:BuildActionConditionUI(args, owner, orderBase, barKey, notifyFn)
-    local soundValues = { ["NONE"] = "None" }
-    for key, snd in pairs(self.SoundOptions) do
-        soundValues[key] = snd.label
-    end
-
     owner.conditionals = owner.conditionals or {}
     local maxCond = self.MAX_ACTION_CONDITIONS
 
@@ -405,11 +403,34 @@ function Conditionals:BuildActionConditionUI(args, owner, orderBase, barKey, not
             type = "select",
             name = "Sound",
             desc = "Play a sound when entering this condition.",
-            values = soundValues,
+            values = function()
+                local vals = {}
+                local sounds = LSM:List("sound")
+                if sounds then
+                    for _, name in ipairs(sounds) do
+                        vals[name] = name
+                    end
+                end
+                return vals
+            end,
             order = condBase + 0.05,
-            get = function() return cond.sound or "NONE" end,
+            get = function()
+                local key = cond.sound
+                if not key then return "None" end
+                -- Migrate old DB key format to LSM name
+                local old = self.OLD_SOUND_KEYS
+                if old and old[key] then return old[key] end
+                return key
+            end,
             set = function(_, val)
-                cond.sound = (val ~= "NONE") and val or nil
+                cond.sound = (val ~= "None") and val or nil
+                -- Preview the selected sound
+                if val and val ~= "None" then
+                    local path = LSM:Fetch("sound", val)
+                    if path then
+                        PlaySoundFile(path)
+                    end
+                end
                 notifyFn(barKey)
             end,
         }

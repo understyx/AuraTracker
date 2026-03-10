@@ -2,6 +2,7 @@ local _, ns = ...
 ns.AuraTracker = ns.AuraTracker or {}
 
 local PlaySoundFile = PlaySoundFile
+local LSM = LibStub("LibSharedMedia-3.0")
 local GetTime = GetTime
 local UnitHealth, UnitHealthMax = UnitHealth, UnitHealthMax
 local UnitPower, UnitPowerMax = UnitPower, UnitPowerMax
@@ -26,18 +27,28 @@ local Conditionals = {}
 ns.AuraTracker.Conditionals = Conditionals
 
 -- ==========================================================
--- SOUND OPTIONS
+-- SOUND OPTIONS  (LibSharedMedia integration)
 -- ==========================================================
 
-Conditionals.SoundOptions = {
-    NONE         = { label = "None",         file = nil },
-    RAID_WARNING = { label = "Raid Warning", file = [[Sound\Interface\RaidWarning.wav]] },
-    ALARM        = { label = "Alarm Clock",  file = [[Sound\Interface\AlarmClockWarning3.wav]] },
-    MAP_PING     = { label = "Map Ping",     file = [[Sound\Interface\MapPing.wav]] },
-    LEVEL_UP     = { label = "Level Up",     file = [[Sound\Interface\LevelUp.wav]] },
-    PVP_QUEUE    = { label = "PvP Queue",    file = [[Sound\Spells\PVPEnterQueue.wav]] },
-    BELL         = { label = "Bell",         file = [[Sound\Spells\ShaysBell.wav]] },
+-- Register built-in sounds with LibSharedMedia so they appear
+-- alongside any sounds other addons register.
+LSM:Register("sound", "Raid Warning", [[Sound\Interface\RaidWarning.wav]])
+LSM:Register("sound", "Alarm Clock",  [[Sound\Interface\AlarmClockWarning3.wav]])
+LSM:Register("sound", "Map Ping",     [[Sound\Interface\MapPing.wav]])
+LSM:Register("sound", "Level Up",     [[Sound\Interface\LevelUp.wav]])
+LSM:Register("sound", "PvP Queue",    [[Sound\Spells\PVPEnterQueue.wav]])
+LSM:Register("sound", "Bell",         [[Sound\Spells\ShaysBell.wav]])
+
+-- Migration map: old DB keys -> LSM names (for backward compat)
+local OLD_SOUND_KEYS = {
+    RAID_WARNING = "Raid Warning",
+    ALARM        = "Alarm Clock",
+    MAP_PING     = "Map Ping",
+    LEVEL_UP     = "Level Up",
+    PVP_QUEUE    = "PvP Queue",
+    BELL         = "Bell",
 }
+Conditionals.OLD_SOUND_KEYS = OLD_SOUND_KEYS
 
 -- ==========================================================
 -- COMPARISON HELPERS
@@ -63,10 +74,12 @@ function Conditionals:CompareValue(actual, op, expected)
 end
 
 function Conditionals:PlaySoundForKey(key)
-    if not key or key == "NONE" then return end
-    local soundData = self.SoundOptions[key]
-    if soundData and soundData.file then
-        PlaySoundFile(soundData.file)
+    if not key or key == "NONE" or key == "None" then return end
+    -- Migrate old DB key format (e.g. "RAID_WARNING") to LSM name
+    local lsmKey = OLD_SOUND_KEYS[key] or key
+    local path = LSM:Fetch("sound", lsmKey)
+    if path then
+        PlaySoundFile(path)
     end
 end
 
@@ -273,7 +286,7 @@ function Conditionals:EvaluateActions(condList, condState, item)
                     glowColor = cond.glowColor
                 end
             end
-            if wasMet == false and cond.sound and cond.sound ~= "NONE" then
+            if wasMet == false and cond.sound and cond.sound ~= "NONE" and cond.sound ~= "None" then
                 self:PlaySoundForKey(cond.sound)
             end
         end
