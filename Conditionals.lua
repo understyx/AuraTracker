@@ -118,11 +118,11 @@ function Conditionals:CheckLoadCondition(cond)
     local check = cond.check
 
     if check == "in_combat" then
-        local inCombat = UnitAffectingCombat("player") and true or false
+        local inCombat = not not UnitAffectingCombat("player")
         return (cond.value == "yes") == inCombat
 
     elseif check == "alive" then
-        local isDead = UnitIsDeadOrGhost("player") and true or false
+        local isDead = not not UnitIsDeadOrGhost("player")
         if cond.value == "alive" then return not isDead end
         return isDead
 
@@ -130,11 +130,11 @@ function Conditionals:CheckLoadCondition(cond)
         local hasUI = (UnitHasVehicleUI and UnitHasVehicleUI("player"))
                    or (UnitInVehicle and UnitInVehicle("player"))
                    or false
-        return (cond.value == "yes") == (hasUI and true or false)
+        return (cond.value == "yes") == (not not hasUI)
 
     elseif check == "mounted" then
-        local mounted = IsMounted and IsMounted() or false
-        return (cond.value == "yes") == (mounted and true or false)
+        local mounted = not not (IsMounted and IsMounted())
+        return (cond.value == "yes") == mounted
 
     elseif check == "talent" then
         local talentKey = cond.talentKey
@@ -150,7 +150,7 @@ function Conditionals:CheckLoadCondition(cond)
         if cond.talentState == false then
             return not hasRank
         end
-        return hasRank and true or false
+        return not not hasRank
 
     elseif check == "glyph" then
         local glyphSpellId = cond.glyphSpellId
@@ -688,10 +688,11 @@ function Conditionals:BuildActionConditionUI(args, owner, orderBase, barKey, not
             end,
         }
         if isHP then
+            local unitValues = (check == "unit_power") and self.PowerUnits or self.HPUnits
             args[prefix .. "unit"] = {
                 type = "select",
                 name = "Unit",
-                values = self.HPUnits,
+                values = unitValues,
                 order = condBase + 0.015,
                 width = "half",
                 get = function() return cond.unit or "target" end,
