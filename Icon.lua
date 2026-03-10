@@ -656,7 +656,7 @@ function Icon:ApplyStyle(styleOptions)
     )
     self.frame.snapshotText:SetFont(
         fontPath,
-        fontSize * 0.75,
+        fontSize * 0.8,
         fontOutline
     )
 
