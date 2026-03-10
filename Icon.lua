@@ -10,6 +10,11 @@ local string_format = string.format
 
 local SnapshotTracker = nil  -- resolved lazily
 
+-- Glow animation constants
+local GLOW_TICK       = 0.03   -- seconds between alpha steps
+local GLOW_FADE_STEP  = 0.05   -- alpha change per step
+local GLOW_MIN_ALPHA  = 0.3    -- lowest alpha during pulse
+
 local Icon = {}
 Icon.__index = Icon
 ns.AuraTracker.Icon = Icon
@@ -341,14 +346,14 @@ function Icon:SetGlow(show, color)
             glow._alpha = 1
             glow:SetScript("OnUpdate", function(f, elapsed)
                 f._elapsed = f._elapsed + elapsed
-                if f._elapsed < 0.03 then return end
+                if f._elapsed < GLOW_TICK then return end
                 f._elapsed = 0
-                f._alpha = f._alpha + f._dir * 0.05
+                f._alpha = f._alpha + f._dir * GLOW_FADE_STEP
                 if f._alpha >= 1 then
                     f._alpha = 1
                     f._dir = -1
-                elseif f._alpha <= 0.3 then
-                    f._alpha = 0.3
+                elseif f._alpha <= GLOW_MIN_ALPHA then
+                    f._alpha = GLOW_MIN_ALPHA
                     f._dir = 1
                 end
                 f:SetAlpha(f._alpha)
@@ -419,7 +424,9 @@ function Icon:EvaluateConditionals()
                 end
             end
 
-            -- Sound: only on transition into the condition (skip first evaluation)
+            -- Sound: play only on transition from false→true.
+            -- wasMet==false (not `not wasMet`) skips the first evaluation (nil)
+            -- to prevent spurious sounds on load/rebuild.
             if wasMet == false and cond.sound and cond.sound ~= "NONE" then
                 self:PlaySoundForKey(cond.sound)
             end
