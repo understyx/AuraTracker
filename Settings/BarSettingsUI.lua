@@ -252,26 +252,26 @@ local function CreateBarSettings(barKey, barData)
                         textSize = {
                             type     = "input",
                             name     = "Font Size",
-                            desc     = "Font size for cooldown timer text (8-32).",
+                            desc     = "Font size for cooldown timer text (8-128).",
                             order    = 32,
                             width    = "double",
                             get      = function() return tostring(barData.textSize or 12) end,
                             set      = function(_, val)
                                 local n = tonumber(val)
                                 if n then
-                                    barData.textSize = math_floor(math.max(8, math.min(32, n)))
+                                    barData.textSize = math_floor(math.max(8, math.min(128, n)))
                                     RebuildBar(barKey)
                                 end
                             end,
                             validate = function(_, val)
-                                if not tonumber(val) then return "Please enter a number (8-32)." end
+                                if not tonumber(val) then return "Please enter a number (8-128)." end
                                 return true
                             end,
                         },
                         snapshotTextSize = {
                             type     = "input",
                             name     = "Snapshot Font Size",
-                            desc     = "Font size for snapshot diff text (8-32). Defaults to 80% of Font Size when unset.",
+                            desc     = "Font size for snapshot diff text (8-128). Defaults to 80% of Font Size when unset.",
                             order    = 33,
                             width    = "double",
                             get      = function()
@@ -280,12 +280,12 @@ local function CreateBarSettings(barKey, barData)
                             set      = function(_, val)
                                 local n = tonumber(val)
                                 if n then
-                                    barData.snapshotTextSize = math_floor(math.max(8, math.min(32, n)))
+                                    barData.snapshotTextSize = math_floor(math.max(8, math.min(128, n)))
                                     RebuildBar(barKey)
                                 end
                             end,
                             validate = function(_, val)
-                                if not tonumber(val) then return "Please enter a number (8-32)." end
+                                if not tonumber(val) then return "Please enter a number (8-128)." end
                                 return true
                             end,
                         },

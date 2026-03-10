@@ -325,20 +325,6 @@ function ns.GetAuraTrackerOptions()
                             .. "  • |cFFFFFF00Action|r – Conditional effects (glow, sound) triggered during play.\n"
                             .. "  • |cFFFFFF00Also Track|r – Alternative spell IDs for aura icons (shown for aura/cooldown+aura only).",
                     },
-
-                    -- Tips
-                    tipsHeader = { type = "header", name = "Tips", order = 60 },
-                    tipsDesc = {
-                        type  = "description",
-                        order = 61,
-                        width = "full",
-                        name  = "• Use |cFFFFFF00/auratracker|r or |cFFFFFF00/at|r to open this settings panel.\n"
-                            .. "• Bars are saved per-character. Each character can have different bars.\n"
-                            .. "• The |cFFFFFF00Class Restriction|r option lets you share a profile between "
-                            .. "characters while hiding class-specific bars on the wrong class.\n"
-                            .. "• Enable |cFFFFFF00Show Only Known Spells|r to automatically hide icons "
-                            .. "for spells your character hasn't learned yet.",
-                    },
                 },
             },
 
