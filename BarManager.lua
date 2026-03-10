@@ -382,20 +382,24 @@ function AuraTracker:ShouldShowBar(barKey)
         if staticOk and db.talentRequirements and next(db.talentRequirements) then
             local numTabs = GetNumTalentTabs and GetNumTalentTabs() or 0
             local maxTalents = MAX_NUM_TALENTS or 30
-            if numTabs > 0 then
-                for combinedIndex, requiredState in pairs(db.talentRequirements) do
-                    local tab = math.ceil(combinedIndex / maxTalents)
-                    local talentIndex = combinedIndex - (tab - 1) * maxTalents
-                    if tab >= 1 and tab <= numTabs then
-                        local _, _, _, _, rank = GetTalentInfo(tab, talentIndex)
-                        local hasRank = rank and rank > 0
-                        if requiredState == true and not hasRank then
-                            staticOk = false
-                            break
-                        elseif requiredState == false and hasRank then
-                            staticOk = false
-                            break
-                        end
+            if numTabs == 0 then
+                -- Talent data not yet loaded at login; skip caching so this
+                -- check re-runs next tick once data is available.
+                return true
+            end
+            -- numTabs > 0 is guaranteed here; iterate the talent requirements.
+            for combinedIndex, requiredState in pairs(db.talentRequirements) do
+                local tab = math.ceil(combinedIndex / maxTalents)
+                local talentIndex = combinedIndex - (tab - 1) * maxTalents
+                if tab >= 1 and tab <= numTabs then
+                    local _, _, _, _, rank = GetTalentInfo(tab, talentIndex)
+                    local hasRank = rank and rank > 0
+                    if requiredState == true and not hasRank then
+                        staticOk = false
+                        break
+                    elseif requiredState == false and hasRank then
+                        staticOk = false
+                        break
                     end
                 end
             end
