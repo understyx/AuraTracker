@@ -6,6 +6,8 @@ local Config = ns.AuraTracker.Config
 -- Localize frequently-used globals
 local pairs = pairs
 local GetSpellLink, GetCursorInfo, ClearCursor = GetSpellLink, GetCursorInfo, ClearCursor
+local GetSpellInfo = GetSpellInfo
+local GetPetActionInfo = GetPetActionInfo
 local GetCursorPosition, GetMouseFocus = GetCursorPosition, GetMouseFocus
 local IsShiftKeyDown = IsShiftKeyDown
 local UnitAura = UnitAura
@@ -25,6 +27,7 @@ function DragDrop:Init(controller, onBarClick)
     self.dropZones = {}
     self.isDragging = false
     self.draggedAura = nil
+    self.draggedPetSpell = nil
     self.dragIconFrame = nil
 end
 
@@ -45,6 +48,8 @@ end
 function DragDrop:ClearDragState()
     self.draggedAura = nil
     self.draggedEnchantSlot = nil
+    self.draggedPetSpell = nil
+    self._pendingPetSpell = nil
     self:HideDropZones()
     if self.dragIconFrame then
         self.dragIconFrame:Hide()
@@ -150,17 +155,47 @@ function DragDrop:HandleDrop(barKey, cursorType, id, subType, isShift)
         return self:HandleItemDrop(barKey, id)
     end
 
+    if cursorType == "petaction" then
+        self:HandlePetSpellDrop(barKey)
+        return
+    end
+
     if cursorType ~= "spell" then return end
 
     local controller = self.controller
 
     local spellLink = GetSpellLink(id, subType)
+    -- Fallback for edge cases where GetSpellLink returns nil with a subType.
+    -- On some WotLK builds GetCursorInfo() returns the real spell ID as 'id'
+    -- rather than a book-slot index, so retry without the subType first.
+    -- If that also fails, GetSpellInfo(id, "pet") can retrieve the spell name
+    -- which is then resolved via GetSpellLink.
+    if not spellLink and subType == "pet" then
+        spellLink = GetSpellLink(id)
+        if not spellLink then
+            local petSpellName = GetSpellInfo(id, "pet")
+            if petSpellName then
+                spellLink = GetSpellLink(petSpellName)
+            end
+        end
+    end
     if not spellLink then return end
 
     local spellId = tonumber(spellLink:match("spell:(%d+)"))
     if not spellId then return end
 
     local success, result
+
+    -- Totem spells: add an element-slot totem tracker instead of a spell CD.
+    if Config:IsTotemSpell(spellId) then
+        success, result = controller:AddTotem(barKey, spellId)
+        if success then
+            controller:Print("Now tracking |cff00ff00" .. result .. "|r (totem)")
+        elseif result then
+            controller:Print("Failed: " .. result)
+        end
+        return
+    end
 
     -- Apply global/custom mappings; fall back to shift-key heuristic.
     -- isShift is forwarded so that SpellToAuraMap entries (e.g. Icy Touch →
@@ -247,6 +282,96 @@ function DragDrop:HandleItemDrop(barKey, itemId)
         controller:Print("Now tracking |cff00ff00" .. result .. "|r item cooldown")
     elseif result then
         controller:Print("Failed: " .. result)
+    end
+end
+
+-- ==========================================================
+-- PET ACTION BAR HOOKS (drag from pet action bar)
+-- ==========================================================
+
+-- Called when a pet action spell is dropped on a drop zone.
+-- Uses self.draggedPetSpell captured at drag-start rather than querying
+-- GetPetActionInfo() at drop time (which would return nil because
+-- PickupPetAction already cleared the slot).
+function DragDrop:HandlePetSpellDrop(barKey)
+    if not self.draggedPetSpell then return end
+    local spellId = self.draggedPetSpell.id
+    local name    = self.draggedPetSpell.name
+    self.draggedPetSpell = nil  -- clear early to prevent duplicate handling if OnDragStop fires after OnReceiveDrag
+
+    local controller = self.controller
+    local success, result = controller:AddCooldown(barKey, spellId)
+    if success then
+        controller:Print("Now tracking |cff00ff00" .. result .. "|r cooldown")
+    elseif result then
+        controller:Print("Failed: " .. result)
+    end
+end
+
+-- Hooks a single PetActionButton to mirror the buff-button drag pattern:
+-- spell info is captured in OnMouseDown (before PickupPetAction clears the
+-- slot), a floating icon follows the cursor, drop zones are shown, and the
+-- tracked spell is delivered via the OnDragStop + GetMouseFocus() path.
+-- HookScript is used so the button's secure PickupPetAction handler is
+-- preserved without taint.
+function DragDrop:HookPetActionButton(button, index)
+    if not button or button._auraTrackerPetHooked then return end
+    button._auraTrackerPetHooked = true
+
+    -- Pre-capture spell info before PickupPetAction clears the slot.
+    button:HookScript("OnMouseDown", function(_, mouseButton)
+        if mouseButton ~= "LeftButton" then return end
+        local name, _, texture, isToken = GetPetActionInfo(index)
+        if name and not isToken then
+            self._pendingPetSpell = { name = name, texture = texture }
+        else
+            self._pendingPetSpell = nil
+        end
+    end)
+
+    -- Drag confirmed: resolve spell link and store for drop handling.
+    button:HookScript("OnDragStart", function()
+        local pending = self._pendingPetSpell
+        self._pendingPetSpell = nil
+        if not pending then return end
+
+        local spellLink = GetSpellLink(pending.name)
+        local spellId = spellLink and tonumber(spellLink:match("spell:(%d+)"))
+        if not spellId then return end
+
+        self.draggedPetSpell = { name = pending.name, id = spellId }
+        self:ShowDropZones()
+
+        if pending.texture then
+            local dragFrame = self:GetDragFrame()
+            dragFrame.texture:SetTexture(pending.texture)
+            dragFrame:Show()
+        end
+    end)
+
+    button:HookScript("OnDragStop", function()
+        if self.draggedPetSpell then
+            local focus = GetMouseFocus()
+            if self.dropZones then
+                for bk, dropZone in pairs(self.dropZones) do
+                    if focus == dropZone then
+                        self:HandlePetSpellDrop(bk)
+                        break
+                    end
+                end
+            end
+        end
+        -- Always clean up floating icon and drop zones on drag end.
+        self:ClearDragState()
+    end)
+end
+
+function DragDrop:HookPetActionButtons()
+    for i = 1, 10 do
+        local button = _G["PetActionButton" .. i]
+        if button then
+            self:HookPetActionButton(button, i)
+        end
     end
 end
 

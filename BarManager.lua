@@ -304,6 +304,8 @@ function AuraTracker:RebuildBar(barKey)
                 icon = self:CreateInternalCDIcon(barKey, spellId, order, styleOptions, data.displayMode)
             elseif data.trackType == Config.TrackType.WEAPON_ENCHANT then
                 icon = self:CreateWeaponEnchantIcon(barKey, spellId, data.slot, order, styleOptions, data.displayMode, data.expectedEnchant)
+            elseif data.trackType == Config.TrackType.TOTEM then
+                icon = self:CreateTotemIcon(barKey, spellId, data.spellId, order, styleOptions, data.displayMode)
             end
             if icon then
                 icon.conditionals   = data.conditionals

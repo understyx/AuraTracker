@@ -19,6 +19,7 @@ local GetTalentTabInfo = GetTalentTabInfo
 local GetGlyphSocketInfo = GetGlyphSocketInfo
 local GetNumGlyphSockets = GetNumGlyphSockets
 local GetSpellInfo = GetSpellInfo
+local GetSpellLink = GetSpellLink
 local SendChatMessage = SendChatMessage
 local UnitName = UnitName
 local math_floor = math.floor
@@ -453,6 +454,12 @@ function Conditionals:ApplyTextReplacements(msg, item)
     -- %player → player name
     local playerName = UnitName("player") or ""
     msg = string_gsub(msg, "%%player", playerName)
+    -- %spelllink → spell hyperlink (falls back to spell name if unavailable)
+    local spellId = item:GetId()
+    local link = (type(spellId) == "number" and spellId > 0)
+        and (GetSpellLink and GetSpellLink(spellId))
+        or nil
+    msg = string_gsub(msg, "%%spelllink", link or (item:GetName() or ""))
     return msg
 end
 

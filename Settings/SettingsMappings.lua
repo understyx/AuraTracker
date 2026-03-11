@@ -15,6 +15,7 @@ local TRACK_TYPES = {
     ["item"]           = "Item",
     ["cooldown_aura"]  = "Cooldown + Aura",
     ["weapon_enchant"] = "Weapon Enchant",
+    ["totem"]          = "Totem",
 }
 
 local AURA_SOURCES = {
@@ -41,6 +42,9 @@ local function GetTrackTypeLabel(trackType, filterKey)
     end
     if trackType == "weapon_enchant" then
         return "|cFFAAFF88weapon enchant|r"
+    end
+    if trackType == "totem" then
+        return "|cFFFF9944totem|r"
     end
     if trackType == "cooldown_aura" then
         local src = filterKey and AURA_SOURCES[filterKey] or "aura"
