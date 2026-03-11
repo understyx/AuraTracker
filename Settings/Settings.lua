@@ -6,6 +6,7 @@ local table_insert, table_sort, table_remove = table.insert, table.sort, table.r
 local math_max, math_min, math_floor = math.max, math.min, math.floor
 local string_format, string_upper = string.format, string.upper
 local GetSpellInfo, GetItemInfo = GetSpellInfo, GetItemInfo
+local GetInventoryItemTexture = GetInventoryItemTexture
 
 local LibEditmode = LibStub("LibEditmode-1.0", true)
 
@@ -85,6 +86,15 @@ end
 
 local function GetTrackedNameAndIcon(id, trackType)
     if trackType == "item" or trackType == "internal_cd" then
+        return GetItemNameByID(id)
+    end
+    if trackType == "weapon_enchant" then
+        local Config = ns.AuraTracker.Config
+        if Config and id == Config.MAINHAND_ENCHANT_SLOT_ID then
+            return "Mainhand Enchant", GetInventoryItemTexture("player", 16)
+        elseif Config and id == Config.OFFHAND_ENCHANT_SLOT_ID then
+            return "Offhand Enchant", GetInventoryItemTexture("player", 17)
+        end
         return GetItemNameByID(id)
     end
     return GetSpellNameByID(id)

@@ -6,6 +6,7 @@ local GetSpellInfo, GetSpellCooldown = GetSpellInfo, GetSpellCooldown
 local GetItemInfo, GetItemCooldown = GetItemInfo, GetItemCooldown
 local GetTime, UnitAura = GetTime, UnitAura
 local GetWeaponEnchantInfo = GetWeaponEnchantInfo
+local GetInventoryItemTexture = GetInventoryItemTexture
 local math_abs = math.abs
 
 local TrackedItem = {}
@@ -57,6 +58,20 @@ function TrackedItem:New(id, trackType, options)
         local itemName, _, _, _, _, _, _, _, _, itemTexture = GetItemInfo(id)
         self.name = itemName
         self.texture = itemTexture
+    elseif trackType == Config.TrackType.WEAPON_ENCHANT then
+        -- Prefer GetItemInfo for item-based weapon enchants (sharpening stones, etc.)
+        if type(id) == "number" and id > 0 then
+            local itemName, _, _, _, _, _, _, _, _, itemTexture = GetItemInfo(id)
+            self.name = itemName
+            self.texture = itemTexture
+        end
+        -- Fallback for slot-based sentinel IDs or missing item data
+        if not self.name then
+            local slot = options.slot or "mainhand"
+            self.name = (slot == "offhand") and "Offhand Enchant" or "Mainhand Enchant"
+            local weaponInvSlot = (slot == "offhand") and 17 or 16
+            self.texture = GetInventoryItemTexture("player", weaponInvSlot)
+        end
     else
         local name, _, texture = GetSpellInfo(self.auraId or id)
         self.name = name

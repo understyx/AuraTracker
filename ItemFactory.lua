@@ -430,3 +430,26 @@ function AuraTracker:AddWeaponEnchant(barKey, itemId, slot)
 
     return true, name
 end
+
+function AuraTracker:AddWeaponEnchantBySlot(barKey, slot)
+    local db = self:GetBarDB(barKey)
+    if not db then return false, "Bar not found" end
+
+    slot = slot or "mainhand"
+    local id = (slot == "offhand") and Config.OFFHAND_ENCHANT_SLOT_ID or Config.MAINHAND_ENCHANT_SLOT_ID
+
+    local label = (slot == "offhand") and "Offhand Enchant" or "Mainhand Enchant"
+
+    db.trackedItems = db.trackedItems or {}
+    if db.trackedItems[id] then return false, label .. " already tracked" end
+
+    db.trackedItems[id] = {
+        order = GetNextOrder(db.trackedItems),
+        trackType = Config.TrackType.WEAPON_ENCHANT,
+        slot = slot,
+        displayMode = Config.DisplayMode.ALWAYS,
+    }
+    self:RebuildBar(barKey)
+
+    return true, label
+end

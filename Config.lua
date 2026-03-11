@@ -60,6 +60,13 @@ Config.DefaultDisplayMode = {
 Config.GCD_SPELL_ID = 61304
 Config.GCD_THRESHOLD = 1.6
 
+-- Sentinel IDs used when a temporary weapon enchant is tracked by slot only
+-- (i.e. dragged from the TempEnchant buff-frame button rather than from an
+-- item in the player's bags).  Negative values are safe because real item
+-- and spell IDs are always positive in WoW.
+Config.MAINHAND_ENCHANT_SLOT_ID = -1
+Config.OFFHAND_ENCHANT_SLOT_ID  = -2
+
 -- ==========================================================
 -- WEAPON ENCHANT SPELLS
 -- ==========================================================

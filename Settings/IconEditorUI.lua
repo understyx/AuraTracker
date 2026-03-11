@@ -96,7 +96,7 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
     -- ----------------------------------------------------------
     args.editorHeader = {
         type  = "header",
-        name  = string_format("Selected: %s  (ID: %d)", name, spellId),
+        name  = string_format("Selected: %s  (ID: %s)", name, tostring(spellId)),
         order = orderBase,
     }
     args.editorIconPreview = {
