@@ -237,7 +237,7 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
         generalArgs.editorExpectedEnchant = {
             type   = "select",
             name   = "Expected Enchant",
-            desc   = "Which temporary enchant is expected on this slot.\n\n'Any Enchant' activates for any temporary enchant.\n\nFor Shaman imbues the icon confirms the specific enchant is active (via player buff). For other types it checks whether any enchant is present on the slot.",
+            desc   = "Which temporary enchant is expected on this weapon slot.\n\n'Any Enchant' activates whenever any temporary enchant is present.\n\nFor a specific type, the enchant name is read directly from the weapon slot tooltip, so detection works immediately -- even for enchants already on the weapon at login.",
             values = enchantValues,
             order  = 3,
             get    = function() return data.expectedEnchant or "any" end,
