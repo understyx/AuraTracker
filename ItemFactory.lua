@@ -389,12 +389,15 @@ end
 -- WEAPON ENCHANT
 -- ==========================================================
 
-function AuraTracker:CreateWeaponEnchantIcon(barKey, itemId, slot, order, styleOptions, displayMode)
+function AuraTracker:CreateWeaponEnchantIcon(barKey, itemId, slot, order, styleOptions, displayMode, expectedEnchant)
     local bar = self.bars[barKey]
     local db = self:GetBarDB(barKey)
     if not bar or not db then return nil end
 
-    local item = TrackedItem:New(itemId, Config.TrackType.WEAPON_ENCHANT, { slot = slot })
+    local item = TrackedItem:New(itemId, Config.TrackType.WEAPON_ENCHANT, {
+        slot           = slot,
+        expectedEnchant = expectedEnchant,
+    })
     if not item:GetName() then return nil end
 
     local frame = LibFramePool:Acquire(Icon.POOL_KEY, bar:GetFrame())
@@ -421,12 +424,36 @@ function AuraTracker:AddWeaponEnchant(barKey, itemId, slot)
     if db.trackedItems[itemId] then return false, "Already tracked" end
 
     db.trackedItems[itemId] = {
-        order = GetNextOrder(db.trackedItems),
-        trackType = Config.TrackType.WEAPON_ENCHANT,
-        slot = slot or "mainhand",
-        displayMode = Config.DisplayMode.ALWAYS,
+        order           = GetNextOrder(db.trackedItems),
+        trackType       = Config.TrackType.WEAPON_ENCHANT,
+        slot            = slot or "mainhand",
+        displayMode     = Config.DisplayMode.ALWAYS,
+        expectedEnchant = Config:GetWeaponEnchantChoiceForItem(itemId),
     }
     self:RebuildBar(barKey)
 
     return true, name
+end
+
+function AuraTracker:AddWeaponEnchantBySlot(barKey, slot)
+    local db = self:GetBarDB(barKey)
+    if not db then return false, "Bar not found" end
+
+    slot = slot or "mainhand"
+    local id = (slot == "offhand") and Config.OFFHAND_ENCHANT_SLOT_ID or Config.MAINHAND_ENCHANT_SLOT_ID
+
+    local label = (slot == "offhand") and "Offhand Enchant" or "Mainhand Enchant"
+
+    db.trackedItems = db.trackedItems or {}
+    if db.trackedItems[id] then return false, label .. " already tracked" end
+
+    db.trackedItems[id] = {
+        order = GetNextOrder(db.trackedItems),
+        trackType = Config.TrackType.WEAPON_ENCHANT,
+        slot = slot,
+        displayMode = Config.DisplayMode.ALWAYS,
+    }
+    self:RebuildBar(barKey)
+
+    return true, label
 end

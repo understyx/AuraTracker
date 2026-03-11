@@ -4,13 +4,68 @@ ns.AuraTracker = ns.AuraTracker or {}
 local Config = ns.AuraTracker.Config
 local GetSpellInfo, GetSpellCooldown = GetSpellInfo, GetSpellCooldown
 local GetItemInfo, GetItemCooldown = GetItemInfo, GetItemCooldown
-local GetTime, UnitAura = GetTime, UnitAura
+local GetTime = GetTime
 local GetWeaponEnchantInfo = GetWeaponEnchantInfo
+local GetInventoryItemTexture = GetInventoryItemTexture
+local CreateFrame = CreateFrame
+local ipairs, pairs = ipairs, pairs
 local math_abs = math.abs
 
 local TrackedItem = {}
 TrackedItem.__index = TrackedItem
 ns.AuraTracker.TrackedItem = TrackedItem
+
+-- ==========================================================
+-- WEAPON ENCHANT TYPE DETECTION (module-level, shared state)
+-- ==========================================================
+-- Per-slot cache: which enchant type is currently detected on each slot.
+-- nil  = unknown (no enchant, or not yet parsed).
+-- Set by DetectEnchantFromTooltip() in UpdateWeaponEnchant().
+local weaponEnchantCache = { mainhand = nil, offhand = nil }
+
+-- Inventory slot IDs for the two weapon slots.
+local WEAPON_INV_SLOT = { mainhand = 16, offhand = 17 }
+
+-- Pattern for matching the temporary enchant line in a weapon slot tooltip.
+-- The format in WotLK is "Enchant Name (+X stat bonus)" on a single line.
+-- Captures the enchant name (everything before the space+(digits) part).
+-- Examples:
+--   "Windfury Weapon (+321 Attack Power)"  → "Windfury Weapon"
+--   "Grand Firestone (+80 fire damage)"    → "Grand Firestone"
+--   "Dense Sharpening Stone (+12 damage)"  → "Dense Sharpening Stone"
+local TENCH_PATTERN = "^(.-)%s+%([+-]?%d+%s+.+%)$"
+
+-- Lazy-created hidden tooltip used exclusively for enchant detection.
+local weaponEnchantTip = nil
+
+-- Reads the weapon slot tooltip (via SetInventoryItem) and parses the
+-- enchant-name line to determine which type of temp enchant is active.
+-- Returns the matching Config key (e.g. "windfury"), or nil if unknown.
+local function DetectEnchantFromTooltip(invSlotId)
+    if not weaponEnchantTip then
+        weaponEnchantTip = CreateFrame("GameTooltip", "AuraTracker_WeaponEnchantTip", UIParent, "GameTooltipTemplate")
+        weaponEnchantTip:SetOwner(UIParent, "ANCHOR_NONE")
+    end
+
+    weaponEnchantTip:ClearLines()
+    weaponEnchantTip:SetInventoryItem("player", invSlotId)
+
+    local regions = { weaponEnchantTip:GetRegions() }
+    for _, region in ipairs(regions) do
+        if region:GetObjectType() == "FontString" then
+            local text = region:GetText()
+            if text then
+                local name = text:match(TENCH_PATTERN)
+                if name and name ~= "" then
+                    local key = Config:GetWeaponEnchantKeyFromName(name)
+                    if key then return key end
+                end
+            end
+        end
+    end
+
+    return nil
+end
 
 -- ==========================================================
 -- CONSTRUCTOR
@@ -57,6 +112,35 @@ function TrackedItem:New(id, trackType, options)
         local itemName, _, _, _, _, _, _, _, _, itemTexture = GetItemInfo(id)
         self.name = itemName
         self.texture = itemTexture
+    elseif trackType == Config.TrackType.WEAPON_ENCHANT then
+        -- For positive item IDs, prefer the item's own name and icon.
+        if type(id) == "number" and id > 0 then
+            local itemName, _, _, _, _, _, _, _, _, itemTexture = GetItemInfo(id)
+            self.name = itemName
+            self.texture = itemTexture
+        end
+        -- For slot-based sentinel IDs or when item data is not yet cached,
+        -- try to show the expected enchant's name and icon (if one is set).
+        if not self.name then
+            local enchKey = options.expectedEnchant
+            if enchKey and enchKey ~= "any" then
+                local auraId = Config:GetWeaponEnchantAuraId(enchKey)
+                if auraId then
+                    local auraName, _, auraTexture = GetSpellInfo(auraId)
+                    if auraName then
+                        self.name = auraName
+                        self.texture = auraTexture
+                    end
+                end
+            end
+        end
+        -- Final generic fallback.
+        if not self.name then
+            local slot = options.slot or "mainhand"
+            self.name = (slot == "offhand") and "Offhand Enchant" or "Mainhand Enchant"
+            local weaponInvSlot = (slot == "offhand") and 17 or 16
+            self.texture = GetInventoryItemTexture("player", weaponInvSlot)
+        end
     else
         local name, _, texture = GetSpellInfo(self.auraId or id)
         self.name = name
@@ -102,6 +186,12 @@ function TrackedItem:New(id, trackType, options)
     -- Temporary weapon enchant state
     if trackType == Config.TrackType.WEAPON_ENCHANT then
         self.weaponSlot = options.slot or "mainhand"
+        -- Store the raw expected-enchant key so UpdateWeaponEnchant can compare
+        -- against the per-slot cache populated by CLEU tracking.
+        local enchKey = options.expectedEnchant
+        if enchKey and enchKey ~= "any" then
+            self.expectedEnchantKey = enchKey
+        end
     end
     
     return self
@@ -389,9 +479,18 @@ end
 -- ==========================================================
 
 --- Polls GetWeaponEnchantInfo() to track a temporary weapon enchant.
---- Sets active=true with the remaining duration when an enchant is present,
---- active=false when the slot has no enchant.  Duration is set to 0 so that
---- no cooldown spiral is drawn; only the text countdown is shown.
+--- Sets active=true with the remaining duration when the expected enchant (or
+--- any enchant, if no specific type is configured) is present on the slot.
+--- Sets active=false when no qualifying enchant is detected.
+---
+--- Detection strategy:
+---   WotLK 3.3.5 has no API to determine *which* temporary enchant is on a
+---   weapon slot — GetWeaponEnchantInfo() only reports presence + time.
+---   Instead, when a specific enchant is expected, we read the name directly
+---   from the weapon slot's tooltip (SetInventoryItem + FontString scan),
+---   matching the extracted name against Config.WeaponEnchantChoices.
+---   This works immediately, including enchants already present at login.
+---   The result is cached per-slot until the enchant expires.
 function TrackedItem:UpdateWeaponEnchant()
     local wasActive = self.active
     local hasMainEnchant, mainEndTimeMs, _, hasOffEnchant, offEndTimeMs = GetWeaponEnchantInfo()
@@ -401,6 +500,33 @@ function TrackedItem:UpdateWeaponEnchant()
         hasEnchant, endTimeMs = hasOffEnchant, offEndTimeMs
     else
         hasEnchant, endTimeMs = hasMainEnchant, mainEndTimeMs
+    end
+
+    if hasEnchant then
+        -- Detect the enchant type via tooltip if not yet cached.
+        -- Once detected the result is reused until the enchant disappears.
+        if weaponEnchantCache[self.weaponSlot] == nil then
+            local invSlot = WEAPON_INV_SLOT[self.weaponSlot]
+            -- Store detected key, or the sentinel "?" if parse succeeds but
+            -- no known type matched (avoids re-scanning every tick).
+            weaponEnchantCache[self.weaponSlot] = DetectEnchantFromTooltip(invSlot) or "?"
+        end
+    else
+        -- No enchant: clear cache so the next application is freshly detected.
+        weaponEnchantCache[self.weaponSlot] = nil
+    end
+
+    -- When a specific enchant type is expected, compare against the cache.
+    -- "?" means the slot has an enchant of unknown type — we cannot confirm
+    -- the expected type is absent, so we fall back to treating it as present
+    -- (same behaviour as "Any Enchant").
+    if hasEnchant and self.expectedEnchantKey then
+        local cachedKey = weaponEnchantCache[self.weaponSlot]
+        if cachedKey and cachedKey ~= "?" and cachedKey ~= self.expectedEnchantKey then
+            -- A different, identified enchant type is on the slot.
+            hasEnchant = false
+            endTimeMs  = nil
+        end
     end
 
     if hasEnchant and endTimeMs and endTimeMs > 0 then

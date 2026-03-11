@@ -95,6 +95,7 @@ function AuraTracker:OnEnable()
         DragDrop:HookAuraButtonByName(buttonName, index, filter)
     end)
     DragDrop:HookTooltipAuraDetection()
+    DragDrop:HookTempEnchantButtons()
 
 end
 

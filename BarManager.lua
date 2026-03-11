@@ -303,7 +303,7 @@ function AuraTracker:RebuildBar(barKey)
             elseif data.trackType == Config.TrackType.INTERNAL_CD then
                 icon = self:CreateInternalCDIcon(barKey, spellId, order, styleOptions, data.displayMode)
             elseif data.trackType == Config.TrackType.WEAPON_ENCHANT then
-                icon = self:CreateWeaponEnchantIcon(barKey, spellId, data.slot, order, styleOptions, data.displayMode)
+                icon = self:CreateWeaponEnchantIcon(barKey, spellId, data.slot, order, styleOptions, data.displayMode, data.expectedEnchant)
             end
             if icon then
                 icon.conditionals   = data.conditionals

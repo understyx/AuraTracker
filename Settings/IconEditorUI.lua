@@ -96,7 +96,7 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
     -- ----------------------------------------------------------
     args.editorHeader = {
         type  = "header",
-        name  = string_format("Selected: %s  (ID: %d)", name, spellId),
+        name  = string_format("Selected: %s  (ID: %s)", name, tostring(spellId)),
         order = orderBase,
     }
     args.editorIconPreview = {
@@ -211,7 +211,7 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
         }
     end
 
-    -- Weapon enchant slot option
+    -- Weapon enchant slot + expected enchant options
     if isWeaponEnchant then
         generalArgs.editorWeaponSlot = {
             type   = "select",
@@ -222,6 +222,27 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
             get    = function() return data.slot or "mainhand" end,
             set    = function(_, val)
                 data.slot = val
+                NotifyAndRebuild(barKey)
+            end,
+        }
+
+        -- Build the Expected Enchant dropdown from Config.WeaponEnchantChoices.
+        local Config = ns.AuraTracker.Config
+        local enchantValues = {}
+        if Config and Config.WeaponEnchantChoices then
+            for _, choice in ipairs(Config.WeaponEnchantChoices) do
+                enchantValues[choice.key] = choice.label
+            end
+        end
+        generalArgs.editorExpectedEnchant = {
+            type   = "select",
+            name   = "Expected Enchant",
+            desc   = "Which temporary enchant is expected on this weapon slot.\n\n'Any Enchant' activates whenever any temporary enchant is present.\n\nFor a specific type, the enchant name is read directly from the weapon slot tooltip, so detection works immediately -- even for enchants already on the weapon at login.",
+            values = enchantValues,
+            order  = 3,
+            get    = function() return data.expectedEnchant or "any" end,
+            set    = function(_, val)
+                data.expectedEnchant = (val == "any") and nil or val
                 NotifyAndRebuild(barKey)
             end,
         }

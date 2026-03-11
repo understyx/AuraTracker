@@ -44,6 +44,7 @@ end
 
 function DragDrop:ClearDragState()
     self.draggedAura = nil
+    self.draggedEnchantSlot = nil
     self:HideDropZones()
     if self.dragIconFrame then
         self.dragIconFrame:Hide()
@@ -356,6 +357,123 @@ function DragDrop:HandleAuraDrop(barKey)
     else
         controller:Print("Failed: " .. (msg or "Unknown error"))
     end
+end
+
+-- ==========================================================
+-- TEMP ENCHANT BUTTON HOOKS (drag from weapon enchant frames)
+-- ==========================================================
+
+-- Maps TempEnchant button index to weapon slot name.
+-- TempEnchant1 corresponds to the main-hand slot (inventory slot 16).
+-- TempEnchant2 corresponds to the off-hand slot (inventory slot 17).
+local TEMP_ENCHANT_SLOTS = { "mainhand", "offhand" }
+
+function DragDrop:HookTempEnchantButton(button, slot)
+    if not button or button._auraTrackerTempEnchantHooked then return end
+    button._auraTrackerTempEnchantHooked = true
+
+    button:RegisterForDrag("LeftButton")
+
+    local oldDragStart = button:GetScript("OnDragStart")
+    local oldDragStop  = button:GetScript("OnDragStop")
+
+    button:SetScript("OnDragStart", function(b)
+        self.draggedEnchantSlot = slot
+        self:ShowDropZones()
+
+        -- Show a floating icon following the cursor
+        local icon
+        local t = b:GetNormalTexture()
+        if t then icon = t:GetTexture() end
+        if not icon then
+            -- Fallback: try the named icon child (e.g. "TempEnchant1Icon")
+            local bName = b:GetName()
+            local child = bName and _G[bName .. "Icon"]
+            if child then icon = child:GetTexture() end
+        end
+        if icon then
+            local dragFrame = self:GetDragFrame()
+            dragFrame.texture:SetTexture(icon)
+            dragFrame:Show()
+        end
+
+        if oldDragStart then oldDragStart(b) end
+    end)
+
+    button:SetScript("OnDragStop", function(b)
+        if self.draggedEnchantSlot then
+            local focus = GetMouseFocus()
+            if self.dropZones then
+                for bk, dropZone in pairs(self.dropZones) do
+                    if focus == dropZone then
+                        self:HandleEnchantSlotDrop(bk)
+                        break
+                    end
+                end
+            end
+            self:ClearDragState()
+        end
+
+        if oldDragStop then oldDragStop(b) end
+    end)
+end
+
+function DragDrop:HandleEnchantSlotDrop(barKey)
+    if not self.draggedEnchantSlot then return end
+    local controller = self.controller
+    local slot = self.draggedEnchantSlot
+    local success, msg = controller:AddWeaponEnchantBySlot(barKey, slot)
+    if success then
+        local label = (slot == "offhand") and "Offhand" or "Mainhand"
+        controller:Print("Now tracking |cff00ff00" .. label .. " Enchant|r (weapon enchant)")
+    elseif msg then
+        controller:Print("Failed: " .. msg)
+    end
+end
+
+function DragDrop:HookTempEnchantButtons()
+    -- Default Blizzard UI: TempEnchant1 (main-hand), TempEnchant2 (off-hand)
+    for i = 1, 2 do
+        local button = _G["TempEnchant" .. i]
+        if button then
+            self:HookTempEnchantButton(button, TEMP_ENCHANT_SLOTS[i])
+        end
+    end
+
+    -- ElvUI: ElvuiPlayerBuffsTempEnchant1 (main-hand), ElvuiPlayerBuffsTempEnchant2 (off-hand)
+    for i = 1, 2 do
+        local button = _G["ElvuiPlayerBuffsTempEnchant" .. i]
+        if button then
+            self:HookTempEnchantButton(button, TEMP_ENCHANT_SLOTS[i])
+        end
+    end
+
+    -- Tooltip hook to catch any other addon's temp enchant buttons lazily.
+    -- When a button showing a weapon-slot inventory tooltip (slot 16/17) is
+    -- hovered and its frame name contains "TempEnchant", we hook it then.
+    self:HookTempEnchantByTooltip()
+end
+
+function DragDrop:HookTempEnchantByTooltip()
+    if self._tempEnchantTooltipHookRegistered then return end
+    self._tempEnchantTooltipHookRegistered = true
+
+    local WEAPON_INVENTORY_SLOTS = { [16] = "mainhand", [17] = "offhand" }
+
+    hooksecurefunc(GameTooltip, "SetInventoryItem", function(_, unit, invSlot)
+        if unit ~= "player" then return end
+        local weaponSlot = WEAPON_INVENTORY_SLOTS[invSlot]
+        if not weaponSlot then return end
+
+        local frame = GameTooltip:GetOwner()
+        if not frame or frame._auraTrackerTempEnchantHooked then return end
+
+        -- Only hook frames whose name identifies them as temp enchant buttons.
+        local frameName = frame:GetName()
+        if frameName and frameName:find("TempEnchant") then
+            self:HookTempEnchantButton(frame, weaponSlot)
+        end
+    end)
 end
 
 function DragDrop:HookAuraButton(button, unit, filter, filterKey)
