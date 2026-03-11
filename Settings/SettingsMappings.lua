@@ -19,12 +19,14 @@ local TRACK_TYPES = {
 }
 
 local AURA_SOURCES = {
-    ["player_buff"]   = "Player – Buff",
-    ["player_debuff"] = "Player – Debuff",
-    ["target_buff"]   = "Target – Buff",
-    ["target_debuff"] = "Target – Debuff",
-    ["focus_buff"]    = "Focus – Buff",
-    ["focus_debuff"]  = "Focus – Debuff",
+    ["player_buff"]        = "Player – Buff",
+    ["player_debuff"]      = "Player – Debuff",
+    ["target_buff"]        = "Target – Buff",
+    ["target_debuff"]      = "Target – Debuff",
+    ["focus_buff"]         = "Focus – Buff",
+    ["focus_debuff"]       = "Focus – Debuff",
+    ["smart_group_buff"]   = "Smart Group – Buff",
+    ["smart_group_debuff"] = "Smart Group – Debuff",
 }
 
 local function GetSpellNameByID(spellId)

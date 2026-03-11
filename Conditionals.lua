@@ -100,6 +100,11 @@ local function SmartGroupPctCheck(getFunc, maxFunc, op, value)
     return false
 end
 
+--- Public accessor so other modules (e.g. TrackedItem) can iterate group units.
+function Conditionals:GetSmartGroupUnits()
+    return GetSmartGroupUnits()
+end
+
 -- ==========================================================
 -- COMPARISON HELPERS
 -- ==========================================================

@@ -9,6 +9,8 @@ local GetWeaponEnchantInfo = GetWeaponEnchantInfo
 local GetTotemInfo = GetTotemInfo
 local GetInventoryItemTexture = GetInventoryItemTexture
 local CreateFrame = CreateFrame
+local UnitAura = UnitAura
+local UnitExists = UnitExists
 local ipairs, pairs = ipairs, pairs
 local math_abs = math.abs
 
@@ -353,6 +355,10 @@ function TrackedItem:UpdateAura()
 
     local filter = self:GetEffectiveFilter()
 
+    if self.unit == "smart_group" then
+        return self:UpdateAuraSmartGroup(filter, wasActive, prevStacks)
+    end
+
     if self.exclusiveGroup then
         return self:UpdateAuraExclusive(filter, wasActive, prevStacks)
     end
@@ -370,6 +376,63 @@ function TrackedItem:UpdateAura()
         self.duration = 0
         self.expiration = 0
         self.stacks = 0
+    end
+
+    return wasActive ~= self.active or prevStacks ~= self.stacks
+end
+
+--- Aura update for the "smart_group" virtual unit.
+--- Returns active = true if ANY group member has the aura.
+function TrackedItem:UpdateAuraSmartGroup(filter, wasActive, prevStacks)
+    local Conditionals = ns.AuraTracker.Conditionals
+    local units = Conditionals and Conditionals:GetSmartGroupUnits() or { "player" }
+
+    self.active = false
+    self.duration = 0
+    self.expiration = 0
+    self.stacks = 0
+
+    if self.exclusiveGroup then
+        -- Exclusive-group variant: scan each group member for any of the exclusive spells.
+        local group = self.exclusiveGroup
+        local groupNames = group.names
+        for _, u in ipairs(units) do
+            if UnitExists(u) then
+                for i = 1, 40 do
+                    local name, _, _, count, _, duration, expiration, _, _, _, spellId =
+                        UnitAura(u, i, filter)
+                    if not name then break end
+                    if spellId == self.auraId or group.spells[spellId]
+                    or name == self.name or (groupNames and groupNames[name]) then
+                        self.active = true
+                        self.duration = duration or 0
+                        self.expiration = expiration or 0
+                        self.stacks = count or 0
+                        local _, _, tex = GetSpellInfo(spellId)
+                        if spellId and tex then self.texture = tex end
+                        break
+                    end
+                end
+            end
+            if self.active then break end
+        end
+        if not self.active then
+            self.texture = self.originalTexture
+        end
+    else
+        for _, u in ipairs(units) do
+            if UnitExists(u) then
+                local name, _, _, count, _, duration, expiration =
+                    UnitAura(u, self.name, nil, filter)
+                if name then
+                    self.active = true
+                    self.duration = duration or 0
+                    self.expiration = expiration or 0
+                    self.stacks = count or 0
+                    break
+                end
+            end
+        end
     end
 
     return wasActive ~= self.active or prevStacks ~= self.stacks

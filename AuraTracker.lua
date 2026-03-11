@@ -165,6 +165,13 @@ function AuraTracker:OnUnitAura(event, unit)
     if unit == "player" or unit == "target" or unit == "focus" then
         UpdateEngine:UpdateAurasForUnit(unit)
     end
+    -- Route group member events so smart_group aura items stay current.
+    -- "player" is always a smart_group member; party/raid tokens cover grouped play.
+    if unit == "player" then
+        UpdateEngine:UpdateAurasForUnit("smart_group")
+    elseif unit:match("^party%d+$") or unit:match("^raid%d+$") then
+        UpdateEngine:UpdateAurasForUnit("smart_group")
+    end
     -- Snapshots are only affected by player buffs and target debuffs;
     -- skip the full bar traversal for unrelated units (e.g. focus, party).
     if unit == "player" or unit == "target" then

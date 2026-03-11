@@ -55,6 +55,14 @@ local function MoveIconToPosition(barKey, barData, spellId, newPos)
     SU.MoveIconToPosition(barKey, barData, spellId, newPos)
 end
 
+--- Build the combined data.type key from separate unit and filter values.
+--- e.g. BuildAuraTypeKey("smart_group", "HELPFUL") → "smart_group_buff"
+local function BuildAuraTypeKey(unit, filter)
+    if not unit then return nil end
+    local suffix = (filter == "HELPFUL") and "buff" or "debuff"
+    return unit .. "_" .. suffix
+end
+
 -- ==========================================================
 -- ICON EDITOR
 -- ==========================================================
@@ -155,20 +163,31 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
 
     -- Aura-specific options
     if hasAuraOptions then
-        generalArgs.editorAuraSource = {
+        generalArgs.editorAuraUnit = {
             type   = "select",
-            name   = "Track From",
-            desc   = "Which unit and buff/debuff type to monitor.",
-            values = L.AURA_SOURCES,
+            name   = "Unit",
+            desc   = "Which unit to monitor for this aura.",
+            values = L.AURA_UNITS,
             order  = 2,
-            get    = function() return data.type or "target_debuff" end,
+            width  = "half",
+            get    = function() return data.unit or "target" end,
             set    = function(_, val)
-                data.type = val
-                local fd = GetFilterData(val)
-                if fd then
-                    data.unit   = fd.unit
-                    data.filter = fd.filter
-                end
+                data.unit   = val
+                data.type   = BuildAuraTypeKey(val, data.filter)
+                NotifyAndRebuild(barKey)
+            end,
+        }
+        generalArgs.editorAuraFilterType = {
+            type   = "select",
+            name   = "Aura Type",
+            desc   = "Whether to track buffs or debuffs on the selected unit.",
+            values = L.AURA_FILTER_TYPES,
+            order  = 2.5,
+            width  = "half",
+            get    = function() return data.filter or "HARMFUL" end,
+            set    = function(_, val)
+                data.filter = val
+                data.type   = BuildAuraTypeKey(data.unit, val)
                 NotifyAndRebuild(barKey)
             end,
         }
