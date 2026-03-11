@@ -59,13 +59,28 @@ function TrackedItem:New(id, trackType, options)
         self.name = itemName
         self.texture = itemTexture
     elseif trackType == Config.TrackType.WEAPON_ENCHANT then
-        -- Prefer GetItemInfo for item-based weapon enchants (sharpening stones, etc.)
+        -- For positive item IDs, prefer the item's own name and icon.
         if type(id) == "number" and id > 0 then
             local itemName, _, _, _, _, _, _, _, _, itemTexture = GetItemInfo(id)
             self.name = itemName
             self.texture = itemTexture
         end
-        -- Fallback for slot-based sentinel IDs or missing item data
+        -- For slot-based sentinel IDs or when item data is not yet cached,
+        -- try to show the expected enchant's name and icon (if one is set).
+        if not self.name then
+            local enchKey = options.expectedEnchant
+            if enchKey and enchKey ~= "any" then
+                local auraId = Config:GetWeaponEnchantAuraId(enchKey)
+                if auraId then
+                    local auraName, _, auraTexture = GetSpellInfo(auraId)
+                    if auraName then
+                        self.name = auraName
+                        self.texture = auraTexture
+                    end
+                end
+            end
+        end
+        -- Final generic fallback.
         if not self.name then
             local slot = options.slot or "mainhand"
             self.name = (slot == "offhand") and "Offhand Enchant" or "Mainhand Enchant"
@@ -117,6 +132,20 @@ function TrackedItem:New(id, trackType, options)
     -- Temporary weapon enchant state
     if trackType == Config.TrackType.WEAPON_ENCHANT then
         self.weaponSlot = options.slot or "mainhand"
+
+        -- Resolve expected enchant: look up the associated player buff spell ID
+        -- so UpdateWeaponEnchant can confirm the *specific* enchant is active.
+        local enchKey = options.expectedEnchant
+        if enchKey and enchKey ~= "any" then
+            local auraId = Config:GetWeaponEnchantAuraId(enchKey)
+            if auraId then
+                self.expectedEnchantAuraId = auraId
+                local auraName = GetSpellInfo(auraId)
+                if auraName then
+                    self.expectedEnchantAuraName = auraName
+                end
+            end
+        end
     end
     
     return self
@@ -407,6 +436,10 @@ end
 --- Sets active=true with the remaining duration when an enchant is present,
 --- active=false when the slot has no enchant.  Duration is set to 0 so that
 --- no cooldown spiral is drawn; only the text countdown is shown.
+---
+--- When a specific expectedEnchantAuraName is set (e.g. "Windfury Weapon"),
+--- the function additionally checks UnitAura("player") to confirm that the
+--- expected buff is actually active, filtering out other enchant types.
 function TrackedItem:UpdateWeaponEnchant()
     local wasActive = self.active
     local hasMainEnchant, mainEndTimeMs, _, hasOffEnchant, offEndTimeMs = GetWeaponEnchantInfo()
@@ -416,6 +449,17 @@ function TrackedItem:UpdateWeaponEnchant()
         hasEnchant, endTimeMs = hasOffEnchant, offEndTimeMs
     else
         hasEnchant, endTimeMs = hasMainEnchant, mainEndTimeMs
+    end
+
+    -- When a specific enchant is expected AND its player buff is detectable,
+    -- verify that the expected buff is currently on the player.  This filters
+    -- out situations where a *different* enchant is on the slot.
+    if hasEnchant and self.expectedEnchantAuraName then
+        local buffName = UnitAura("player", self.expectedEnchantAuraName, nil, "HELPFUL")
+        if not buffName then
+            hasEnchant = false
+            endTimeMs  = nil
+        end
     end
 
     if hasEnchant and endTimeMs and endTimeMs > 0 then

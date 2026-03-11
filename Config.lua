@@ -560,3 +560,61 @@ end
 function Config:GetWeaponEnchantSlot(itemId)
     return self.WeaponEnchantItems[itemId]
 end
+
+-- ==========================================================
+-- EXPECTED WEAPON ENCHANT CHOICES
+-- ==========================================================
+-- Ordered list of named weapon enchant types for the settings dropdown.
+-- key    = internal string stored in DB; "any" = wildcard
+-- label  = human-readable display name
+-- auraId = spell ID of the player buff that confirms this enchant is active.
+--          nil means we cannot detect the specific enchant via UnitAura and
+--          fall back to GetWeaponEnchantInfo (any-enchant detection).
+Config.WeaponEnchantChoices = {
+    { key = "any",         label = "Any Enchant",          auraId = nil   },
+    -- Shaman weapon imbues: the player buff spell ID matches the imbue cast
+    -- spell at max rank, and UnitAura can find it by name for any rank.
+    { key = "windfury",    label = "Windfury Weapon",       auraId = 25505 },
+    { key = "flametongue", label = "Flametongue Weapon",    auraId = 58790 },
+    { key = "frostbrand",  label = "Frostbrand Weapon",     auraId = 58797 },
+    { key = "earthliving", label = "Earthliving Weapon",    auraId = 51994 },
+    -- Warlock stones: rely on GetWeaponEnchantInfo until aura IDs are confirmed.
+    { key = "firestone",   label = "Firestone",             auraId = nil   },
+    { key = "spellstone",  label = "Spellstone",            auraId = nil   },
+    -- Consumable stones: no player buff, any-enchant detection only.
+    { key = "sharpening",  label = "Sharpening Stone",      auraId = nil   },
+    { key = "weightstone", label = "Weightstone",           auraId = nil   },
+}
+
+-- Fast key → {label, auraId} lookup built from the ordered list above.
+Config.WeaponEnchantChoiceByKey = {}
+for _, choice in ipairs(Config.WeaponEnchantChoices) do
+    Config.WeaponEnchantChoiceByKey[choice.key] = choice
+end
+
+-- Maps consumable weapon enchant item IDs → expected enchant key.
+-- Used to auto-set the expected enchant when one of these items is dragged.
+Config.WeaponEnchantItemChoice = {
+    -- Sharpening Stones
+    [3498]  = "sharpening", [3502]  = "sharpening", [3504] = "sharpening",
+    [3521]  = "sharpening", [12404] = "sharpening", [18262] = "sharpening",
+    [28421] = "sharpening", [44452] = "sharpening",
+    -- Weightstones
+    [3239]  = "weightstone", [3240]  = "weightstone", [3241]  = "weightstone",
+    [7964]  = "weightstone", [12643] = "weightstone", [28422] = "weightstone",
+    -- Warlock Spellstones
+    [5522]  = "spellstone", [13601] = "spellstone", [13602] = "spellstone",
+    -- Warlock Firestones
+    [1254]  = "firestone", [13699] = "firestone", [13700] = "firestone", [13701] = "firestone",
+}
+
+-- Returns the expected enchant choice key for a weapon enchant item, or nil.
+function Config:GetWeaponEnchantChoiceForItem(itemId)
+    return self.WeaponEnchantItemChoice[itemId]
+end
+
+-- Returns the auraId (player buff spell ID) for a given choice key, or nil.
+function Config:GetWeaponEnchantAuraId(choiceKey)
+    local choice = choiceKey and self.WeaponEnchantChoiceByKey[choiceKey]
+    return choice and choice.auraId
+end

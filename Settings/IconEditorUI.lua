@@ -211,7 +211,7 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
         }
     end
 
-    -- Weapon enchant slot option
+    -- Weapon enchant slot + expected enchant options
     if isWeaponEnchant then
         generalArgs.editorWeaponSlot = {
             type   = "select",
@@ -222,6 +222,27 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
             get    = function() return data.slot or "mainhand" end,
             set    = function(_, val)
                 data.slot = val
+                NotifyAndRebuild(barKey)
+            end,
+        }
+
+        -- Build the Expected Enchant dropdown from Config.WeaponEnchantChoices.
+        local Config = ns.AuraTracker.Config
+        local enchantValues = {}
+        if Config and Config.WeaponEnchantChoices then
+            for _, choice in ipairs(Config.WeaponEnchantChoices) do
+                enchantValues[choice.key] = choice.label
+            end
+        end
+        generalArgs.editorExpectedEnchant = {
+            type   = "select",
+            name   = "Expected Enchant",
+            desc   = "Which temporary enchant is expected on this slot.\n\n'Any Enchant' activates for any temporary enchant.\n\nFor Shaman imbues the icon confirms the specific enchant is active (via player buff). For other types it checks whether any enchant is present on the slot.",
+            values = enchantValues,
+            order  = 3,
+            get    = function() return data.expectedEnchant or "any" end,
+            set    = function(_, val)
+                data.expectedEnchant = (val == "any") and nil or val
                 NotifyAndRebuild(barKey)
             end,
         }

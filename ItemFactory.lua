@@ -389,12 +389,15 @@ end
 -- WEAPON ENCHANT
 -- ==========================================================
 
-function AuraTracker:CreateWeaponEnchantIcon(barKey, itemId, slot, order, styleOptions, displayMode)
+function AuraTracker:CreateWeaponEnchantIcon(barKey, itemId, slot, order, styleOptions, displayMode, expectedEnchant)
     local bar = self.bars[barKey]
     local db = self:GetBarDB(barKey)
     if not bar or not db then return nil end
 
-    local item = TrackedItem:New(itemId, Config.TrackType.WEAPON_ENCHANT, { slot = slot })
+    local item = TrackedItem:New(itemId, Config.TrackType.WEAPON_ENCHANT, {
+        slot           = slot,
+        expectedEnchant = expectedEnchant,
+    })
     if not item:GetName() then return nil end
 
     local frame = LibFramePool:Acquire(Icon.POOL_KEY, bar:GetFrame())
@@ -421,10 +424,11 @@ function AuraTracker:AddWeaponEnchant(barKey, itemId, slot)
     if db.trackedItems[itemId] then return false, "Already tracked" end
 
     db.trackedItems[itemId] = {
-        order = GetNextOrder(db.trackedItems),
-        trackType = Config.TrackType.WEAPON_ENCHANT,
-        slot = slot or "mainhand",
-        displayMode = Config.DisplayMode.ALWAYS,
+        order           = GetNextOrder(db.trackedItems),
+        trackType       = Config.TrackType.WEAPON_ENCHANT,
+        slot            = slot or "mainhand",
+        displayMode     = Config.DisplayMode.ALWAYS,
+        expectedEnchant = Config:GetWeaponEnchantChoiceForItem(itemId),
     }
     self:RebuildBar(barKey)
 
