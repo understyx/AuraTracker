@@ -87,8 +87,6 @@ function AuraTracker:OnEnable()
     self:RegisterEvent("SPELLS_CHANGED", "OnSpellsChanged")
     self:RegisterEvent("ACTIONBAR_SHOWGRID", "OnDragStart")
     self:RegisterEvent("ACTIONBAR_HIDEGRID", "OnDragEnd")
-    self:RegisterEvent("PET_BAR_SHOWGRID",   "OnDragStart")
-    self:RegisterEvent("PET_BAR_HIDEGRID",   "OnDragEnd")
     self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", "OnCLEU")
     self:RegisterEvent("PLAYER_EQUIPMENT_CHANGED", "OnEquipmentChanged")
     self:RegisterEvent("PLAYER_TOTEM_UPDATE", "OnTotemUpdate")
@@ -99,6 +97,7 @@ function AuraTracker:OnEnable()
     end)
     DragDrop:HookTooltipAuraDetection()
     DragDrop:HookTempEnchantButtons()
+    DragDrop:HookPetActionButtons()
 
 end
 

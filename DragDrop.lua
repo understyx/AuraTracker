@@ -7,6 +7,7 @@ local Config = ns.AuraTracker.Config
 local pairs = pairs
 local GetSpellLink, GetCursorInfo, ClearCursor = GetSpellLink, GetCursorInfo, ClearCursor
 local GetSpellInfo = GetSpellInfo
+local GetPetActionInfo = GetPetActionInfo
 local GetCursorPosition, GetMouseFocus = GetCursorPosition, GetMouseFocus
 local IsShiftKeyDown = IsShiftKeyDown
 local UnitAura = UnitAura
@@ -151,17 +152,20 @@ function DragDrop:HandleDrop(barKey, cursorType, id, subType, isShift)
         return self:HandleItemDrop(barKey, id)
     end
 
+    if cursorType == "petaction" then
+        return self:HandlePetActionDrop(barKey, tonumber(id))
+    end
+
     if cursorType ~= "spell" then return end
 
     local controller = self.controller
 
     local spellLink = GetSpellLink(id, subType)
-    -- Fallback for pet spells: some WotLK builds return nil from GetSpellLink
-    -- when bookType is "pet".  On these builds, GetCursorInfo() may already
-    -- return the real spell ID as 'id' (not a book-slot index), so passing it
-    -- without a bookType to GetSpellLink resolves the link directly.  If that
-    -- also fails, GetSpellInfo(slot, "pet") obtains the spell name which can
-    -- then be used as the key for GetSpellLink.
+    -- Fallback for edge cases where GetSpellLink returns nil with a subType.
+    -- On some WotLK builds GetCursorInfo() returns the real spell ID as 'id'
+    -- rather than a book-slot index, so retry without the subType first.
+    -- If that also fails, GetSpellInfo(id, "pet") can retrieve the spell name
+    -- which is then resolved via GetSpellLink.
     if not spellLink and subType == "pet" then
         spellLink = GetSpellLink(id)
         if not spellLink then
@@ -274,6 +278,57 @@ function DragDrop:HandleItemDrop(barKey, itemId)
         controller:Print("Now tracking |cff00ff00" .. result .. "|r item cooldown")
     elseif result then
         controller:Print("Failed: " .. result)
+    end
+end
+
+-- ==========================================================
+-- PET ACTION BAR DROP HANDLING
+-- ==========================================================
+
+-- Called when a pet action (from PetActionButton1-10) is dropped on a drop zone.
+-- GetPetActionInfo(slot) provides the spell name; GetSpellLink resolves the ID.
+function DragDrop:HandlePetActionDrop(barKey, petSlot)
+    if not petSlot then return end
+
+    local name, _, isToken = GetPetActionInfo(petSlot)
+    if not name or isToken then return end
+
+    local spellLink = GetSpellLink(name)
+    local spellId = spellLink and tonumber(spellLink:match("spell:(%d+)"))
+    if not spellId then return end
+
+    local controller = self.controller
+    local success, result = controller:AddCooldown(barKey, spellId)
+    if success then
+        controller:Print("Now tracking |cff00ff00" .. result .. "|r cooldown")
+    elseif result then
+        controller:Print("Failed: " .. result)
+    end
+end
+
+-- Hook PetActionButton1-10 so that dragging from the pet action bar
+-- shows AuraTracker drop zones.  HookScript is used (not SetScript) to
+-- preserve the secure button's original drag behaviour (PickupPetAction).
+-- The spell is identified at drop time via GetPetActionInfo in HandleDrop.
+function DragDrop:HookPetActionButton(button, index)
+    if not button or button._auraTrackerPetHooked then return end
+    button._auraTrackerPetHooked = true
+
+    button:HookScript("OnDragStart", function()
+        self:OnDragStart()
+    end)
+
+    button:HookScript("OnDragStop", function()
+        self:OnDragEnd()
+    end)
+end
+
+function DragDrop:HookPetActionButtons()
+    for i = 1, 10 do
+        local button = _G["PetActionButton" .. i]
+        if button then
+            self:HookPetActionButton(button, i)
+        end
     end
 end
 
