@@ -109,7 +109,8 @@ function UpdateEngine:UpdateAllCooldowns()
                 if tt == Config.TrackType.COOLDOWN
                 or tt == Config.TrackType.ITEM
                 or tt == Config.TrackType.COOLDOWN_AURA
-                or tt == Config.TrackType.INTERNAL_CD then
+                or tt == Config.TrackType.INTERNAL_CD
+                or tt == Config.TrackType.WEAPON_ENCHANT then
                     item:Update(gcdStart, gcdDuration, db.ignoreGCD)
                     local visChanged = icon:Refresh()
                     needsLayout = needsLayout or visChanged
@@ -219,7 +220,8 @@ function UpdateEngine:RefreshBar(barKey)
             if tt == Config.TrackType.COOLDOWN
             or tt == Config.TrackType.ITEM
             or tt == Config.TrackType.COOLDOWN_AURA
-            or tt == Config.TrackType.INTERNAL_CD then
+            or tt == Config.TrackType.INTERNAL_CD
+            or tt == Config.TrackType.WEAPON_ENCHANT then
                 item:Update(gcdStart, gcdDuration, db.ignoreGCD)
             else
                 item:Update()

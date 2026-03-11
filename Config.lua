@@ -13,7 +13,8 @@ Config.TrackType = {
     AURA          = "aura",
     ITEM          = "item",
     COOLDOWN_AURA = "cooldown_aura",
-    INTERNAL_CD   = "internal_cd",   -- Trinket / enchant internal cooldown tracking via combat log
+    INTERNAL_CD   = "internal_cd",    -- Trinket / enchant internal cooldown tracking via combat log
+    WEAPON_ENCHANT = "weapon_enchant", -- Temporary weapon enchant (sharpening stones, imbues, etc.)
 }
 
 Config.DisplayMode = {
@@ -43,20 +44,163 @@ Config.SpellToAuraMap = {
 }
 
 Config.DefaultDisplayMode = {
-    PLAYER_BUFF   = Config.DisplayMode.ACTIVE_ONLY,
-    PLAYER_DEBUFF = Config.DisplayMode.ACTIVE_ONLY,
-    TARGET_BUFF   = Config.DisplayMode.ALWAYS,
-    TARGET_DEBUFF = Config.DisplayMode.ALWAYS,
-    FOCUS_BUFF    = Config.DisplayMode.ALWAYS,
-    FOCUS_DEBUFF  = Config.DisplayMode.ALWAYS,
-    COOLDOWN      = Config.DisplayMode.ALWAYS,
-    ITEM          = Config.DisplayMode.ALWAYS,
-    COOLDOWN_AURA = Config.DisplayMode.ALWAYS,
-    INTERNAL_CD   = Config.DisplayMode.ALWAYS,
+    PLAYER_BUFF    = Config.DisplayMode.ACTIVE_ONLY,
+    PLAYER_DEBUFF  = Config.DisplayMode.ACTIVE_ONLY,
+    TARGET_BUFF    = Config.DisplayMode.ALWAYS,
+    TARGET_DEBUFF  = Config.DisplayMode.ALWAYS,
+    FOCUS_BUFF     = Config.DisplayMode.ALWAYS,
+    FOCUS_DEBUFF   = Config.DisplayMode.ALWAYS,
+    COOLDOWN       = Config.DisplayMode.ALWAYS,
+    ITEM           = Config.DisplayMode.ALWAYS,
+    COOLDOWN_AURA  = Config.DisplayMode.ALWAYS,
+    INTERNAL_CD    = Config.DisplayMode.ALWAYS,
+    WEAPON_ENCHANT = Config.DisplayMode.ALWAYS,
 }
 
 Config.GCD_SPELL_ID = 61304
 Config.GCD_THRESHOLD = 1.6
+
+-- ==========================================================
+-- WEAPON ENCHANT SPELLS
+-- ==========================================================
+-- Shaman weapon imbue spells that should be tracked as PLAYER_BUFF auras
+-- rather than cooldowns when dragged onto a bar.  Covers all WotLK ranks.
+Config.WeaponEnchantSpells = {
+    -- Windfury Weapon (ranks 1-6)
+    [8232]  = true, [8235]  = true, [10486] = true,
+    [16362] = true, [16363] = true, [25505] = true,
+    -- Flametongue Weapon (ranks 1-9)
+    [8024]  = true, [8027]  = true, [8030]  = true,
+    [16339] = true, [16341] = true, [25488] = true,
+    [58789] = true, [58790] = true, [58791] = true,
+    -- Frostbrand Weapon (ranks 1-7)
+    [8033]  = true, [8038]  = true, [10456] = true,
+    [16355] = true, [16356] = true, [58796] = true, [58797] = true,
+    -- Earthliving Weapon (ranks 1-5)
+    [51990] = true, [51991] = true, [51992] = true,
+    [51993] = true, [51994] = true,
+}
+
+-- ==========================================================
+-- WEAPON ENCHANT ITEMS
+-- ==========================================================
+-- Consumable items that apply a temporary weapon enchant.
+-- Value is the weapon slot ("mainhand" or "offhand").
+Config.WeaponEnchantItems = {
+    -- Sharpening Stones
+    [3498]  = "mainhand",  -- Rough Sharpening Stone
+    [3502]  = "mainhand",  -- Coarse Sharpening Stone
+    [3504]  = "mainhand",  -- Heavy Sharpening Stone
+    [3521]  = "mainhand",  -- Solid Sharpening Stone
+    [12404] = "mainhand",  -- Dense Sharpening Stone
+    [18262] = "mainhand",  -- Elemental Sharpening Stone
+    [28421] = "mainhand",  -- Adamantite Sharpening Stone
+    [44452] = "mainhand",  -- Eternal Sharpening Stone
+    -- Weightstones
+    [3239]  = "mainhand",  -- Rough Weightstone
+    [3240]  = "mainhand",  -- Coarse Weightstone
+    [3241]  = "mainhand",  -- Heavy Weightstone
+    [7964]  = "mainhand",  -- Solid Weightstone
+    [12643] = "mainhand",  -- Dense Weightstone
+    [28422] = "mainhand",  -- Adamantite Weightstone
+    -- Warlock Spellstones / Firestones
+    [5522]  = "mainhand",  -- Minor Spellstone
+    [13601] = "mainhand",  -- Spellstone
+    [13602] = "mainhand",  -- Greater Spellstone
+    [1254]  = "mainhand",  -- Minor Firestone
+    [13699] = "mainhand",  -- Firestone
+    [13700] = "mainhand",  -- Greater Firestone
+    [13701] = "mainhand",  -- Major Firestone
+}
+
+-- ==========================================================
+-- EXAMPLE BARS
+-- ==========================================================
+-- Pre-built bar configurations that users can import from the
+-- Example Bars section in the settings panel.  Each entry has:
+--   class  – "NONE" for all classes, or a class key (e.g. "DEATHKNIGHT")
+--   name   – display name for the bar
+--   desc   – short description shown in the UI
+--   data   – bar data table (direction + trackedItems)
+Config.ExampleBars = {
+    {
+        class = "DEATHKNIGHT",
+        name  = "DK: Disease Tracker",
+        desc  = "Tracks Frost Fever and Blood Plague on the target.",
+        data  = {
+            direction = "HORIZONTAL",
+            trackedItems = {
+                [45477] = { order = 1, trackType = "aura", auraId = 55095,
+                    type = "target_debuff", unit = "target", filter = "HARMFUL",
+                    displayMode = "always", onlyMine = false },
+                [45462] = { order = 2, trackType = "aura", auraId = 55078,
+                    type = "target_debuff", unit = "target", filter = "HARMFUL",
+                    displayMode = "always", onlyMine = false },
+            },
+        },
+    },
+    {
+        class = "WARLOCK",
+        name  = "Warlock: DoT Tracker",
+        desc  = "Tracks Corruption, Curse of Agony, and Haunt on the target.",
+        data  = {
+            direction = "HORIZONTAL",
+            trackedItems = {
+                [47813] = { order = 1, trackType = "aura", auraId = 47813,
+                    type = "target_debuff", unit = "target", filter = "HARMFUL",
+                    displayMode = "always", onlyMine = true },
+                [47865] = { order = 2, trackType = "aura", auraId = 47865,
+                    type = "target_debuff", unit = "target", filter = "HARMFUL",
+                    displayMode = "always", onlyMine = true },
+                [59164] = { order = 3, trackType = "aura", auraId = 59164,
+                    type = "target_debuff", unit = "target", filter = "HARMFUL",
+                    displayMode = "always", onlyMine = true },
+            },
+        },
+    },
+    {
+        class = "WARRIOR",
+        name  = "Warrior: Debuff Tracker",
+        desc  = "Tracks Sunder Armor and Demoralizing Shout on the target.",
+        data  = {
+            direction = "HORIZONTAL",
+            trackedItems = {
+                [47467] = { order = 1, trackType = "aura", auraId = 47467,
+                    type = "target_debuff", unit = "target", filter = "HARMFUL",
+                    displayMode = "always", onlyMine = false },
+                [47437] = { order = 2, trackType = "aura", auraId = 47437,
+                    type = "target_debuff", unit = "target", filter = "HARMFUL",
+                    displayMode = "always", onlyMine = false },
+            },
+        },
+    },
+    {
+        class = "NONE",
+        name  = "Buff Monitor",
+        desc  = "Shows when Kings, Fort, MotW, Wisdom, or Might is missing from you.",
+        data  = {
+            direction = "HORIZONTAL",
+            trackedItems = {
+                [20217] = { order = 1, trackType = "aura", auraId = 20217,
+                    type = "player_buff", unit = "player", filter = "HELPFUL",
+                    displayMode = "missing_only", onlyMine = false },
+                [48162] = { order = 2, trackType = "aura", auraId = 48162,
+                    type = "player_buff", unit = "player", filter = "HELPFUL",
+                    displayMode = "missing_only", onlyMine = false },
+                [48470] = { order = 3, trackType = "aura", auraId = 48470,
+                    type = "player_buff", unit = "player", filter = "HELPFUL",
+                    displayMode = "missing_only", onlyMine = false },
+                [48938] = { order = 4, trackType = "aura", auraId = 48938,
+                    type = "player_buff", unit = "player", filter = "HELPFUL",
+                    displayMode = "missing_only", onlyMine = false },
+                [47436] = { order = 5, trackType = "aura", auraId = 47436,
+                    type = "player_buff", unit = "player", filter = "HELPFUL",
+                    displayMode = "missing_only", onlyMine = false },
+            },
+        },
+    },
+}
+
 
 -- Spells that should be tracked as both a cooldown and an aura simultaneously.
 -- The UI shows both states: cooldown sweep when on CD, aura timer when active.
@@ -392,5 +536,20 @@ function Config:GetDefaultDisplayMode(trackType, filterKey)
     if trackType == self.TrackType.INTERNAL_CD then
         return self.DefaultDisplayMode.INTERNAL_CD
     end
+    if trackType == self.TrackType.WEAPON_ENCHANT then
+        return self.DefaultDisplayMode.WEAPON_ENCHANT
+    end
     return self.DefaultDisplayMode[filterKey] or self.DisplayMode.ALWAYS
+end
+
+function Config:IsWeaponEnchantSpell(spellId)
+    return self.WeaponEnchantSpells[spellId] == true
+end
+
+function Config:IsWeaponEnchantItem(itemId)
+    return self.WeaponEnchantItems[itemId] ~= nil
+end
+
+function Config:GetWeaponEnchantSlot(itemId)
+    return self.WeaponEnchantItems[itemId]
 end

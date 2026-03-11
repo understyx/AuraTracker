@@ -5,6 +5,7 @@ local Config = ns.AuraTracker.Config
 local GetSpellInfo, GetSpellCooldown = GetSpellInfo, GetSpellCooldown
 local GetItemInfo, GetItemCooldown = GetItemInfo, GetItemCooldown
 local GetTime, UnitAura = GetTime, UnitAura
+local GetWeaponEnchantInfo = GetWeaponEnchantInfo
 local math_abs = math.abs
 
 local TrackedItem = {}
@@ -97,6 +98,11 @@ function TrackedItem:New(id, trackType, options)
         self.icdExpiration = 0
         self.equipped = false
     end
+
+    -- Temporary weapon enchant state
+    if trackType == Config.TrackType.WEAPON_ENCHANT then
+        self.weaponSlot = options.slot or "mainhand"
+    end
     
     return self
 end
@@ -168,6 +174,8 @@ function TrackedItem:Update(gcdStart, gcdDuration, ignoreGCD)
         return self:UpdateCooldownAura(gcdStart, gcdDuration, ignoreGCD)
     elseif self.trackType == Config.TrackType.INTERNAL_CD then
         return self:UpdateInternalCD()
+    elseif self.trackType == Config.TrackType.WEAPON_ENCHANT then
+        return self:UpdateWeaponEnchant()
     end
     return false
 end
@@ -377,8 +385,41 @@ function TrackedItem:UpdateCooldownAura(gcdStart, gcdDuration, ignoreGCD)
 end
 
 -- ==========================================================
--- INTERNAL COOLDOWN
+-- WEAPON ENCHANT
 -- ==========================================================
+
+--- Polls GetWeaponEnchantInfo() to track a temporary weapon enchant.
+--- Sets active=true with the remaining duration when an enchant is present,
+--- active=false when the slot has no enchant.  Duration is set to 0 so that
+--- no cooldown spiral is drawn; only the text countdown is shown.
+function TrackedItem:UpdateWeaponEnchant()
+    local wasActive = self.active
+    local hasMainEnchant, mainEndTimeMs, _, hasOffEnchant, offEndTimeMs = GetWeaponEnchantInfo()
+
+    local hasEnchant, endTimeMs
+    if self.weaponSlot == "offhand" then
+        hasEnchant, endTimeMs = hasOffEnchant, offEndTimeMs
+    else
+        hasEnchant, endTimeMs = hasMainEnchant, mainEndTimeMs
+    end
+
+    if hasEnchant and endTimeMs and endTimeMs > 0 then
+        local now = GetTime()
+        self.active     = true
+        self.duration   = 0  -- suppress cooldown spiral; text timer handles countdown
+        self.expiration = now + (endTimeMs / 1000)
+    else
+        self.active     = false
+        self.duration   = 0
+        self.expiration = 0
+    end
+
+    return wasActive ~= self.active
+end
+
+function TrackedItem:GetWeaponSlot()
+    return self.weaponSlot
+end
 
 function TrackedItem:UpdateInternalCD()
     local wasActive = self.active
