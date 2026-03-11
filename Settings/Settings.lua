@@ -97,6 +97,13 @@ local function GetTrackedNameAndIcon(id, trackType)
         end
         return GetItemNameByID(id)
     end
+    if trackType == "totem" then
+        local Config = ns.AuraTracker.Config
+        if Config then
+            return Config:GetTotemElementName(id), nil
+        end
+        return "Totem", nil
+    end
     return GetSpellNameByID(id)
 end
 
@@ -113,6 +120,9 @@ local function GetTrackTypeLabel(trackType, filterKey)
     end
     if trackType == "weapon_enchant" then
         return "|cFFAAFF88weapon enchant|r"
+    end
+    if trackType == "totem" then
+        return "|cFFFF9944totem|r"
     end
     if trackType == "cooldown_aura" then
         local src = filterKey and L.AURA_SOURCES[filterKey] or "aura"

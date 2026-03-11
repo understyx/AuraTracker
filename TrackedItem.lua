@@ -6,6 +6,7 @@ local GetSpellInfo, GetSpellCooldown = GetSpellInfo, GetSpellCooldown
 local GetItemInfo, GetItemCooldown = GetItemInfo, GetItemCooldown
 local GetTime = GetTime
 local GetWeaponEnchantInfo = GetWeaponEnchantInfo
+local GetTotemInfo = GetTotemInfo
 local GetInventoryItemTexture = GetInventoryItemTexture
 local CreateFrame = CreateFrame
 local ipairs, pairs = ipairs, pairs
@@ -141,6 +142,25 @@ function TrackedItem:New(id, trackType, options)
             local weaponInvSlot = (slot == "offhand") and 17 or 16
             self.texture = GetInventoryItemTexture("player", weaponInvSlot)
         end
+    elseif trackType == Config.TrackType.TOTEM then
+        -- Use the dragged spell's name/icon for display; fall back to element name.
+        if options.spellId then
+            local spellName, _, spellTexture = GetSpellInfo(options.spellId)
+            self.name = spellName
+            self.texture = spellTexture
+        end
+        if not self.name then
+            self.name = Config:GetTotemElementName(id)
+        end
+        -- If spell icon is unavailable (e.g. not cached yet), try the active
+        -- totem icon; the texture will be refreshed on the next UpdateTotem call.
+        if not self.texture then
+            local totemSlot = options.totemSlot or Config:GetTotemSlot(id) or 1
+            local _, _, _, _, activeIcon = GetTotemInfo(totemSlot)
+            if activeIcon and activeIcon ~= "" then
+                self.texture = activeIcon
+            end
+        end
     else
         local name, _, texture = GetSpellInfo(self.auraId or id)
         self.name = name
@@ -192,6 +212,11 @@ function TrackedItem:New(id, trackType, options)
         if enchKey and enchKey ~= "any" then
             self.expectedEnchantKey = enchKey
         end
+    end
+
+    -- Totem state
+    if trackType == Config.TrackType.TOTEM then
+        self.totemSlot = options.totemSlot or Config:GetTotemSlot(id) or 1
     end
     
     return self
@@ -266,6 +291,8 @@ function TrackedItem:Update(gcdStart, gcdDuration, ignoreGCD)
         return self:UpdateInternalCD()
     elseif self.trackType == Config.TrackType.WEAPON_ENCHANT then
         return self:UpdateWeaponEnchant()
+    elseif self.trackType == Config.TrackType.TOTEM then
+        return self:UpdateTotem()
     end
     return false
 end
@@ -631,4 +658,42 @@ end
 
 function TrackedItem:GetAuraStacks()
     return self.auraStacks or 0
+end
+
+-- ==========================================================
+-- TOTEM
+-- ==========================================================
+
+--- Polls GetTotemInfo() for the element slot this tracker monitors.
+--- Sets active=true with remaining duration when a totem is placed and alive.
+--- Updates the displayed icon texture to match the currently active totem so
+--- the icon changes dynamically when a different totem of the same element is
+--- dropped (e.g. switching from Searing Totem to Fire Elemental Totem).
+function TrackedItem:UpdateTotem()
+    local wasActive = self.active
+    local now = GetTime()
+
+    local haveTotem, _, startTime, duration, totemIcon = GetTotemInfo(self.totemSlot)
+
+    if haveTotem and duration and duration > 0 then
+        local expiration = startTime + duration
+        if expiration > now then
+            self.active     = true
+            self.duration   = duration
+            self.expiration = expiration
+            -- Reflect the icon of whichever specific totem is placed.
+            if totemIcon and totemIcon ~= "" then
+                self.texture = totemIcon
+            end
+            return wasActive ~= self.active
+        end
+    end
+
+    self.active     = false
+    self.duration   = 0
+    self.expiration = 0
+    -- Restore the icon of the originally dragged spell when no totem is up.
+    self.texture    = self.originalTexture
+
+    return wasActive ~= self.active
 end

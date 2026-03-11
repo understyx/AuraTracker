@@ -6,6 +6,7 @@ local Config = ns.AuraTracker.Config
 -- Localize frequently-used globals
 local pairs = pairs
 local GetSpellLink, GetCursorInfo, ClearCursor = GetSpellLink, GetCursorInfo, ClearCursor
+local GetSpellInfo = GetSpellInfo
 local GetCursorPosition, GetMouseFocus = GetCursorPosition, GetMouseFocus
 local IsShiftKeyDown = IsShiftKeyDown
 local UnitAura = UnitAura
@@ -155,12 +156,38 @@ function DragDrop:HandleDrop(barKey, cursorType, id, subType, isShift)
     local controller = self.controller
 
     local spellLink = GetSpellLink(id, subType)
+    -- Fallback for pet spells: some WotLK builds return nil from GetSpellLink
+    -- when bookType is "pet".  On these builds, GetCursorInfo() may already
+    -- return the real spell ID as 'id' (not a book-slot index), so passing it
+    -- without a bookType to GetSpellLink resolves the link directly.  If that
+    -- also fails, GetSpellInfo(slot, "pet") obtains the spell name which can
+    -- then be used as the key for GetSpellLink.
+    if not spellLink and subType == "pet" then
+        spellLink = GetSpellLink(id)
+        if not spellLink then
+            local petSpellName = GetSpellInfo(id, "pet")
+            if petSpellName then
+                spellLink = GetSpellLink(petSpellName)
+            end
+        end
+    end
     if not spellLink then return end
 
     local spellId = tonumber(spellLink:match("spell:(%d+)"))
     if not spellId then return end
 
     local success, result
+
+    -- Totem spells: add an element-slot totem tracker instead of a spell CD.
+    if Config:IsTotemSpell(spellId) then
+        success, result = controller:AddTotem(barKey, spellId)
+        if success then
+            controller:Print("Now tracking |cff00ff00" .. result .. "|r (totem)")
+        elseif result then
+            controller:Print("Failed: " .. result)
+        end
+        return
+    end
 
     -- Apply global/custom mappings; fall back to shift-key heuristic.
     -- isShift is forwarded so that SpellToAuraMap entries (e.g. Icy Touch →

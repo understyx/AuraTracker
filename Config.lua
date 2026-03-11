@@ -15,6 +15,7 @@ Config.TrackType = {
     COOLDOWN_AURA = "cooldown_aura",
     INTERNAL_CD   = "internal_cd",    -- Trinket / enchant internal cooldown tracking via combat log
     WEAPON_ENCHANT = "weapon_enchant", -- Temporary weapon enchant (sharpening stones, imbues, etc.)
+    TOTEM         = "totem",          -- Shaman totem element slot (fire/earth/water/air)
 }
 
 Config.DisplayMode = {
@@ -55,6 +56,7 @@ Config.DefaultDisplayMode = {
     COOLDOWN_AURA  = Config.DisplayMode.ALWAYS,
     INTERNAL_CD    = Config.DisplayMode.ALWAYS,
     WEAPON_ENCHANT = Config.DisplayMode.ALWAYS,
+    TOTEM          = Config.DisplayMode.ALWAYS,
 }
 
 Config.GCD_SPELL_ID = 61304
@@ -66,6 +68,93 @@ Config.GCD_THRESHOLD = 1.6
 -- and spell IDs are always positive in WoW.
 Config.MAINHAND_ENCHANT_SLOT_ID = -1
 Config.OFFHAND_ENCHANT_SLOT_ID  = -2
+
+-- Sentinel IDs for shaman totem element trackers.  One icon per element slot
+-- tracks whichever totem of that element is currently placed.
+Config.FIRE_TOTEM_ID  = -10
+Config.EARTH_TOTEM_ID = -11
+Config.WATER_TOTEM_ID = -12
+Config.AIR_TOTEM_ID   = -13
+
+-- Maps each totem sentinel ID to the GetTotemInfo slot index.
+-- Slot 1 = Fire, 2 = Earth, 3 = Water, 4 = Air (WotLK 3.3.5 convention).
+Config.TotemSlot = {
+    [-10] = 1,  -- Fire
+    [-11] = 2,  -- Earth
+    [-12] = 3,  -- Water
+    [-13] = 4,  -- Air
+}
+
+-- Human-readable element names used as fallback display text.
+Config.TotemElementName = {
+    [-10] = "Fire Totem",
+    [-11] = "Earth Totem",
+    [-12] = "Water Totem",
+    [-13] = "Air Totem",
+}
+
+-- Maps shaman totem spell IDs to the sentinel totem ID for that element.
+-- When a totem spell is dragged onto a bar, the corresponding element tracker
+-- is added so that any totem of that element is monitored via GetTotemInfo.
+Config.TotemSpells = {
+    -- ==============================
+    -- Fire Totems (slot 1)
+    -- ==============================
+    -- Searing Totem (all ranks)
+    [3599]  = -10, [6363]  = -10, [6364]  = -10, [6365]  = -10, [6366]  = -10,
+    [25533] = -10, [58700] = -10, [58704] = -10, [58705] = -10,
+    [58707] = -10, [58708] = -10,
+    -- Magma Totem ranks 1-6
+    [8190]  = -10, [10585] = -10, [10586] = -10, [10587] = -10,
+    [58731] = -10, [58736] = -10,
+    -- Fire Elemental Totem
+    [2894]  = -10,
+    -- Flametongue Totem ranks 1-5
+    [8227]  = -10, [8249]  = -10, [10526] = -10, [16387] = -10, [25557] = -10,
+    -- ==============================
+    -- Earth Totems (slot 2)
+    -- ==============================
+    -- Stoneskin Totem ranks 1-8
+    [8071]  = -11, [8154]  = -11, [10406] = -11, [10407] = -11, [10408] = -11,
+    [25506] = -11, [58753] = -11, [58759] = -11,
+    -- Strength of Earth Totem ranks 1-7
+    [8075]  = -11, [8160]  = -11, [10442] = -11, [25362] = -11, [25527] = -11,
+    [57622] = -11, [58643] = -11,
+    -- Earth Elemental Totem
+    [2062]  = -11,
+    -- Earthbind Totem
+    [2484]  = -11,
+    -- Tremor Totem
+    [8143]  = -11,
+    -- ==============================
+    -- Water Totems (slot 3)
+    -- ==============================
+    -- Mana Spring Totem ranks 1-6
+    [5675]  = -12, [10495] = -12, [10496] = -12, [10497] = -12,
+    [25570] = -12, [58774] = -12,
+    -- Healing Stream Totem ranks 1-6
+    [5394]  = -12, [6375]  = -12, [6377]  = -12, [10462] = -12,
+    [10463] = -12, [25567] = -12,
+    -- Cleansing Totem
+    [8170]  = -12,
+    -- Mana Tide Totem ranks 1-4
+    [16190] = -12, [17359] = -12, [17360] = -12, [17361] = -12,
+    -- ==============================
+    -- Air Totems (slot 4)
+    -- ==============================
+    -- Windfury Totem ranks 1-5
+    [8512]  = -13, [10613] = -13, [10614] = -13, [25585] = -13, [60112] = -13,
+    -- Wrath of Air Totem
+    [3738]  = -13,
+    -- Grace of Air Totem ranks 1-4
+    [8835]  = -13, [10626] = -13, [10627] = -13, [25359] = -13,
+    -- Grounding Totem
+    [8177]  = -13,
+    -- Tranquil Air Totem
+    [25908] = -13,
+    -- Nature's Resistance Totem ranks 1-4
+    [10595] = -13, [10600] = -13, [10601] = -13, [25574] = -13,
+}
 
 -- ==========================================================
 -- WEAPON ENCHANT SPELLS
@@ -675,4 +764,29 @@ function Config:GetWeaponEnchantKeyFromName(enchantName)
     end
 
     return nil
+end
+
+-- ==========================================================
+-- TOTEM HELPERS
+-- ==========================================================
+
+-- Returns true if spellId is a known shaman totem spell.
+function Config:IsTotemSpell(spellId)
+    return self.TotemSpells[spellId] ~= nil
+end
+
+-- Returns the sentinel totem element ID (e.g. FIRE_TOTEM_ID) for a given
+-- totem spell ID, or nil if the spell is not a known totem.
+function Config:GetTotemIdForSpell(spellId)
+    return self.TotemSpells[spellId]
+end
+
+-- Returns the GetTotemInfo slot index (1-4) for a sentinel totem ID, or nil.
+function Config:GetTotemSlot(totemId)
+    return self.TotemSlot[totemId]
+end
+
+-- Returns the default element name string for a sentinel totem ID.
+function Config:GetTotemElementName(totemId)
+    return self.TotemElementName[totemId] or "Totem"
 end

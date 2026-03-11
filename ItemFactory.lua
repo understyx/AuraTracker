@@ -457,3 +457,60 @@ function AuraTracker:AddWeaponEnchantBySlot(barKey, slot)
 
     return true, label
 end
+
+-- ==========================================================
+-- TOTEM
+-- ==========================================================
+
+function AuraTracker:CreateTotemIcon(barKey, totemId, spellId, order, styleOptions, displayMode)
+    local bar = self.bars[barKey]
+    local db = self:GetBarDB(barKey)
+    if not bar or not db then return nil end
+
+    local totemSlot = Config:GetTotemSlot(totemId)
+    if not totemSlot then return nil end
+
+    local item = TrackedItem:New(totemId, Config.TrackType.TOTEM, {
+        totemSlot = totemSlot,
+        spellId   = spellId,
+    })
+    if not item:GetName() then return nil end
+
+    local frame = LibFramePool:Acquire(Icon.POOL_KEY, bar:GetFrame())
+
+    local finalDisplayMode = displayMode or Config:GetDefaultDisplayMode(Config.TrackType.TOTEM)
+    local icon = Icon:New(frame, item, finalDisplayMode)
+    icon.order = order
+    icon:ApplyStyle(styleOptions)
+
+    self.items[barKey]["totem_" .. totemId] = item
+    bar:AddIcon(icon)
+
+    return icon
+end
+
+function AuraTracker:AddTotem(barKey, spellId)
+    local db = self:GetBarDB(barKey)
+    if not db then return false, "Bar not found" end
+
+    local totemId = Config:GetTotemIdForSpell(spellId)
+    if not totemId then return false, "Not a known totem spell" end
+
+    local elementName = Config:GetTotemElementName(totemId)
+
+    db.trackedItems = db.trackedItems or {}
+    if db.trackedItems[totemId] then return false, elementName .. " already tracked" end
+
+    local spellName = GetSpellInfo(spellId)
+
+    db.trackedItems[totemId] = {
+        order       = GetNextOrder(db.trackedItems),
+        trackType   = Config.TrackType.TOTEM,
+        totemSlot   = Config:GetTotemSlot(totemId),
+        spellId     = spellId,
+        displayMode = Config.DisplayMode.ALWAYS,
+    }
+    self:RebuildBar(barKey)
+
+    return true, spellName or elementName
+end

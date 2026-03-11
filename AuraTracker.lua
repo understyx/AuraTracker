@@ -89,6 +89,7 @@ function AuraTracker:OnEnable()
     self:RegisterEvent("ACTIONBAR_HIDEGRID", "OnDragEnd")
     self:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", "OnCLEU")
     self:RegisterEvent("PLAYER_EQUIPMENT_CHANGED", "OnEquipmentChanged")
+    self:RegisterEvent("PLAYER_TOTEM_UPDATE", "OnTotemUpdate")
 
     DragDrop:HookBuffButtons()
     hooksecurefunc("AuraButton_Update", function(buttonName, index, filter)
@@ -194,6 +195,10 @@ end
 
 function AuraTracker:OnDragEnd()
     DragDrop:OnDragEnd()
+end
+
+function AuraTracker:OnTotemUpdate()
+    UpdateEngine:UpdateAllCooldowns()
 end
 
 -- ==========================================================
