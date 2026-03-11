@@ -27,33 +27,6 @@ function DragDrop:Init(controller, onBarClick)
     self.isDragging = false
     self.draggedAura = nil
     self.dragIconFrame = nil
-    self:_StartCursorPoll()
-end
-
--- Polls the cursor and shows/hides drop zones automatically.
--- This is needed because pet spells and other draggable sources do NOT fire
--- ACTIONBAR_SHOWGRID, so ACTIONBAR_SHOWGRID alone cannot handle all drag types.
--- Updates are throttled to ~20 checks/second to keep overhead negligible.
-function DragDrop:_StartCursorPoll()
-    local dd = self
-    local pollFrame = CreateFrame("Frame")
-    self._cursorPollFrame = pollFrame
-    pollFrame._elapsed = 0
-    pollFrame:SetScript("OnUpdate", function(f, elapsed)
-        f._elapsed = f._elapsed + elapsed
-        if f._elapsed < 0.05 then return end
-        f._elapsed = 0
-        local cursorType = GetCursorInfo()
-        if cursorType == "spell" or cursorType == "item" then
-            if not dd.isDragging then
-                dd:OnDragStart()
-            end
-        else
-            if dd.isDragging then
-                dd:OnDragEnd()
-            end
-        end
-    end)
 end
 
 -- ==========================================================
