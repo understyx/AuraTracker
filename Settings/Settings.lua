@@ -100,7 +100,7 @@ local function GetTrackedNameAndIcon(id, trackType)
     if trackType == "totem" then
         local Config = ns.AuraTracker.Config
         if Config then
-            return Config:GetTotemElementName(id), nil
+            return Config:GetTotemElementName(id), Config:GetTotemElementIcon(id)
         end
         return "Totem", nil
     end

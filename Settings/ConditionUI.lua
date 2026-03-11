@@ -756,7 +756,7 @@ function Conditionals:BuildIconActionsUI(args, owner, orderBase, barKey, notifyF
     args.iconActionsDesc = {
         type  = "description",
         name  = "|cFFAAAAFFFire actions when the icon is clicked, shown, or hidden.\n"
-            .. "Chat message tokens: %name, %stack, %remaining, %target, %player|r",
+            .. "Chat message tokens: %name, %stack, %remaining, %target, %player, %spelllink|r",
         order = orderBase + 0.1,
         width = "full",
     }
@@ -831,7 +831,7 @@ function Conditionals:BuildIconActionsUI(args, owner, orderBase, barKey, notifyF
                 args[prefix .. "message"] = {
                     type  = "input",
                     name  = "Message",
-                    desc  = "Message to send. Tokens: %name, %stack, %remaining, %target, %player",
+                    desc  = "Message to send. Tokens: %name, %stack, %remaining, %target, %player, %spelllink",
                     order = aBase + 0.02,
                     width = "double",
                     get   = function() return action.message or "" end,

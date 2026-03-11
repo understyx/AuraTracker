@@ -693,7 +693,9 @@ function TrackedItem:UpdateTotem()
     self.duration   = 0
     self.expiration = 0
     -- Restore the icon of the originally dragged spell when no totem is up.
-    self.texture    = self.originalTexture
+    -- Fall back to the element's generic icon when originalTexture was not
+    -- available at creation time (spell data not yet cached at login).
+    self.texture    = self.originalTexture or Config:GetTotemElementIcon(self.id)
 
     return wasActive ~= self.active
 end

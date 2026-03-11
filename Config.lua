@@ -96,6 +96,8 @@ Config.TotemElementName = {
 -- Maps shaman totem spell IDs to the sentinel totem ID for that element.
 -- When a totem spell is dragged onto a bar, the corresponding element tracker
 -- is added so that any totem of that element is monitored via GetTotemInfo.
+-- Values correspond to: FIRE_TOTEM_ID=-10, EARTH_TOTEM_ID=-11,
+--                       WATER_TOTEM_ID=-12, AIR_TOTEM_ID=-13 (defined above).
 Config.TotemSpells = {
     -- ==============================
     -- Fire Totems (slot 1)
@@ -207,6 +209,24 @@ Config.WeaponEnchantItems = {
     [13699] = "mainhand",  -- Firestone
     [13700] = "mainhand",  -- Greater Firestone
     [13701] = "mainhand",  -- Major Firestone
+    -- Rogue Poisons
+    -- Instant Poison I-IX
+    [6947]  = "mainhand", [6949]  = "mainhand", [6950]  = "mainhand",
+    [8926]  = "mainhand", [8927]  = "mainhand", [8928]  = "mainhand",
+    [21923] = "mainhand", [43230] = "mainhand", [43231] = "mainhand",
+    -- Deadly Poison I-VII
+    [2892]  = "mainhand", [2893]  = "mainhand", [8984]  = "mainhand",
+    [8985]  = "mainhand", [20844] = "mainhand", [22053] = "mainhand",
+    [43232] = "mainhand",
+    -- Wound Poison I-VI
+    [10918] = "mainhand", [10919] = "mainhand", [10920] = "mainhand",
+    [10921] = "mainhand", [22055] = "mainhand", [43235] = "mainhand",
+    -- Mind-Numbing Poison I-III
+    [5237]  = "mainhand", [6067]  = "mainhand", [6068]  = "mainhand",
+    -- Crippling Poison I-II
+    [3775]  = "mainhand", [3776]  = "mainhand",
+    -- Anesthetic Poison I-II
+    [21835] = "mainhand", [43237] = "mainhand",
 }
 
 -- ==========================================================
@@ -789,4 +809,23 @@ end
 -- Returns the default element name string for a sentinel totem ID.
 function Config:GetTotemElementName(totemId)
     return self.TotemElementName[totemId] or "Totem"
+end
+
+-- Representative spell IDs per element used as a generic icon when no specific
+-- totem spell is stored for an element tracker (e.g. in the settings panel).
+Config.TotemElementSpell = {
+    [-10] = 3599,   -- Searing Totem I  (fire)
+    [-11] = 2484,   -- Earthbind Totem  (earth)
+    [-12] = 5394,   -- Healing Stream Totem I  (water)
+    [-13] = 8512,   -- Windfury Totem I  (air)
+}
+
+-- Returns a generic icon texture for the given sentinel totem ID, or nil.
+function Config:GetTotemElementIcon(totemId)
+    local spellId = self.TotemElementSpell[totemId]
+    if spellId then
+        local _, _, texture = GetSpellInfo(spellId)
+        return texture
+    end
+    return nil
 end
