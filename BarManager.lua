@@ -603,7 +603,7 @@ function AuraTracker:ImportExampleBar(exampleIndex, newBarKey)
         counter   = counter + 1
     end
 
-    -- Deep-copy example tracked items so edits don't mutate the template
+    -- Deep-copy a value so edits don't mutate the template
     local function DeepCopy(t)
         if type(t) ~= "table" then return t end
         local copy = {}
@@ -611,22 +611,29 @@ function AuraTracker:ImportExampleBar(exampleIndex, newBarKey)
         return copy
     end
 
-    db.bars[newBarKey] = {
-        enabled          = true,
-        name             = example.name or newBarKey,
-        direction        = (example.data and example.data.direction) or "HORIZONTAL",
-        iconSize         = 40,
-        spacing          = 2,
-        scale            = 1.0,
-        textSize         = 12,
-        showCooldownText = true,
-        ignoreGCD        = true,
-        trackedItems     = DeepCopy(example.data and example.data.trackedItems or {}),
-        point            = "CENTER",
-        x                = 0,
-        y                = -300,
-        textColor        = { r = 1, g = 1, b = 1, a = 1 },
-    }
+    -- Start from a deep copy of example.data so all authored settings are
+    -- preserved (scale, textColor, classRestriction, talentRequirements, etc.).
+    local d = DeepCopy(example.data or {})
+
+    -- Apply required fields and defaults for anything not set in the template.
+    d.enabled          = true
+    d.name             = example.name or newBarKey
+    d.direction        = d.direction        or "HORIZONTAL"
+    d.iconSize         = d.iconSize         or 40
+    d.spacing          = d.spacing          or 2
+    d.scale            = d.scale            or 1.0
+    d.textSize         = d.textSize         or 12
+    d.showCooldownText = d.showCooldownText ~= false
+    d.ignoreGCD        = d.ignoreGCD        ~= false
+    d.trackedItems     = d.trackedItems     or {}
+    d.loadConditions   = d.loadConditions   or {}
+    d.textColor        = d.textColor        or { r = 1, g = 1, b = 1, a = 1 }
+    -- Position is always reset to a safe default on import.
+    d.point = "CENTER"
+    d.x     = 0
+    d.y     = -300
+
+    db.bars[newBarKey] = d
 
     self:RebuildBar(newBarKey)
     return true, newBarKey
