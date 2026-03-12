@@ -491,6 +491,7 @@ Conditionals.ChatChannels = {
     PARTY = "PARTY",
     RAID  = "RAID",
     EMOTE = "EMOTE",
+    SMART = "SMART",  -- Raid > Party > Say
 }
 
 Conditionals.MAX_ICON_ACTIONS = 5  -- per trigger
@@ -534,6 +535,15 @@ function Conditionals:ExecuteSingleIconAction(action, item)
         end
         if msg ~= "" then
             local channel = action.channel or "SAY"
+            if channel == "SMART" then
+                if GetNumRaidMembers and GetNumRaidMembers() > 0 then
+                    channel = "RAID"
+                elseif GetNumPartyMembers and GetNumPartyMembers() > 0 then
+                    channel = "PARTY"
+                else
+                    channel = "SAY"
+                end
+            end
             if SendChatMessage then
                 SendChatMessage(msg, channel)
             end

@@ -738,6 +738,7 @@ local chatChannelLabels = {
     ["PARTY"] = "Party",
     ["RAID"]  = "Raid",
     ["EMOTE"] = "Emote",
+    ["SMART"] = "Raid > Party > Say",
 }
 
 local iconActionTriggerInfo = {
