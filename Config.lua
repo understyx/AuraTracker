@@ -25,12 +25,14 @@ Config.DisplayMode = {
 }
 
 Config.AuraFilter = {
-    PLAYER_BUFF   = { unit = "player", filter = "HELPFUL" },
-    PLAYER_DEBUFF = { unit = "player", filter = "HARMFUL" },
-    TARGET_BUFF   = { unit = "target", filter = "HELPFUL" },
-    TARGET_DEBUFF = { unit = "target", filter = "HARMFUL" },
-    FOCUS_BUFF    = { unit = "focus",  filter = "HELPFUL" },
-    FOCUS_DEBUFF  = { unit = "focus",  filter = "HARMFUL" },
+    PLAYER_BUFF        = { unit = "player",      filter = "HELPFUL" },
+    PLAYER_DEBUFF      = { unit = "player",      filter = "HARMFUL" },
+    TARGET_BUFF        = { unit = "target",      filter = "HELPFUL" },
+    TARGET_DEBUFF      = { unit = "target",      filter = "HARMFUL" },
+    FOCUS_BUFF         = { unit = "focus",       filter = "HELPFUL" },
+    FOCUS_DEBUFF       = { unit = "focus",       filter = "HARMFUL" },
+    SMART_GROUP_BUFF   = { unit = "smart_group", filter = "HELPFUL" },
+    SMART_GROUP_DEBUFF = { unit = "smart_group", filter = "HARMFUL" },
 }
 
 Config.SpellToAuraMap = {
@@ -45,18 +47,20 @@ Config.SpellToAuraMap = {
 }
 
 Config.DefaultDisplayMode = {
-    PLAYER_BUFF    = Config.DisplayMode.ACTIVE_ONLY,
-    PLAYER_DEBUFF  = Config.DisplayMode.ACTIVE_ONLY,
-    TARGET_BUFF    = Config.DisplayMode.ALWAYS,
-    TARGET_DEBUFF  = Config.DisplayMode.ALWAYS,
-    FOCUS_BUFF     = Config.DisplayMode.ALWAYS,
-    FOCUS_DEBUFF   = Config.DisplayMode.ALWAYS,
-    COOLDOWN       = Config.DisplayMode.ALWAYS,
-    ITEM           = Config.DisplayMode.ALWAYS,
-    COOLDOWN_AURA  = Config.DisplayMode.ALWAYS,
-    INTERNAL_CD    = Config.DisplayMode.ALWAYS,
-    WEAPON_ENCHANT = Config.DisplayMode.ALWAYS,
-    TOTEM          = Config.DisplayMode.ALWAYS,
+    PLAYER_BUFF        = Config.DisplayMode.ACTIVE_ONLY,
+    PLAYER_DEBUFF      = Config.DisplayMode.ACTIVE_ONLY,
+    TARGET_BUFF        = Config.DisplayMode.ALWAYS,
+    TARGET_DEBUFF      = Config.DisplayMode.ALWAYS,
+    FOCUS_BUFF         = Config.DisplayMode.ALWAYS,
+    FOCUS_DEBUFF       = Config.DisplayMode.ALWAYS,
+    SMART_GROUP_BUFF   = Config.DisplayMode.ALWAYS,
+    SMART_GROUP_DEBUFF = Config.DisplayMode.ALWAYS,
+    COOLDOWN           = Config.DisplayMode.ALWAYS,
+    ITEM               = Config.DisplayMode.ALWAYS,
+    COOLDOWN_AURA      = Config.DisplayMode.ALWAYS,
+    INTERNAL_CD        = Config.DisplayMode.ALWAYS,
+    WEAPON_ENCHANT     = Config.DisplayMode.ALWAYS,
+    TOTEM              = Config.DisplayMode.ALWAYS,
 }
 
 Config.GCD_SPELL_ID = 61304

@@ -14,6 +14,7 @@ local UnitHasVehicleUI = UnitHasVehicleUI
 local UnitInVehicle = UnitInVehicle
 local GetNumRaidMembers = GetNumRaidMembers
 local GetNumPartyMembers = GetNumPartyMembers
+local UnitExists = UnitExists
 local GetTalentInfo, GetNumTalentTabs, GetNumTalents = GetTalentInfo, GetNumTalentTabs, GetNumTalents
 local GetTalentTabInfo = GetTalentTabInfo
 local GetGlyphSocketInfo = GetGlyphSocketInfo
@@ -56,6 +57,53 @@ local OLD_SOUND_KEYS = {
     BELL         = "Bell",
 }
 Conditionals.OLD_SOUND_KEYS = OLD_SOUND_KEYS
+
+--- Return unit tokens for the "smart group" check.
+--- Priority: Raid > Party > Solo, matching WeakAuras behaviour.
+--- In a raid   → raid1 .. raidN  (includes the player)
+--- In a party  → "player" + party1 .. partyN
+--- Solo        → { "player" }
+local function GetSmartGroupUnits()
+    local numRaid = GetNumRaidMembers and GetNumRaidMembers() or 0
+    if numRaid > 0 then
+        local units = {}
+        for i = 1, numRaid do
+            units[#units + 1] = "raid" .. i
+        end
+        return units
+    end
+    local numParty = GetNumPartyMembers and GetNumPartyMembers() or 0
+    if numParty > 0 then
+        local units = { "player" }
+        for i = 1, numParty do
+            units[#units + 1] = "party" .. i
+        end
+        return units
+    end
+    return { "player" }
+end
+
+--- Returns true if ANY smart-group member's stat % satisfies op/value.
+--- getFunc / maxFunc are the raw API locals (e.g. UnitHealth/UnitHealthMax).
+local function SmartGroupPctCheck(getFunc, maxFunc, op, value)
+    for _, u in ipairs(GetSmartGroupUnits()) do
+        if UnitExists(u) then
+            local maxVal = maxFunc(u)
+            if maxVal and maxVal > 0 then
+                local pct = (getFunc(u) / maxVal) * 100
+                if Conditionals:CompareValue(pct, op, value) then
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+--- Public accessor so other modules (e.g. TrackedItem) can iterate group units.
+function Conditionals:GetSmartGroupUnits()
+    return GetSmartGroupUnits()
+end
 
 -- ==========================================================
 -- COMPARISON HELPERS
@@ -128,9 +176,10 @@ Conditionals.GroupValues = {
 }
 
 Conditionals.HPUnits = {
-    player = "Player",
-    target = "Target",
-    focus  = "Focus",
+    player      = "Player",
+    target      = "Target",
+    focus       = "Focus",
+    smart_group = "Smart Group",
 }
 
 --- Check one load condition.
@@ -197,6 +246,9 @@ function Conditionals:CheckLoadCondition(cond)
 
     elseif check == "unit_hp" then
         local unit = cond.unit or "target"
+        if unit == "smart_group" then
+            return SmartGroupPctCheck(UnitHealth, UnitHealthMax, cond.op, cond.value)
+        end
         local maxHP = UnitHealthMax(unit)
         if not maxHP or maxHP == 0 then return false end
         local pct = (UnitHealth(unit) / maxHP) * 100
@@ -245,9 +297,10 @@ Conditionals.ActionCheckType = {
 Conditionals.MAX_ACTION_CONDITIONS = 3
 
 Conditionals.PowerUnits = {
-    player = "Player",
-    target = "Target",
-    focus  = "Focus",
+    player      = "Player",
+    target      = "Target",
+    focus       = "Focus",
+    smart_group = "Smart Group",
 }
 
 --- Check one action condition.
@@ -257,6 +310,9 @@ function Conditionals:CheckActionCondition(cond, item)
 
     if check == "unit_hp" then
         local unit = cond.unit or "target"
+        if unit == "smart_group" then
+            return SmartGroupPctCheck(UnitHealth, UnitHealthMax, cond.op, cond.value)
+        end
         local maxHP = UnitHealthMax(unit)
         if not maxHP or maxHP == 0 then return false end
         local pct = (UnitHealth(unit) / maxHP) * 100
@@ -264,6 +320,9 @@ function Conditionals:CheckActionCondition(cond, item)
 
     elseif check == "unit_power" then
         local unit = cond.unit or "player"
+        if unit == "smart_group" then
+            return SmartGroupPctCheck(UnitPower, UnitPowerMax, cond.op, cond.value)
+        end
         local maxPow = UnitPowerMax(unit)
         if not maxPow or maxPow == 0 then return false end
         local pct = (UnitPower(unit) / maxPow) * 100

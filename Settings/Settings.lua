@@ -27,12 +27,24 @@ local L = {
         ["VERTICAL"]   = "Vertical",
     },
     AURA_SOURCES = {
-        ["player_buff"]   = "Player – Buff",
-        ["player_debuff"] = "Player – Debuff",
-        ["target_buff"]   = "Target – Buff",
-        ["target_debuff"] = "Target – Debuff",
-        ["focus_buff"]    = "Focus – Buff",
-        ["focus_debuff"]  = "Focus – Debuff",
+        ["player_buff"]        = "Player – Buff",
+        ["player_debuff"]      = "Player – Debuff",
+        ["target_buff"]        = "Target – Buff",
+        ["target_debuff"]      = "Target – Debuff",
+        ["focus_buff"]         = "Focus – Buff",
+        ["focus_debuff"]       = "Focus – Debuff",
+        ["smart_group_buff"]   = "Smart Group – Buff",
+        ["smart_group_debuff"] = "Smart Group – Debuff",
+    },
+    AURA_UNITS = {
+        ["player"]      = "Player",
+        ["target"]      = "Target",
+        ["focus"]       = "Focus",
+        ["smart_group"] = "Smart Group",
+    },
+    AURA_FILTER_TYPES = {
+        ["HELPFUL"] = "Buff",
+        ["HARMFUL"] = "Debuff",
     },
     -- Display-mode labels that make sense for cooldowns
     COOLDOWN_DISPLAY_MODES = {
