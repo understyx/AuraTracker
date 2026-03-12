@@ -660,6 +660,25 @@ ns.AuraTracker = ns.AuraTracker or {}
 ns.AuraTracker.SettingsPanel = {
     Show = function(self, barKey)
         AceConfigDialog:SetDefaultSize(addonName, 900, 650)
+
+        -- Pre-expand "Any Class" and the player's own class group so bars are
+        -- immediately visible in the tree without any manual clicking.
+        -- AceConfigDialog stores tree-node expansion in:
+        --   GetStatusTable(app).groups.groups["<parentKey>\001<childKey>"] = true
+        -- We seed this BEFORE Open() so the first render is already correct.
+        do
+            local rootStatus = AceConfigDialog:GetStatusTable(addonName)
+            rootStatus.groups = rootStatus.groups or {}
+            rootStatus.groups.groups = rootStatus.groups.groups or {}
+            local tg = rootStatus.groups.groups
+            tg["bars"] = true
+            tg["bars\001class_NONE"] = true
+            local _, playerClass = UnitClass("player")
+            if playerClass then
+                tg["bars\001class_" .. playerClass] = true
+            end
+        end
+
         AceConfigDialog:Open(addonName)
         local f = AceConfigDialog.OpenFrames and AceConfigDialog.OpenFrames[addonName]
         if f and f.frame then
@@ -670,14 +689,22 @@ ns.AuraTracker.SettingsPanel = {
             -- correct class group key so SelectGroup navigates straight to
             -- the bar's settings page.
             local classGroupKey = "class_NONE"
+            local found = false
             if ns.AuraTracker and ns.AuraTracker.Controller then
                 local allBars = ns.AuraTracker.Controller:GetBars()
                 local barData = allBars and allBars[barKey]
-                classGroupKey = "class_" .. GetClassGroupKey(barData and barData.classRestriction)
+                if barData then
+                    classGroupKey = "class_" .. GetClassGroupKey(barData.classRestriction)
+                    found = true
+                end
             end
-            AceConfigDialog:SelectGroup(addonName, "bars", classGroupKey, barKey)
+            if found then
+                AceConfigDialog:SelectGroup(addonName, "bars", classGroupKey, barKey)
+            else
+                AceConfigDialog:SelectGroup(addonName, "bars")
+            end
         else
-            -- Expand the Bars group by default so users see their bars immediately
+            -- Navigate to the bars section; the pre-expanded groups will be visible.
             AceConfigDialog:SelectGroup(addonName, "bars")
         end
     end,
