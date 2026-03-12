@@ -90,16 +90,23 @@ local noRecalcOnRefresh = {
     [1978]  = true, [13549] = true, [13550] = true, [13551] = true,
     [13552] = true, [13553] = true, [13554] = true, [13555] = true,
     [25295] = true, [27016] = true, [49000] = true, [49001] = true,
-    -- DK: Blood Plague — refreshed by Pestilence (Glyph of Disease)
+    -- Priest: Shadow Word: Pain — refreshed by Pain and Suffering (Mind Flay)
+    [589]   = true, [594]   = true, [970]   = true, [9014]  = true,
+    [9752]  = true, [25367] = true, [25368] = true, [48124] = true,
+    [48125] = true,
+    -- DK: Blood Plague — refreshed by Pestilence (Glyph of Disease, when equipped).
+    -- Without the glyph only Plague Strike can refresh it, which is tracked via
+    -- indirectApplicators, so snapshot recalculation is always correct.
     [55078] = true,
-    -- DK: Frost Fever — refreshed by Pestilence (Glyph of Disease)
+    -- DK: Frost Fever — refreshed by Pestilence (Glyph of Disease, when equipped)
+    -- or Howling Blast. Both are tracked via indirectApplicators when cast directly.
     [55095] = true,
 }
 
 -- Abilities that directly (re)apply a noRecalcOnRefresh DoT via a different
 -- spell (e.g. Plague Strike applies Blood Plague). Value = the DoT spell ID.
--- For Corruption/Serpent Sting the cast ID already matches the aura ID,
--- so they don't need entries here.
+-- For Corruption/Serpent Sting/Shadow Word: Pain the cast ID already matches
+-- the aura ID, so they don't need entries here.
 local indirectApplicators = {
     -- Plague Strike → Blood Plague (55078)
     [45462] = 55078, [49917] = 55078, [49918] = 55078,
@@ -107,6 +114,8 @@ local indirectApplicators = {
     -- Icy Touch → Frost Fever (55095)
     [45477] = 55095, [49896] = 55095, [49903] = 55095,
     [49904] = 55095, [49909] = 55095,
+    -- Howling Blast → Frost Fever (55095)
+    [49184] = 55095, [51409] = 55095, [51410] = 55095, [51411] = 55095,
 }
 
 -- Spell crit school per class (shadow=6, nature=4, etc.)
