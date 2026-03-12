@@ -195,6 +195,36 @@ local function BuildTalentList()
 end
 
 -- ==========================================================
+-- CLASS GROUP HELPERS  (used by UpdateBarOptions + SettingsPanel)
+-- ==========================================================
+
+-- Returns the normalised bucket key ("NONE" or an uppercase class token)
+-- for a given classRestriction value stored in bar DB data.
+local function GetClassGroupKey(classRestriction)
+    if classRestriction and classRestriction ~= "NONE" and classRestriction ~= "" then
+        return classRestriction
+    end
+    return "NONE"
+end
+
+-- Returns the coloured display label used for a class-group heading in the
+-- settings tree.  "NONE" maps to "Any Class"; other keys get RAID_CLASS_COLORS
+-- colouring when available.
+local function GetClassGroupName(classKey)
+    if classKey == "NONE" then return "Any Class" end
+    local classLabel = L.CLASSES[classKey] or classKey
+    local color = RAID_CLASS_COLORS and RAID_CLASS_COLORS[classKey]
+    if color then
+        local hex = string_format("%02X%02X%02X",
+            math_floor((color.r or 0) * 255),
+            math_floor((color.g or 0) * 255),
+            math_floor((color.b or 0) * 255))
+        return "|cFF" .. hex .. classLabel .. "|r"
+    end
+    return classLabel
+end
+
+-- ==========================================================
 -- ICON ORDER HELPERS
 -- ==========================================================
 
@@ -555,20 +585,62 @@ function ns.UpdateBarOptions(options)
     -- (when the options panel opens), not at parse time.
     local CreateBarSettings = ns.AuraTracker.CreateBarSettings
 
-    local order = 1
+    -- Group bars by class restriction into collapsible tree nodes.
+    local classBuckets = {}  -- classKey -> list of { key, barData }
+    local classOrder   = {}  -- ordered unique class keys
+
     for key, barData in pairs(bars) do
         if editState.selectedBar == key and not barData then
             editState.selectedBar  = nil
             editState.selectedAura = nil
         end
-        options.args.bars.args[key] = {
+        local classKey = GetClassGroupKey(barData.classRestriction)
+        if not classBuckets[classKey] then
+            classBuckets[classKey] = {}
+            table_insert(classOrder, classKey)
+        end
+        table_insert(classBuckets[classKey], { key = key, barData = barData })
+    end
+
+    -- Sort: "NONE" (Any Class) first, then other classes alphabetically.
+    table_sort(classOrder, function(a, b)
+        if a == "NONE" then return true end
+        if b == "NONE" then return false end
+        return a < b
+    end)
+
+    local groupOrder = 1
+    for _, classKey in ipairs(classOrder) do
+        local bucket = classBuckets[classKey]
+
+        -- Sort bars within each group by display name.
+        table_sort(bucket, function(a, b)
+            return (a.barData.name or a.key) < (b.barData.name or b.key)
+        end)
+
+        -- Build the class group label.
+        local groupName = GetClassGroupName(classKey)
+
+        -- Build child bar entries for this class group.
+        local groupArgs = {}
+        for i, entry in ipairs(bucket) do
+            groupArgs[entry.key] = {
+                type        = "group",
+                name        = entry.barData.name or entry.key,
+                order       = i,
+                childGroups = "tab",
+                args        = CreateBarSettings(entry.key, entry.barData),
+            }
+        end
+
+        options.args.bars.args["class_" .. classKey] = {
             type        = "group",
-            name        = GetBarDisplayName(barData, key),
-            order       = order,
-            childGroups = "tab",
-            args        = CreateBarSettings(key, barData),
+            name        = groupName,
+            order       = groupOrder,
+            childGroups = "tree",
+            args        = groupArgs,
         }
-        order = order + 1
+        groupOrder = groupOrder + 1
     end
 
     return options
@@ -588,15 +660,51 @@ ns.AuraTracker = ns.AuraTracker or {}
 ns.AuraTracker.SettingsPanel = {
     Show = function(self, barKey)
         AceConfigDialog:SetDefaultSize(addonName, 900, 650)
+
+        -- Pre-expand "Any Class" and the player's own class group so bars are
+        -- immediately visible in the tree without any manual clicking.
+        -- AceConfigDialog stores tree-node expansion in:
+        --   GetStatusTable(app).groups.groups["<parentKey>\001<childKey>"] = true
+        -- We seed this BEFORE Open() so the first render is already correct.
+        do
+            local rootStatus = AceConfigDialog:GetStatusTable(addonName)
+            rootStatus.groups = rootStatus.groups or {}
+            rootStatus.groups.groups = rootStatus.groups.groups or {}
+            local tg = rootStatus.groups.groups
+            tg["bars"] = true
+            tg["bars\001class_NONE"] = true
+            local _, playerClass = UnitClass("player")
+            if playerClass then
+                tg["bars\001class_" .. playerClass] = true
+            end
+        end
+
         AceConfigDialog:Open(addonName)
         local f = AceConfigDialog.OpenFrames and AceConfigDialog.OpenFrames[addonName]
         if f and f.frame then
             f.frame:SetMinResize(750, 550)
         end
         if barKey then
-            AceConfigDialog:SelectGroup(addonName, "bars", barKey)
+            -- Bars are now nested under class group nodes.  Resolve the
+            -- correct class group key so SelectGroup navigates straight to
+            -- the bar's settings page.
+            local classGroupKey = "class_NONE"
+            local found = false
+            if ns.AuraTracker and ns.AuraTracker.Controller then
+                local allBars = ns.AuraTracker.Controller:GetBars()
+                local barData = allBars and allBars[barKey]
+                if barData then
+                    classGroupKey = "class_" .. GetClassGroupKey(barData.classRestriction)
+                    found = true
+                end
+            end
+            if found then
+                AceConfigDialog:SelectGroup(addonName, "bars", classGroupKey, barKey)
+            else
+                AceConfigDialog:SelectGroup(addonName, "bars")
+            end
         else
-            -- Expand the Bars group by default so users see their bars immediately
+            -- Navigate to the bars section; the pre-expanded groups will be visible.
             AceConfigDialog:SelectGroup(addonName, "bars")
         end
     end,
