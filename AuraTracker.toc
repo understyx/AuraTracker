@@ -10,6 +10,7 @@ Libraries\Load_Libraries.xml
 Libraries\Ace.xml
 
 Config.lua
+ExampleBars.lua
 TrinketData.lua
 Skin.lua
 Conditionals.lua
