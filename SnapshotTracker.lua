@@ -190,6 +190,17 @@ local critChanceEnemyDebuffs = {
     [30708] = 3, -- Totem of Wrath
 }
 
+-- Heart of the Crusader and Totem of Wrath share the same exclusive
+-- "spell-crit taken" debuff category as Master Poisoner.  Only one of
+-- them can be active on a target at a time, so Master Poisoner must not
+-- be double-counted when either of these is already present.
+local critCategoryExclusiveWithMP = {
+    [21183] = true, -- Heart of the Crusader (Rank 1)
+    [54498] = true, -- Heart of the Crusader (Rank 2)
+    [54499] = true, -- Heart of the Crusader (Rank 3)
+    [30708] = true, -- Totem of Wrath
+}
+
 -- Master Poisoner crit bonus helper
 local function GetMasterPoisonerCritBonus(casterUnit, now)
     if casterUnit then
@@ -449,7 +460,8 @@ function SnapshotTracker:GetCritChance()
 
     -- Enemy debuffs that increase crit chance
     local critDebuff = 0
-    local mpCounted = false
+    local exclusiveCritSeen = false  -- true if HotC or ToW is present
+    local mpBonusValue = nil         -- MP bonus deferred until after the loop
     for i = 1, 40 do
         local name, _, _, count, _, _, _, source, _, _, spellId =
             UnitAura(TARGET_UNIT, i, "HARMFUL")
@@ -460,15 +472,20 @@ function SnapshotTracker:GetCritChance()
             local stacks = count or 0
             if stacks == 0 then stacks = 1 end
             critDebuff = critDebuff + debuffVal * stacks
-        end
-
-        if not mpCounted and critChanceEnemyMasterPoisonerDebuffs[spellId] then
-            local mpBonus = GetMasterPoisonerCritBonus(source, now)
-            if mpBonus then
-                critDebuff = critDebuff + mpBonus
-                mpCounted = true
+            if critCategoryExclusiveWithMP[spellId] then
+                exclusiveCritSeen = true
             end
         end
+
+        if not mpBonusValue and critChanceEnemyMasterPoisonerDebuffs[spellId] then
+            mpBonusValue = GetMasterPoisonerCritBonus(source, now)
+        end
+    end
+    -- Master Poisoner shares the exclusive "spell-crit taken" category with
+    -- Heart of the Crusader and Totem of Wrath; only add it when neither of
+    -- those is already present, to avoid double-counting.
+    if mpBonusValue and not exclusiveCritSeen then
+        critDebuff = critDebuff + mpBonusValue
     end
 
     -- Set-bonus crit
