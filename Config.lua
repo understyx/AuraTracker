@@ -427,13 +427,14 @@ Config.ExclusivePresets = {
             [47893] = true,  -- Fel Intelligence
             [27127] = true, -- Arcane Brilliance
             [61316] = true,  -- Dalaran Brilliance
+            [57567] = true, -- Fel Intelligence
         },
     },
     BUFF_MANA_PER_5 = {
         label  = "Buff - MP5",
         spells = {
             [48936] = true,  -- Blessing of Wisdom
-            [27143] = True, -- Greater Blessing of Wisdom
+            [27143] = true, -- Greater Blessing of Wisdom
             [58774] = true,  -- Mana Spring Totem
         },
     },
