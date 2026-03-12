@@ -373,11 +373,11 @@ Config.ExclusivePresets = {
         spells = {
             [47436] = true,  -- Battle Shout
             [48934] = true,  -- Blessing of Might
-            [20045] = true,  -- Improved Blessing of Might (talent)
+            [REPLACE_ME] = true,  -- Greater blessing of Might)
         },
     },
     BUFF_ATTACK_POWER_PCT = {
-        label  = "Buff - 10% APIncrease",
+        label  = "Buff - 10% Attack Power",
         spells = {
             [19506] = true,  -- Trueshot Aura
             [30811] = true,  -- Unleashed Rage
@@ -385,18 +385,18 @@ Config.ExclusivePresets = {
         },
     },
     BUFF_DAMAGE_INCREASE = {
-        label  = "Buff - Damage 3% Increase",
+        label  = "Buff - 3% Increased Damage",
         spells = {
             [31583] = true,  -- Arcane Empowerment
             [34460] = true,  -- Ferocious Inspiration
             [31869] = true,  -- Sanctified Retribution
         },
     },
-    BUFF_DAMAGE_REDUCTION = {
-        label  = "Damage Reduction",
+    BUFF_SANCT = {
+        label  = "Buff - Blessing of Sanctuary",
         spells = {
             [25899] = true,  -- Blessing of Sanctuary
-            [63944] = true,  -- Renewed Hope
+            [25899] = true,  -- Greater blessing of Sanctuary
         },
     },
     BUFF_HASTE_3PCT = {
@@ -423,25 +423,25 @@ Config.ExclusivePresets = {
     BUFF_INTELLECT = {
         label  = "Buff -  Intellect",
         spells = {
-            [42995] = true,  -- Arcane Intellect / Arcane Brilliance
+            [42995] = true,  -- Arcane Intellect
             [47893] = true,  -- Fel Intelligence
+            [27127] = true, -- Arcane Brilliance
+            [61316] = true,  -- Dalaran Brilliance
         },
     },
     BUFF_MANA_PER_5 = {
         label  = "Buff - MP5",
         spells = {
             [48938] = true,  -- Blessing of Wisdom
-            [20245] = true,  -- Improved Blessing of Wisdom (talent)
+            [27143] = True, -- Greater Blessing of Wisdom
             [58774] = true,  -- Mana Spring Totem
-            [16190] = true,  -- Restorative Totems (Mana Tide Totem)
         },
     },
     BUFF_MELEE_HASTE = {
-        label  = "Buff - Melee Haste",
+        label  = "Buff - 20% Melee Haste",
         spells = {
             [55610] = true,  -- Improved Icy Talons
             [8512]  = true,  -- Windfury Totem
-            [29193] = true,  -- Improved Windfury Totem (talent)
         },
     },
     BUFF_PHYSICAL_CRIT = {
@@ -458,16 +458,6 @@ Config.ExclusivePresets = {
             [15363] = true,  -- Inspiration
         },
     },
-    BUFF_REPLENISHMENT = {
-        label  = "Buff - Replenishment",
-        spells = {
-            [44561] = true,  -- Enduring Winter (Replenishment proc)
-            [53292] = true,  -- Hunting Party (Replenishment proc)
-            [54118] = true,  -- Improved Soul Leech (Replenishment proc)
-            [31878] = true,  -- Judgements of the Wise (Replenishment proc)
-            [48160] = true,  -- Vampiric Touch
-        },
-    },
     BUFF_SPELL_CRIT = {
         label  = "Buff - 5% Spell Crit",
         spells = {
@@ -478,28 +468,32 @@ Config.ExclusivePresets = {
     BUFF_SPIRIT = {
         label  = "Buff - Spirit",
         spells = {
-            [48074] = true,  -- Divine Spirit / Prayer of Spirit
+            [48074] = true,  -- Prayer of Spirit
+            [14752] = true, -- Divine Spirit
             [47893] = true,  -- Fel Intelligence
         },
     },
     BUFF_STAMINA = {
         label  = "Buff - Stamina",
         spells = {
-            [48162] = true,  -- Power Word: Fortitude / Prayer of Fortitude
-            [14767] = true,  -- Improved Power Word: Fortitude (talent)
+            [48162] = true,  -- Prayer of Fortitude
+            [48161] = true, -- Power Word: Fortitude 
+            [69377] = true,  -- Runescroll of Fortitude
         },
     },
     BUFF_STATS = {
         label  = "Buff - Mark of the Wild",
         spells = {
-            [48470] = true,  -- Mark of the Wild / Gift of the Wild
-            [17055] = true,  -- Improved Mark of the Wild (talent)
+            [48470] = true,  -- Gift of the Wild
+            [48469] = true,  -- Mark of the Wild
+            [69381] = true,  -- Drums of the Wild
         },
     },
     BUFF_STATS_PCT = {
         label  = "Stats % (Kings/Sanctuary)",
         spells = {
             [20217] = true,  -- Blessing of Kings
+            [25898] = true, -- Greater Blessing of Kings
         },
     },
 
