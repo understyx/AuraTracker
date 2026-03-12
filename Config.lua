@@ -373,7 +373,7 @@ Config.ExclusivePresets = {
         spells = {
             [47436] = true,  -- Battle Shout
             [48934] = true,  -- Blessing of Might
-            [REPLACE_ME] = true,  -- Greater blessing of Might)
+            [48934] = true,  -- Greater blessing of Might
         },
     },
     BUFF_ATTACK_POWER_PCT = {
@@ -490,10 +490,11 @@ Config.ExclusivePresets = {
         },
     },
     BUFF_STATS_PCT = {
-        label  = "Stats % (Kings/Sanctuary)",
+        label  = "Buff - Kings",
         spells = {
             [20217] = true,  -- Blessing of Kings
             [25898] = true, -- Greater Blessing of Kings
+            [69378] = true, -- Drums of Forgotten Kings
         },
     },
 
