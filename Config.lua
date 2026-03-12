@@ -432,7 +432,7 @@ Config.ExclusivePresets = {
     BUFF_MANA_PER_5 = {
         label  = "Buff - MP5",
         spells = {
-            [48938] = true,  -- Blessing of Wisdom
+            [48936] = true,  -- Blessing of Wisdom
             [27143] = True, -- Greater Blessing of Wisdom
             [58774] = true,  -- Mana Spring Totem
         },
@@ -470,7 +470,7 @@ Config.ExclusivePresets = {
         spells = {
             [48074] = true,  -- Prayer of Spirit
             [14752] = true, -- Divine Spirit
-            [47893] = true,  -- Fel Intelligence
+            [57567] = true,  -- Fel Intelligence
         },
     },
     BUFF_STAMINA = {
