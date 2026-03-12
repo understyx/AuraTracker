@@ -20,6 +20,7 @@ local loadCheckLabelsShared = {
     ["talent"]         = "Talent",
     ["glyph"]          = "Glyph",
     ["in_group"]       = "Group Type",
+    ["aura"]           = "Aura",
 }
 
 local loadCheckLabelsIcon = {
@@ -31,6 +32,7 @@ local loadCheckLabelsIcon = {
     ["glyph"]          = "Glyph",
     ["in_group"]       = "Group Type",
     ["unit_hp"]        = "Unit HP %",
+    ["aura"]           = "Aura",
 }
 
 local condOpLabels = {
@@ -153,8 +155,60 @@ local function GetBarGlyphSpellId(condList)
 end
 
 -- ==========================================================
--- UI: LOAD CONDITION BUILDER
+-- BAR AURA CONDITION HELPERS
 -- ==========================================================
+
+--- Read the tristate value for the aura condition.
+--- Returns nil (off), true (have aura), or false (don't have aura).
+local function GetBarAuraState(condList)
+    for _, cond in ipairs(condList) do
+        if cond.check == "aura" then
+            return (cond.value ~= "missing_aura")
+        end
+    end
+    return nil
+end
+
+--- Write the tristate value for the aura condition.
+--- val: nil = remove, true = have_aura, false = missing_aura.
+local function SetBarAuraState(condList, val, spellId, unit)
+    for i, cond in ipairs(condList) do
+        if cond.check == "aura" then
+            if val == nil then
+                table.remove(condList, i)
+            else
+                cond.value   = val and "have_aura" or "missing_aura"
+                if spellId ~= nil then cond.spellId = spellId end
+                if unit    ~= nil then cond.unit    = unit    end
+            end
+            return
+        end
+    end
+    if val ~= nil then
+        table.insert(condList, {
+            check   = "aura",
+            value   = val and "have_aura" or "missing_aura",
+            spellId = spellId,
+            unit    = unit or "player",
+        })
+    end
+end
+
+--- Return the spell ID stored in the aura condition entry (if any).
+local function GetBarAuraSpellId(condList)
+    for _, cond in ipairs(condList) do
+        if cond.check == "aura" then return cond.spellId end
+    end
+    return nil
+end
+
+--- Return the unit stored in the aura condition entry (or "player").
+local function GetBarAuraUnit(condList)
+    for _, cond in ipairs(condList) do
+        if cond.check == "aura" then return cond.unit or "player" end
+    end
+    return "player"
+end
 
 --- Build AceConfig args for load conditions.
 --- @param args      table   Args table to inject into
@@ -280,6 +334,87 @@ function Conditionals:BuildLoadConditionUI(args, owner, orderBase, barKey, notif
             }
         end
 
+        -- Aura: tristate toggle + unit selector + spell-ID input (shown when not nil)
+        local auraState = GetBarAuraState(condList)
+        args.barCond_aura_toggle = {
+            type     = "toggle",
+            tristate = true,
+            name     = function()
+                local v = GetBarAuraState(condList)
+                if v == true  then return TRISTATE_YES_COLOR .. "Aura" .. TRISTATE_COLOR_END end
+                if v == false then return TRISTATE_NO_COLOR  .. "Aura" .. TRISTATE_COLOR_END end
+                return "Aura"
+            end,
+            desc     = "Yes = bar shows only when the aura is present.  "
+                    .. "No = bar shows only when the aura is absent.",
+            order    = o,
+            width    = "double",
+            get = function()
+                return GetBarAuraState(condList)
+            end,
+            set = function(_, val)
+                local sid  = GetBarAuraSpellId(condList)
+                local unit = GetBarAuraUnit(condList)
+                SetBarAuraState(condList, val, sid, unit)
+                notifyFn(barKey)
+            end,
+        }
+        o = o + 0.05
+
+        if auraState ~= nil then
+            args.barCond_aura_unit = {
+                type   = "select",
+                name   = "Unit",
+                values = self.AuraUnits,
+                order  = o,
+                width  = "normal",
+                get    = function() return GetBarAuraUnit(condList) end,
+                set    = function(_, val)
+                    local sid   = GetBarAuraSpellId(condList)
+                    local state = GetBarAuraState(condList)
+                    SetBarAuraState(condList, state, sid, val)
+                    notifyFn(barKey)
+                end,
+            }
+            o = o + 0.05
+
+            args.barCond_aura_spellId = {
+                type  = "input",
+                name  = "Aura Spell ID",
+                desc  = "Enter the spell ID of the aura to check.\n"
+                     .. "Find spell IDs on Wowhead or with /script print(GetSpellInfo(id)) in-game.",
+                order = o,
+                width = "normal",
+                get   = function()
+                    return tostring(GetBarAuraSpellId(condList) or "")
+                end,
+                set   = function(_, val)
+                    local n     = tonumber(val)
+                    local sid   = (n and n > 0) and n or nil
+                    local state = GetBarAuraState(condList)
+                    local unit  = GetBarAuraUnit(condList)
+                    SetBarAuraState(condList, state, sid, unit)
+                    notifyFn(barKey)
+                end,
+            }
+            o = o + 0.05
+
+            local auraSpellId = GetBarAuraSpellId(condList)
+            args.barCond_aura_name = {
+                type  = "description",
+                name  = function()
+                    if auraSpellId then
+                        local name = GetSpellInfo(auraSpellId)
+                        if name then return "|cFF00FF00" .. name .. "|r" end
+                        return "|cFFFF4400Unknown spell ID|r"
+                    end
+                    return "|cFFAAAAFFEnter a spell ID above.|r"
+                end,
+                order = o,
+                width = "normal",
+            }
+        end
+
         return
     end
 
@@ -351,6 +486,10 @@ function Conditionals:BuildLoadConditionUI(args, owner, orderBase, barKey, notif
                     cond.talentState = true
                 elseif val == "glyph" then
                     cond.glyphSpellId = nil
+                elseif val == "aura" then
+                    cond.unit    = "player"
+                    cond.value   = "have_aura"
+                    cond.spellId = nil
                 end
                 notifyFn(barKey)
             end,
@@ -489,6 +628,58 @@ function Conditionals:BuildLoadConditionUI(args, owner, orderBase, barKey, notif
                     return "|cFFAAAAFFEnter a spell ID to the left.|r"
                 end,
                 order = condBase + 0.03,
+                width = "half",
+            }
+        elseif check == "aura" then
+            args[prefix .. "auraUnit"] = {
+                type   = "select",
+                name   = "Unit",
+                values = self.AuraUnits,
+                order  = condBase + 0.02,
+                width  = "half",
+                get    = function() return cond.unit or "player" end,
+                set    = function(_, val)
+                    cond.unit = val
+                    notifyFn(barKey)
+                end,
+            }
+            args[prefix .. "auraValue"] = {
+                type   = "select",
+                name   = "State",
+                values = self.AuraValues,
+                order  = condBase + 0.03,
+                width  = "half",
+                get    = function() return cond.value or "have_aura" end,
+                set    = function(_, val)
+                    cond.value = val
+                    notifyFn(barKey)
+                end,
+            }
+            args[prefix .. "auraSpellId"] = {
+                type  = "input",
+                name  = "Spell ID",
+                desc  = "Enter the spell ID of the aura to check.\n"
+                    .. "Find spell IDs on Wowhead or with /script print(GetSpellInfo(id)) in-game.",
+                order = condBase + 0.04,
+                width = "half",
+                get   = function() return tostring(cond.spellId or "") end,
+                set   = function(_, val)
+                    local n = tonumber(val)
+                    cond.spellId = (n and n > 0) and n or nil
+                    notifyFn(barKey)
+                end,
+            }
+            args[prefix .. "auraName"] = {
+                type  = "description",
+                name  = function()
+                    if cond.spellId then
+                        local name = GetSpellInfo(cond.spellId)
+                        if name then return "|cFF00FF00" .. name .. "|r" end
+                        return "|cFFFF4400Unknown spell ID|r"
+                    end
+                    return "|cFFAAAAFFEnter a spell ID to the left.|r"
+                end,
+                order = condBase + 0.05,
                 width = "half",
             }
         end

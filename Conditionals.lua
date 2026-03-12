@@ -21,6 +21,7 @@ local GetGlyphSocketInfo = GetGlyphSocketInfo
 local GetNumGlyphSockets = GetNumGlyphSockets
 local GetSpellInfo = GetSpellInfo
 local GetSpellLink = GetSpellLink
+local UnitAura = UnitAura
 local SendChatMessage = SendChatMessage
 local UnitName = UnitName
 local math_floor = math.floor
@@ -153,6 +154,7 @@ Conditionals.LoadCheckType = {
     GLYPH          = "glyph",           -- has a specific glyph
     UNIT_HP        = "unit_hp",         -- [Unit] health % (icon-only)
     IN_GROUP       = "in_group",        -- Solo / Party / Raid / Party or Raid
+    AURA           = "aura",            -- [Unit] has/missing a specific aura (by spell ID)
 }
 
 Conditionals.MAX_LOAD_CONDITIONS = 5
@@ -181,6 +183,33 @@ Conditionals.HPUnits = {
     focus       = "Focus",
     smart_group = "Smart Group",
 }
+
+Conditionals.AuraUnits = {
+    player      = "Player",
+    target      = "Target",
+    smart_group = "Smart Group",
+}
+
+Conditionals.AuraValues = {
+    have_aura    = "Have Aura",
+    missing_aura = "Don't Have Aura",
+}
+
+--- Return true if `unit` currently has an aura (buff or debuff) with the given spell ID.
+local function UnitHasAuraBySpellId(unit, spellId)
+    if not UnitExists(unit) then return false end
+    for i = 1, 40 do
+        local name, _, _, _, _, _, _, _, _, _, sid = UnitAura(unit, i, "HELPFUL")
+        if not name then break end
+        if sid == spellId then return true end
+    end
+    for i = 1, 40 do
+        local name, _, _, _, _, _, _, _, _, _, sid = UnitAura(unit, i, "HARMFUL")
+        if not name then break end
+        if sid == spellId then return true end
+    end
+    return false
+end
 
 --- Check one load condition.
 function Conditionals:CheckLoadCondition(cond)
@@ -263,6 +292,32 @@ function Conditionals:CheckLoadCondition(cond)
         if expected == "raid" then return inRaid end
         if expected == "group" then return inRaid or inParty end
         return false
+
+    elseif check == "aura" then
+        local spellId = cond.spellId
+        if not spellId then return false end
+        local unit     = cond.unit  or "player"
+        local wantAura = (cond.value ~= "missing_aura")
+        if unit == "smart_group" then
+            local units = GetSmartGroupUnits()
+            if wantAura then
+                -- passes when any group member has the aura
+                for _, u in ipairs(units) do
+                    if UnitHasAuraBySpellId(u, spellId) then return true end
+                end
+                return false
+            else
+                -- passes when any group member is missing the aura
+                for _, u in ipairs(units) do
+                    if UnitExists(u) and not UnitHasAuraBySpellId(u, spellId) then
+                        return true
+                    end
+                end
+                return false
+            end
+        end
+        local has = UnitHasAuraBySpellId(unit, spellId)
+        return wantAura == has
     end
 
     return true  -- unknown check type => pass
