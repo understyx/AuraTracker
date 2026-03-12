@@ -499,10 +499,10 @@ end
 -- IMPORT / EXPORT
 -- ==========================================================
 
---- Serialises the bar's configuration (name, style, tracked icons) to a
---- portable string that can be shared and re-imported.  Position and class/
---- talent restrictions are intentionally excluded so an imported bar starts
---- at the screen centre and is visible for any character.
+--- Serialises the bar's configuration (name, style, tracked icons, load
+--- conditions) to a portable string that can be shared and re-imported.
+--- Position and class/talent restrictions are intentionally excluded so an
+--- imported bar starts at the screen centre and is visible for any character.
 function AuraTracker:ExportBar(barKey)
     local db = self:GetBarDB(barKey)
     if not db then return nil, "Bar not found" end
@@ -517,6 +517,7 @@ function AuraTracker:ExportBar(barKey)
         showCooldownText = db.showCooldownText,
         ignoreGCD        = db.ignoreGCD,
         trackedItems     = db.trackedItems,
+        loadConditions   = db.loadConditions,
     }
 
     local AceSerializer = LibStub("AceSerializer-3.0")
@@ -571,6 +572,7 @@ function AuraTracker:ImportBar(str, newBarKey)
         showCooldownText = exportData.showCooldownText ~= false,
         ignoreGCD        = exportData.ignoreGCD ~= false,
         trackedItems     = exportData.trackedItems or {},
+        loadConditions   = exportData.loadConditions or {},
         point            = "CENTER",
         x                = 0,
         y                = -300,
