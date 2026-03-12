@@ -424,7 +424,6 @@ Config.ExclusivePresets = {
         label  = "Buff -  Intellect",
         spells = {
             [42995] = true,  -- Arcane Intellect
-            [47893] = true,  -- Fel Intelligence
             [27127] = true, -- Arcane Brilliance
             [61316] = true,  -- Dalaran Brilliance
             [57567] = true, -- Fel Intelligence
