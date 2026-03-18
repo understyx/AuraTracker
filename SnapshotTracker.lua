@@ -90,16 +90,23 @@ local noRecalcOnRefresh = {
     [1978]  = true, [13549] = true, [13550] = true, [13551] = true,
     [13552] = true, [13553] = true, [13554] = true, [13555] = true,
     [25295] = true, [27016] = true, [49000] = true, [49001] = true,
-    -- DK: Blood Plague — refreshed by Pestilence (Glyph of Disease)
+    -- Priest: Shadow Word: Pain — refreshed by Pain and Suffering (Mind Flay)
+    [589]   = true, [594]   = true, [970]   = true, [9014]  = true,
+    [9752]  = true, [25367] = true, [25368] = true, [48124] = true,
+    [48125] = true,
+    -- DK: Blood Plague — refreshed by Pestilence (Glyph of Disease, when equipped).
+    -- Without the glyph only Plague Strike can refresh it, which is tracked via
+    -- indirectApplicators, so snapshot recalculation is always correct.
     [55078] = true,
-    -- DK: Frost Fever — refreshed by Pestilence (Glyph of Disease)
+    -- DK: Frost Fever — refreshed by Pestilence (Glyph of Disease, when equipped)
+    -- or Howling Blast. Both are tracked via indirectApplicators when cast directly.
     [55095] = true,
 }
 
 -- Abilities that directly (re)apply a noRecalcOnRefresh DoT via a different
 -- spell (e.g. Plague Strike applies Blood Plague). Value = the DoT spell ID.
--- For Corruption/Serpent Sting the cast ID already matches the aura ID,
--- so they don't need entries here.
+-- For Corruption/Serpent Sting/Shadow Word: Pain the cast ID already matches
+-- the aura ID, so they don't need entries here.
 local indirectApplicators = {
     -- Plague Strike → Blood Plague (55078)
     [45462] = 55078, [49917] = 55078, [49918] = 55078,
@@ -107,6 +114,8 @@ local indirectApplicators = {
     -- Icy Touch → Frost Fever (55095)
     [45477] = 55095, [49896] = 55095, [49903] = 55095,
     [49904] = 55095, [49909] = 55095,
+    -- Howling Blast → Frost Fever (55095)
+    [49184] = 55095, [51409] = 55095, [51410] = 55095, [51411] = 55095,
 }
 
 -- Spell crit school per class (shadow=6, nature=4, etc.)
@@ -179,6 +188,17 @@ local critChanceEnemyDebuffs = {
     [54498] = 2, -- Heart of the Crusader (Rank 2)
     [54499] = 3, -- Heart of the Crusader (Rank 3)
     [30708] = 3, -- Totem of Wrath
+}
+
+-- Heart of the Crusader and Totem of Wrath share the same exclusive
+-- "spell-crit taken" debuff category as Master Poisoner.  Only one of
+-- them can be active on a target at a time, so Master Poisoner must not
+-- be double-counted when either of these is already present.
+local critCategoryExclusiveWithMP = {
+    [21183] = true, -- Heart of the Crusader (Rank 1)
+    [54498] = true, -- Heart of the Crusader (Rank 2)
+    [54499] = true, -- Heart of the Crusader (Rank 3)
+    [30708] = true, -- Totem of Wrath
 }
 
 -- Master Poisoner crit bonus helper
@@ -440,7 +460,8 @@ function SnapshotTracker:GetCritChance()
 
     -- Enemy debuffs that increase crit chance
     local critDebuff = 0
-    local mpCounted = false
+    local exclusiveCritSeen = false  -- true if HotC or ToW is present
+    local mpBonusValue = nil         -- MP bonus deferred until after the loop
     for i = 1, 40 do
         local name, _, _, count, _, _, _, source, _, _, spellId =
             UnitAura(TARGET_UNIT, i, "HARMFUL")
@@ -451,15 +472,20 @@ function SnapshotTracker:GetCritChance()
             local stacks = count or 0
             if stacks == 0 then stacks = 1 end
             critDebuff = critDebuff + debuffVal * stacks
-        end
-
-        if not mpCounted and critChanceEnemyMasterPoisonerDebuffs[spellId] then
-            local mpBonus = GetMasterPoisonerCritBonus(source, now)
-            if mpBonus then
-                critDebuff = critDebuff + mpBonus
-                mpCounted = true
+            if critCategoryExclusiveWithMP[spellId] then
+                exclusiveCritSeen = true
             end
         end
+
+        if not mpBonusValue and critChanceEnemyMasterPoisonerDebuffs[spellId] then
+            mpBonusValue = GetMasterPoisonerCritBonus(source, now)
+        end
+    end
+    -- Master Poisoner shares the exclusive "spell-crit taken" category with
+    -- Heart of the Crusader and Totem of Wrath; only add it when neither of
+    -- those is already present, to avoid double-counting.
+    if mpBonusValue and not exclusiveCritSeen then
+        critDebuff = critDebuff + mpBonusValue
     end
 
     -- Set-bonus crit
