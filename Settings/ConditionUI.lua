@@ -51,7 +51,7 @@ local actionCheckLabels = {
 }
 
 -- ==========================================================
--- BAR LOAD CONDITION TRISTATE HELPERS
+-- LOAD CONDITION TRISTATE HELPERS  (shared: bars + icons)
 -- ==========================================================
 
 -- Color codes for tristate toggle labels.
@@ -60,7 +60,7 @@ local TRISTATE_NO_COLOR  = "|cFFCC0000"  -- red    (excluded / no)
 local TRISTATE_COLOR_END = "|r"
 
 -- Mapping: check type → {trueVal, falseVal} used in the loadConditions array.
-local barTristateMap = {
+local tristateMap = {
     in_combat      = { trueVal = "yes",   falseVal = "no" },
     alive          = { trueVal = "alive", falseVal = "dead" },
     mounted        = { trueVal = "yes",   falseVal = "no" },
@@ -70,8 +70,8 @@ local barTristateMap = {
 
 --- Read the tristate value for a simple boolean condition.
 --- Returns nil (any/off), true (must be yes), or false (must be no).
-local function GetBarTristateCond(condList, checkType)
-    local map = barTristateMap[checkType]
+local function GetTristateCondValue(condList, checkType)
+    local map = tristateMap[checkType]
     if not map then return nil end
     for _, cond in ipairs(condList) do
         if cond.check == checkType then
@@ -89,8 +89,8 @@ end
 
 --- Write a tristate value for a simple boolean condition.
 --- val: nil = remove condition, true = set to trueVal, false = set to falseVal.
-local function SetBarTristateCond(condList, checkType, val)
-    local map = barTristateMap[checkType]
+local function SetTristateCondValue(condList, checkType, val)
+    local map = tristateMap[checkType]
     if not map then return end
     for i, cond in ipairs(condList) do
         if cond.check == checkType then
@@ -113,7 +113,7 @@ end
 
 --- Read the tristate value for the glyph condition.
 --- Returns nil (any), true (has glyph), or false (doesn't have glyph).
-local function GetBarGlyphTristate(condList)
+local function GetGlyphTristate(condList)
     for _, cond in ipairs(condList) do
         if cond.check == "glyph" then
             return not cond.glyphNegate
@@ -123,7 +123,7 @@ local function GetBarGlyphTristate(condList)
 end
 
 --- Set the tristate value for the glyph condition.
-local function SetBarGlyphTristate(condList, val, spellId)
+local function SetGlyphTristate(condList, val, spellId)
     for i, cond in ipairs(condList) do
         if cond.check == "glyph" then
             if val == nil then
@@ -145,7 +145,7 @@ local function SetBarGlyphTristate(condList, val, spellId)
 end
 
 --- Return the spell ID stored in the glyph condition entry (if any).
-local function GetBarGlyphSpellId(condList)
+local function GetGlyphSpellId(condList)
     for _, cond in ipairs(condList) do
         if cond.check == "glyph" then
             return cond.glyphSpellId
@@ -210,6 +210,96 @@ local function GetBarAuraUnit(condList)
     return "player"
 end
 
+-- ==========================================================
+-- ICON LOAD CONDITION HELPERS
+-- ==========================================================
+
+--- Return the talent condition entry, or nil if none.
+local function GetIconTalentCond(condList)
+    for _, cond in ipairs(condList) do
+        if cond.check == "talent" then return cond end
+    end
+    return nil
+end
+
+--- Read the tristate value for the talent condition.
+--- Returns nil (any), true (must have talent), false (must NOT have talent).
+local function GetIconTalentTristate(condList)
+    for _, cond in ipairs(condList) do
+        if cond.check == "talent" then
+            if cond.talentState == false then return false end
+            return true
+        end
+    end
+    return nil
+end
+
+--- Write the tristate value for the talent condition.
+--- val: nil = remove, true = must have, false = must NOT have.
+local function SetIconTalentTristate(condList, val, talentKey)
+    for i, cond in ipairs(condList) do
+        if cond.check == "talent" then
+            if val == nil then
+                table.remove(condList, i)
+            else
+                cond.talentState = val
+                if talentKey ~= nil then cond.talentKey = talentKey end
+            end
+            return
+        end
+    end
+    if val ~= nil then
+        table.insert(condList, {
+            check       = "talent",
+            talentKey   = talentKey,
+            talentState = val,
+        })
+    end
+end
+
+--- Return the talentKey stored in the talent condition entry (if any).
+local function GetIconTalentKey(condList)
+    for _, cond in ipairs(condList) do
+        if cond.check == "talent" then return cond.talentKey end
+    end
+    return nil
+end
+
+--- Return the unit_hp condition entry, or nil if none.
+local function GetIconUnitHPCond(condList)
+    for _, cond in ipairs(condList) do
+        if cond.check == "unit_hp" then return cond end
+    end
+    return nil
+end
+
+--- Return true if a unit_hp condition is currently active.
+local function GetIconUnitHPEnabled(condList)
+    return GetIconUnitHPCond(condList) ~= nil
+end
+
+--- Enable or disable the unit_hp condition.
+--- When enabling, inserts a default entry if none exists.
+--- When disabling, removes the entry.
+local function SetIconUnitHPEnabled(condList, enabled)
+    for i, cond in ipairs(condList) do
+        if cond.check == "unit_hp" then
+            if not enabled then
+                table.remove(condList, i)
+            end
+            return
+        end
+    end
+    if enabled then
+        table.insert(condList, {
+            check = "unit_hp",
+            unit  = "target",
+            op    = "<=",
+            value = 35,
+        })
+    end
+end
+
 --- Build AceConfig args for load conditions.
 --- @param args      table   Args table to inject into
 --- @param owner     table   DB table that has .loadConditions
@@ -252,7 +342,7 @@ function Conditionals:BuildLoadConditionUI(args, owner, orderBase, barKey, notif
                 type     = "toggle",
                 tristate = true,
                 name     = function()
-                    local v = GetBarTristateCond(condList, check)
+                    local v = GetTristateCondValue(condList, check)
                     if v == true  then return TRISTATE_YES_COLOR .. label .. TRISTATE_COLOR_END end
                     if v == false then return TRISTATE_NO_COLOR  .. label .. TRISTATE_COLOR_END end
                     return label
@@ -261,10 +351,10 @@ function Conditionals:BuildLoadConditionUI(args, owner, orderBase, barKey, notif
                 order    = o,
                 width    = "double",
                 get = function()
-                    return GetBarTristateCond(condList, check)
+                    return GetTristateCondValue(condList, check)
                 end,
                 set = function(_, val)
-                    SetBarTristateCond(condList, check, val)
+                    SetTristateCondValue(condList, check, val)
                     notifyFn(barKey)
                 end,
             }
@@ -272,12 +362,12 @@ function Conditionals:BuildLoadConditionUI(args, owner, orderBase, barKey, notif
         end
 
         -- Glyph: tristate toggle + spell-ID input (shown when not nil)
-        local glyphState = GetBarGlyphTristate(condList)
+        local glyphState = GetGlyphTristate(condList)
         args.barCond_glyph_toggle = {
             type     = "toggle",
             tristate = true,
             name     = function()
-                local v = GetBarGlyphTristate(condList)
+                local v = GetGlyphTristate(condList)
                 if v == true  then return TRISTATE_YES_COLOR .. "Glyph" .. TRISTATE_COLOR_END end
                 if v == false then return TRISTATE_NO_COLOR  .. "Glyph" .. TRISTATE_COLOR_END end
                 return "Glyph"
@@ -287,11 +377,11 @@ function Conditionals:BuildLoadConditionUI(args, owner, orderBase, barKey, notif
             order    = o,
             width    = "double",
             get = function()
-                return GetBarGlyphTristate(condList)
+                return GetGlyphTristate(condList)
             end,
             set = function(_, val)
-                local sid = GetBarGlyphSpellId(condList)
-                SetBarGlyphTristate(condList, val, sid)
+                local sid = GetGlyphSpellId(condList)
+                SetGlyphTristate(condList, val, sid)
                 notifyFn(barKey)
             end,
         }
@@ -306,19 +396,19 @@ function Conditionals:BuildLoadConditionUI(args, owner, orderBase, barKey, notif
                 order = o,
                 width = "normal",
                 get   = function()
-                    return tostring(GetBarGlyphSpellId(condList) or "")
+                    return tostring(GetGlyphSpellId(condList) or "")
                 end,
                 set   = function(_, val)
                     local n = tonumber(val)
                     local sid = (n and n > 0) and n or nil
-                    local state = GetBarGlyphTristate(condList)
-                    SetBarGlyphTristate(condList, state, sid)
+                    local state = GetGlyphTristate(condList)
+                    SetGlyphTristate(condList, state, sid)
                     notifyFn(barKey)
                 end,
             }
             o = o + 0.05
 
-            local spellId = GetBarGlyphSpellId(condList)
+            local spellId = GetGlyphSpellId(condList)
             args.barCond_glyph_name = {
                 type  = "description",
                 name  = function()
@@ -419,223 +509,325 @@ function Conditionals:BuildLoadConditionUI(args, owner, orderBase, barKey, notif
     end
 
     -- -------------------------------------------------------
-    -- ICON MODE: add/remove with dropdowns (unchanged)
+    -- ICON MODE: WeakAuras-style tristate toggles.
+    -- Singleton conditions (in_combat, alive, mounted, etc.) each
+    -- get one tristate toggle: nil = any, true = required (green),
+    -- false = excluded (red).  Aura is the only type where multiple
+    -- entries make sense and keeps an add/remove list.
     -- -------------------------------------------------------
-    local checkLabels = loadCheckLabelsIcon
-    local maxCond = self.MAX_LOAD_CONDITIONS
+    local condList = owner.loadConditions
+    local o = orderBase
 
-    args.loadCondHeader = {
-        type  = "header",
-        name  = "Load Conditions",
-        order = orderBase,
-    }
-    args.loadCondDesc = {
+    args.iconLoadDesc = {
         type  = "description",
-        name  = "|cFFAAAAFFAll conditions must be met for this icon to be visible.|r",
-        order = orderBase + 0.1,
+        name  = "|cFFAAAAFFDefine when this icon should be visible.\n"
+             .. "|cFF00CC00Green|r = required   "
+             .. "|cFFCC0000Red|r = excluded   "
+             .. "Unchecked = any|r",
+        order = o,
         width = "full",
     }
+    o = o + 0.1
 
-    if #owner.loadConditions < maxCond then
-        args.loadCondAdd = {
-            type = "execute",
-            name = "+ Add Load Condition",
-            order = orderBase + 0.2,
-            width = "normal",
-            func = function()
-                table.insert(owner.loadConditions, {
-                    check = "in_combat",
-                    value = "yes",
-                })
+    -- --- Simple boolean tristates ---
+    local iconSimpleTypes = {
+        { check = "in_combat",
+          label = "In Combat",
+          hint  = "Yes = icon shows only in combat.  No = icon shows only out of combat." },
+        { check = "alive",
+          label = "Alive",
+          hint  = "Yes = icon shows only while alive.  No = icon shows only while dead." },
+        { check = "mounted",
+          label = "Mounted",
+          hint  = "Yes = icon shows only while mounted.  No = icon shows only while not mounted." },
+        { check = "has_vehicle_ui",
+          label = "Has Vehicle UI",
+          hint  = "Yes = icon shows only while in a vehicle.  No = icon shows only outside a vehicle." },
+        { check = "in_group",
+          label = "In Group",
+          hint  = "Yes = icon shows only in a party or raid.  No = icon shows only while solo." },
+    }
+
+    for _, ct in ipairs(iconSimpleTypes) do
+        local check = ct.check
+        local label = ct.label
+        args["iconCond_" .. check] = {
+            type     = "toggle",
+            tristate = true,
+            name     = function()
+                local v = GetTristateCondValue(condList, check)
+                if v == true  then return TRISTATE_YES_COLOR .. label .. TRISTATE_COLOR_END end
+                if v == false then return TRISTATE_NO_COLOR  .. label .. TRISTATE_COLOR_END end
+                return label
+            end,
+            desc     = ct.hint,
+            order    = o,
+            width    = "double",
+            get = function()
+                return GetTristateCondValue(condList, check)
+            end,
+            set = function(_, val)
+                SetTristateCondValue(condList, check, val)
                 notifyFn(barKey)
             end,
         }
+        o = o + 0.05
     end
 
-    for ci, cond in ipairs(owner.loadConditions) do
-        local condBase = orderBase + 0.5 + (ci - 1) * 0.15
-        local prefix = "loadCond" .. ci .. "_"
-        local check = cond.check
+    -- --- Talent: tristate + talent selector ---
+    local talentState = GetIconTalentTristate(condList)
+    args.iconCond_talent_toggle = {
+        type     = "toggle",
+        tristate = true,
+        name     = function()
+            local v = GetIconTalentTristate(condList)
+            if v == true  then return TRISTATE_YES_COLOR .. "Talent" .. TRISTATE_COLOR_END end
+            if v == false then return TRISTATE_NO_COLOR  .. "Talent" .. TRISTATE_COLOR_END end
+            return "Talent"
+        end,
+        desc     = "Yes = icon shows only when the selected talent is learned.  "
+                .. "No = icon shows only when it is NOT learned.",
+        order    = o,
+        width    = "double",
+        get = function()
+            return GetIconTalentTristate(condList)
+        end,
+        set = function(_, val)
+            local tKey = GetIconTalentKey(condList)
+            SetIconTalentTristate(condList, val, tKey)
+            notifyFn(barKey)
+        end,
+    }
+    o = o + 0.05
 
-        args[prefix .. "header"] = {
-            type = "header",
-            name = "Load " .. ci,
-            order = condBase,
-        }
-        args[prefix .. "check"] = {
-            type = "select",
-            name = "Condition",
-            values = checkLabels,
-            order = condBase + 0.01,
-            get = function() return cond.check or "in_combat" end,
-            set = function(_, val)
-                cond.check = val
-                -- Reset value on type change
-                if val == "in_combat" or val == "has_vehicle_ui" or val == "mounted" then
-                    cond.value = "yes"
-                elseif val == "alive" then
-                    cond.value = "alive"
-                elseif val == "in_group" then
-                    cond.value = "group"
-                elseif val == "unit_hp" then
-                    cond.value = 35
-                    cond.op = "<="
-                    cond.unit = "target"
-                elseif val == "talent" then
-                    cond.talentKey = nil
-                    cond.talentState = true
-                elseif val == "glyph" then
-                    cond.glyphSpellId = nil
-                elseif val == "aura" then
-                    cond.unit    = "player"
-                    cond.value   = "have_aura"
-                    cond.spellId = nil
+    if talentState ~= nil then
+        args.iconCond_talent_select = {
+            type          = "multiselect",
+            dialogControl = "AuraTrackerMiniTalent",
+            name          = "Talent",
+            order         = o,
+            width         = "full",
+            values        = function()
+                return self:_BuildTalentList()
+            end,
+            get = function(_, key)
+                local tc = GetIconTalentCond(condList)
+                if not tc or not tc.talentKey then return nil end
+                if key == tc.talentKey then
+                    return tc.talentState
+                end
+                return nil
+            end,
+            set = function(_, key, value)
+                local tc = GetIconTalentCond(condList)
+                if tc then
+                    if value == nil and key == tc.talentKey then
+                        tc.talentKey   = nil
+                        tc.talentState = nil
+                    else
+                        tc.talentKey   = key
+                        tc.talentState = value
+                    end
                 end
                 notifyFn(barKey)
             end,
         }
+        o = o + 0.1
+    end
 
-        -- Yes/No toggles
-        if check == "in_combat" or check == "has_vehicle_ui" or check == "mounted" then
-            args[prefix .. "value"] = {
-                type = "select",
-                name = "Value",
-                values = self.YesNo,
-                order = condBase + 0.02,
-                width = "half",
-                get = function() return cond.value or "yes" end,
-                set = function(_, val)
-                    cond.value = val
-                    notifyFn(barKey)
-                end,
-            }
-        elseif check == "alive" then
-            args[prefix .. "value"] = {
-                type = "select",
-                name = "Value",
-                values = self.AliveValues,
-                order = condBase + 0.02,
-                width = "half",
-                get = function() return cond.value or "alive" end,
-                set = function(_, val)
-                    cond.value = val
-                    notifyFn(barKey)
-                end,
-            }
-        elseif check == "in_group" then
-            args[prefix .. "value"] = {
-                type = "select",
-                name = "Value",
-                values = self.GroupValues,
-                order = condBase + 0.02,
-                get = function() return cond.value or "group" end,
-                set = function(_, val)
-                    cond.value = val
-                    notifyFn(barKey)
-                end,
-            }
-        elseif check == "unit_hp" then
+    -- --- Glyph: tristate + spell ID input ---
+    local glyphState = GetGlyphTristate(condList)
+    args.iconCond_glyph_toggle = {
+        type     = "toggle",
+        tristate = true,
+        name     = function()
+            local v = GetGlyphTristate(condList)
+            if v == true  then return TRISTATE_YES_COLOR .. "Glyph" .. TRISTATE_COLOR_END end
+            if v == false then return TRISTATE_NO_COLOR  .. "Glyph" .. TRISTATE_COLOR_END end
+            return "Glyph"
+        end,
+        desc     = "Yes = icon shows only when the glyph is equipped.  "
+                .. "No = icon shows only when the glyph is NOT equipped.",
+        order    = o,
+        width    = "double",
+        get = function()
+            return GetGlyphTristate(condList)
+        end,
+        set = function(_, val)
+            local sid = GetGlyphSpellId(condList)
+            SetGlyphTristate(condList, val, sid)
+            notifyFn(barKey)
+        end,
+    }
+    o = o + 0.05
+
+    if glyphState ~= nil then
+        args.iconCond_glyph_spellId = {
+            type  = "input",
+            name  = "Glyph Spell ID",
+            desc  = "Enter the spell ID of the glyph to check.\n"
+                 .. "Find glyph IDs on Wowhead or with /script print(GetSpellInfo(id)) in-game.",
+            order = o,
+            width = "normal",
+            get   = function()
+                return tostring(GetGlyphSpellId(condList) or "")
+            end,
+            set   = function(_, val)
+                local n     = tonumber(val)
+                local sid   = (n and n > 0) and n or nil
+                local state = GetGlyphTristate(condList)
+                SetGlyphTristate(condList, state, sid)
+                notifyFn(barKey)
+            end,
+        }
+        o = o + 0.05
+
+        local glyphSpellId = GetGlyphSpellId(condList)
+        args.iconCond_glyph_name = {
+            type  = "description",
+            name  = function()
+                if glyphSpellId then
+                    local name = GetSpellInfo(glyphSpellId)
+                    if name then return "|cFF00FF00" .. name .. "|r" end
+                    return "|cFFFF4400Unknown spell ID|r"
+                end
+                return "|cFFAAAAFFEnter a spell ID above.|r"
+            end,
+            order = o,
+            width = "normal",
+        }
+        o = o + 0.05
+    end
+
+    -- --- Unit HP: enable toggle + sub-controls ---
+    local unitHpEnabled = GetIconUnitHPEnabled(condList)
+    args.iconCond_unitHp_enable = {
+        type  = "toggle",
+        name  = function()
+            if GetIconUnitHPEnabled(condList) then
+                return TRISTATE_YES_COLOR .. "Unit HP %" .. TRISTATE_COLOR_END
+            end
+            return "Unit HP %"
+        end,
+        desc  = "Enable a unit health percent threshold condition for this icon.",
+        order = o,
+        width = "double",
+        get   = function() return GetIconUnitHPEnabled(condList) end,
+        set   = function(_, val)
+            SetIconUnitHPEnabled(condList, val)
+            notifyFn(barKey)
+        end,
+    }
+    o = o + 0.05
+
+    if unitHpEnabled then
+        args.iconCond_unitHp_unit = {
+            type   = "select",
+            name   = "Unit",
+            values = self.HPUnits,
+            order  = o,
+            width  = "half",
+            get    = function()
+                local c = GetIconUnitHPCond(condList)
+                return c and c.unit or "target"
+            end,
+            set    = function(_, val)
+                local c = GetIconUnitHPCond(condList)
+                if c then c.unit = val end
+                notifyFn(barKey)
+            end,
+        }
+        o = o + 0.05
+
+        args.iconCond_unitHp_op = {
+            type   = "select",
+            name   = "Operator",
+            values = condOpLabels,
+            order  = o,
+            width  = "half",
+            get    = function()
+                local c = GetIconUnitHPCond(condList)
+                return c and c.op or "<="
+            end,
+            set    = function(_, val)
+                local c = GetIconUnitHPCond(condList)
+                if c then c.op = val end
+                notifyFn(barKey)
+            end,
+        }
+        o = o + 0.05
+
+        args.iconCond_unitHp_value = {
+            type  = "input",
+            name  = "HP %",
+            desc  = "Health percent threshold (0-100).",
+            order = o,
+            width = "half",
+            get   = function()
+                local c = GetIconUnitHPCond(condList)
+                return tostring(c and c.value or 35)
+            end,
+            set   = function(_, val)
+                local c = GetIconUnitHPCond(condList)
+                if c then c.value = tonumber(val) or 35 end
+                notifyFn(barKey)
+            end,
+        }
+        o = o + 0.05
+    end
+
+    -- --- Aura conditions: multiple entries allowed ---
+    args.iconCond_aura_header = {
+        type  = "header",
+        name  = "Aura Conditions",
+        order = o,
+    }
+    o = o + 0.05
+
+    args.iconCond_aura_desc = {
+        type  = "description",
+        name  = "|cFFAAAAFFMultiple aura conditions can be added; all must be met.|r",
+        order = o,
+        width = "full",
+    }
+    o = o + 0.05
+
+    local numAuras = 0
+    for _, cond in ipairs(condList) do
+        if cond.check == "aura" then numAuras = numAuras + 1 end
+    end
+
+    if numAuras < 5 then
+        args.iconCond_aura_add = {
+            type  = "execute",
+            name  = "+ Add Aura",
+            order = o,
+            width = "normal",
+            func  = function()
+                table.insert(condList, {
+                    check   = "aura",
+                    unit    = "player",
+                    value   = "have_aura",
+                    spellId = nil,
+                })
+                notifyFn(barKey)
+            end,
+        }
+        o = o + 0.05
+    end
+
+    local auraSeq = 0
+    for ci, cond in ipairs(condList) do
+        if cond.check == "aura" then
+            auraSeq = auraSeq + 1
+            local prefix   = "iconCond_aura_" .. auraSeq .. "_"
+            local auraBase = o + (auraSeq - 1) * 0.25
+
             args[prefix .. "unit"] = {
-                type = "select",
-                name = "Unit",
-                values = self.HPUnits,
-                order = condBase + 0.02,
-                width = "half",
-                get = function() return cond.unit or "target" end,
-                set = function(_, val)
-                    cond.unit = val
-                    notifyFn(barKey)
-                end,
-            }
-            args[prefix .. "op"] = {
-                type = "select",
-                name = "Operator",
-                values = condOpLabels,
-                order = condBase + 0.03,
-                width = "half",
-                get = function() return cond.op or "<=" end,
-                set = function(_, val)
-                    cond.op = val
-                    notifyFn(barKey)
-                end,
-            }
-            args[prefix .. "val"] = {
-                type = "input",
-                name = "HP %",
-                desc = "Health percent (0-100)",
-                order = condBase + 0.04,
-                width = "half",
-                get = function() return tostring(cond.value or 35) end,
-                set = function(_, val)
-                    cond.value = tonumber(val) or 35
-                    notifyFn(barKey)
-                end,
-            }
-        elseif check == "talent" then
-            args[prefix .. "talentSelect"] = {
-                type          = "multiselect",
-                dialogControl = "AuraTrackerMiniTalent",
-                name          = "Talent",
-                order         = condBase + 0.02,
-                width         = "full",
-                values        = function()
-                    return self:_BuildTalentList()
-                end,
-                get = function(_, key)
-                    if not cond.talentKey then return nil end
-                    if key == cond.talentKey then
-                        return cond.talentState
-                    end
-                    return nil
-                end,
-                set = function(_, key, value)
-                    if value == nil and key == cond.talentKey then
-                        cond.talentKey = nil
-                        cond.talentState = nil
-                    else
-                        cond.talentKey = key
-                        cond.talentState = value
-                    end
-                    notifyFn(barKey)
-                end,
-            }
-        elseif check == "glyph" then
-            args[prefix .. "glyphSpellId"] = {
-                type  = "input",
-                name  = "Glyph Spell ID",
-                desc  = "Enter the spell ID of the glyph to check.\n"
-                    .. "You can find glyph spell IDs on wowhead or by using\n"
-                    .. "/script print(GetSpellInfo(id)) in-game.",
-                order = condBase + 0.02,
-                width = "half",
-                get   = function() return tostring(cond.glyphSpellId or "") end,
-                set   = function(_, val)
-                    local n = tonumber(val)
-                    cond.glyphSpellId = (n and n > 0) and n or nil
-                    notifyFn(barKey)
-                end,
-            }
-            args[prefix .. "glyphName"] = {
-                type  = "description",
-                name  = function()
-                    if cond.glyphSpellId then
-                        local name = GetSpellInfo(cond.glyphSpellId)
-                        if name then
-                            return "|cFF00FF00" .. name .. "|r"
-                        end
-                        return "|cFFFF4400Unknown spell ID|r"
-                    end
-                    return "|cFFAAAAFFEnter a spell ID to the left.|r"
-                end,
-                order = condBase + 0.03,
-                width = "half",
-            }
-        elseif check == "aura" then
-            args[prefix .. "auraUnit"] = {
                 type   = "select",
                 name   = "Unit",
                 values = self.AuraUnits,
-                order  = condBase + 0.02,
+                order  = auraBase,
                 width  = "half",
                 get    = function() return cond.unit or "player" end,
                 set    = function(_, val)
@@ -643,11 +835,11 @@ function Conditionals:BuildLoadConditionUI(args, owner, orderBase, barKey, notif
                     notifyFn(barKey)
                 end,
             }
-            args[prefix .. "auraValue"] = {
+            args[prefix .. "state"] = {
                 type   = "select",
                 name   = "State",
                 values = self.AuraValues,
-                order  = condBase + 0.03,
+                order  = auraBase + 0.02,
                 width  = "half",
                 get    = function() return cond.value or "have_aura" end,
                 set    = function(_, val)
@@ -655,12 +847,12 @@ function Conditionals:BuildLoadConditionUI(args, owner, orderBase, barKey, notif
                     notifyFn(barKey)
                 end,
             }
-            args[prefix .. "auraSpellId"] = {
+            args[prefix .. "spellId"] = {
                 type  = "input",
                 name  = "Spell ID",
                 desc  = "Enter the spell ID of the aura to check.\n"
-                    .. "Find spell IDs on Wowhead or with /script print(GetSpellInfo(id)) in-game.",
-                order = condBase + 0.04,
+                     .. "Find spell IDs on Wowhead or with /script print(GetSpellInfo(id)) in-game.",
+                order = auraBase + 0.04,
                 width = "half",
                 get   = function() return tostring(cond.spellId or "") end,
                 set   = function(_, val)
@@ -679,21 +871,20 @@ function Conditionals:BuildLoadConditionUI(args, owner, orderBase, barKey, notif
                     end
                     return "|cFFAAAAFFEnter a spell ID to the left.|r"
                 end,
-                order = condBase + 0.05,
+                order = auraBase + 0.06,
                 width = "half",
             }
+            args[prefix .. "remove"] = {
+                type  = "execute",
+                name  = "Remove",
+                order = auraBase + 0.08,
+                width = "half",
+                func  = function()
+                    table.remove(condList, ci)
+                    notifyFn(barKey)
+                end,
+            }
         end
-
-        args[prefix .. "remove"] = {
-            type = "execute",
-            name = "Remove",
-            order = condBase + 0.09,
-            width = "half",
-            func = function()
-                table.remove(owner.loadConditions, ci)
-                notifyFn(barKey)
-            end,
-        }
     end
 end
 
