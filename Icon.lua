@@ -125,6 +125,9 @@ function Icon:New(frame, trackedItem, displayMode)
     self.conditionals = nil  -- array of action conditional defs (from DB)
     self._condState = {}     -- tracks previous evaluation result per conditional (for sound transitions)
 
+    -- Custom label text (format string; nil = default cooldown timer)
+    self.labelText = nil
+
     -- Icon event actions: triggered on click / show / hide
     self.onClickActions = nil
     self.onShowActions  = nil
@@ -368,6 +371,13 @@ function Icon:RenderInternalCD()
 end
 
 function Icon:UpdateStackDisplay(stacks)
+    -- When a custom label is active it is responsible for displaying stack
+    -- information (%stacks / %count tokens).  Suppress the built-in counter
+    -- so text is not doubled up.
+    if self.labelText and self.labelText ~= "" then
+        self.frame.stackText:Hide()
+        return
+    end
     if stacks and stacks > 1 then
         self.frame.stackText:SetText(stacks)
         self.frame.stackText:Show()
@@ -518,7 +528,30 @@ function Icon:FireEventActions(triggerKey)
 end
 
 function Icon:UpdateCooldownText()
-    if not self.showCooldownText or not self.trackedItem then
+    if not self.trackedItem then
+        if self._prevCooldownText ~= "" then
+            self.frame.text:SetText("")
+            self._prevCooldownText = ""
+        end
+        return
+    end
+
+    -- Custom label text overrides the default timer display
+    if self.labelText and self.labelText ~= "" then
+        if self.showCooldownText then
+            local formatted = self:FormatLabelText(self.labelText)
+            if self._prevCooldownText ~= formatted then
+                self.frame.text:SetText(formatted)
+                self._prevCooldownText = formatted
+            end
+        elseif self._prevCooldownText ~= "" then
+            self.frame.text:SetText("")
+            self._prevCooldownText = ""
+        end
+        return
+    end
+
+    if not self.showCooldownText then
         if self._prevCooldownText ~= "" then
             self.frame.text:SetText("")
             self._prevCooldownText = ""
@@ -553,6 +586,32 @@ function Icon:UpdateCooldownText()
         self.frame.text:SetText(newText)
         self._prevCooldownText = newText
     end
+end
+
+--- Format a label template string, substituting known tokens with live values
+--- from the tracked item.  Available tokens:
+---   %stacks   – current stack count (0 when inactive)
+---   %count    – alias for %stacks
+---   %remaining – time remaining, formatted as the cooldown timer would show
+---   %progress – "remaining/duration" in whole seconds (empty when no duration)
+---   %name     – the spell or item name
+function Icon:FormatLabelText(template)
+    local item = self.trackedItem
+    if not item then return template end
+
+    local stacks    = item:GetStacks() or 0
+    local remaining = item:GetRemaining() or 0
+    local duration  = item:GetDuration() or 0
+    local name      = item:GetName() or ""
+
+    local result = template
+    result = result:gsub("%%stacks",    tostring(stacks))
+    result = result:gsub("%%count",     tostring(stacks))
+    result = result:gsub("%%remaining", remaining > 0 and self:FormatTime(remaining) or "0")
+    result = result:gsub("%%progress",  duration > 0
+        and string_format("%.0f/%.0f", math_max(0, remaining), duration) or "")
+    result = result:gsub("%%name",      name)
+    return result
 end
 
 function Icon:FormatTime(seconds)

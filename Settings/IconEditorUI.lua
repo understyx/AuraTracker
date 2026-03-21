@@ -112,8 +112,8 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
         type        = "description",
         name        = "",
         image       = icon,
-        imageWidth  = 32,
-        imageHeight = 32,
+        imageWidth  = 48,
+        imageHeight = 48,
         order       = orderBase + 1,
         width       = 0.25,
     }
@@ -230,6 +230,24 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
             end,
         }
     end
+
+    -- Custom label text (always available, all track types)
+    generalArgs.editorLabelText = {
+        type  = "input",
+        name  = "Custom Label",
+        desc  = "Override the text shown on this icon. Leave blank to show the default cooldown timer.\n\n"
+            .. "Tokens: |cFFFFFF00%stacks|r (stack count), |cFFFFFF00%count|r (alias for stacks), "
+            .. "|cFFFFFF00%remaining|r (time remaining), |cFFFFFF00%progress|r (remaining/duration), "
+            .. "|cFFFFFF00%name|r (spell/item name).\n\n"
+            .. "Example: |cFFFFFF00%stacks|r shows only the stack count with no timer.",
+        order = 12,
+        width = "full",
+        get   = function() return data.labelText or "" end,
+        set   = function(_, val)
+            data.labelText = (val and val ~= "") and val or nil
+            NotifyAndRebuild(barKey)
+        end,
+    }
 
     -- Weapon enchant slot + expected enchant options
     if isWeaponEnchant then
@@ -513,14 +531,103 @@ local function CreateIconListOptions(barKey, barData)
     end
     table_sort(sortedItems, function(a, b) return a.order < b.order end)
 
+    -- Track type choices available for the add-icon form
+    local ADD_TRACK_TYPE_VALUES = {
+        ["cooldown"]      = "Cooldown",
+        ["aura"]          = "Aura (Target Debuff)",
+        ["player_buff"]   = "Aura (Player Buff)",
+        ["target_buff"]   = "Aura (Target Buff)",
+        ["cooldown_aura"] = "Cooldown + Aura (Target Debuff)",
+        ["item"]          = "Item (use cooldown)",
+    }
+
     local args = {
+        -- ----------------------------------------------------------
+        -- Add Icon section  (orders 1-9)
+        -- ----------------------------------------------------------
+        addHeader = {
+            type  = "header",
+            name  = "Add Icon",
+            order = 1,
+        },
+        addDesc = {
+            type  = "description",
+            name  = "|cFFAAAAFFEnter a spell or item ID, choose a tracking type, then click Add.\n"
+                .. "You can also drag spells or items from your spellbook / bags directly onto the bar.|r",
+            order = 2,
+            width = "full",
+        },
+        addTrackType = {
+            type   = "select",
+            name   = "Track Type",
+            desc   = "How to track this spell or item.",
+            values = ADD_TRACK_TYPE_VALUES,
+            order  = 3,
+            width  = "double",
+            get    = function() return editState.addTrackType or "cooldown" end,
+            set    = function(_, val)
+                editState.addTrackType = val
+                NotifyChange()
+            end,
+        },
+        addIconId = {
+            type  = "input",
+            name  = "Spell / Item ID",
+            desc  = "Enter the numeric spell ID (for cooldowns and auras) or item ID (for items).",
+            order = 4,
+            width = "double",
+            get   = function() return editState.addIconId or "" end,
+            set   = function(_, val) editState.addIconId = val end,
+        },
+        addIconBtn = {
+            type  = "execute",
+            name  = "Add",
+            desc  = "Add this spell or item to the bar.",
+            order = 5,
+            width = "half",
+            func  = function()
+                local idStr = editState.addIconId or ""
+                local id = tonumber(idStr)
+                if not id or id <= 0 then
+                    print("|cFFFF0000Aura Tracker:|r Please enter a valid spell or item ID.")
+                    return
+                end
+                local ctrl = ns.AuraTracker and ns.AuraTracker.Controller
+                if not ctrl then return end
+                local trackType = editState.addTrackType or "cooldown"
+                local ok, result
+                if trackType == "cooldown" then
+                    ok, result = ctrl:AddCooldown(barKey, id)
+                elseif trackType == "item" then
+                    ok, result = ctrl:AddItem(barKey, id)
+                elseif trackType == "cooldown_aura" then
+                    ok, result = ctrl:AddCooldownAura(barKey, id, "TARGET_DEBUFF")
+                elseif trackType == "player_buff" then
+                    ok, result = ctrl:AddAura(barKey, id, "PLAYER_BUFF")
+                elseif trackType == "target_buff" then
+                    ok, result = ctrl:AddAura(barKey, id, "TARGET_BUFF")
+                else  -- "aura" → target debuff
+                    ok, result = ctrl:AddAura(barKey, id, "TARGET_DEBUFF")
+                end
+                if ok then
+                    editState.addIconId = ""
+                    NotifyAndRebuild(barKey)
+                else
+                    print("|cFFFF0000Aura Tracker:|r " .. (result or "Failed to add icon."))
+                end
+            end,
+        },
+
+        -- ----------------------------------------------------------
+        -- Tracked Icons list  (orders 10+)
+        -- ----------------------------------------------------------
         listHeader = { type = "header", name = "Tracked Icons", order = 10 },
     }
 
     if #sortedItems == 0 then
         args.emptyMsg = {
             type  = "description",
-            name  = "No spells tracked yet. Drag spells from your spellbook onto the bar.",
+            name  = "No icons tracked yet. Use the |cFFFFFF00Add Icon|r form above, or drag spells from your spellbook onto the bar.",
             order = 11,
             width = "full",
         }
@@ -542,8 +649,8 @@ local function CreateIconListOptions(barKey, barData)
                 name        = "",
                 desc        = spellName .. "  " .. typeLabel .. "\nClick to configure",
                 image       = spellIcon,
-                imageWidth  = 36,
-                imageHeight = 36,
+                imageWidth  = 48,
+                imageHeight = 48,
                 width       = 0.20,
                 order       = 20 + i,
                 func        = function()

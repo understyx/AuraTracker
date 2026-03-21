@@ -313,6 +313,7 @@ function AuraTracker:RebuildBar(barKey)
                 icon.onClickActions = data.onClickActions
                 icon.onShowActions  = data.onShowActions
                 icon.onHideActions  = data.onHideActions
+                icon.labelText      = data.labelText
             end
         end
     end
