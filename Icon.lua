@@ -595,16 +595,21 @@ function Icon:FormatCustomText(template)
     local srcName   = item:GetSrcName()
     local destName  = item:GetDestName()
 
+    -- Use function-form replacements so that any '%' characters inside the
+    -- substituted values are not interpreted as gsub escape sequences.
+    local stackStr = tostring(stacks)
+    local remainStr = remaining > 0 and self:FormatTime(remaining) or ""
+    local progressStr = duration > 0
+        and string_format("%.0f/%.0f", math_max(0, remaining), duration) or ""
+
     local result = template
-    result = result:gsub("%%stacks",    tostring(stacks))
-    result = result:gsub("%%count",     tostring(stacks))
-    -- %remaining → hide (empty string) when there is no time left
-    result = result:gsub("%%remaining", remaining > 0 and self:FormatTime(remaining) or "")
-    result = result:gsub("%%progress",  duration > 0
-        and string_format("%.0f/%.0f", math_max(0, remaining), duration) or "")
-    result = result:gsub("%%name",      name)
-    result = result:gsub("%%srcName",   srcName)
-    result = result:gsub("%%destName",  destName)
+    result = result:gsub("%%stacks",    function() return stackStr    end)
+    result = result:gsub("%%count",     function() return stackStr    end)
+    result = result:gsub("%%remaining", function() return remainStr   end)
+    result = result:gsub("%%progress",  function() return progressStr end)
+    result = result:gsub("%%name",      function() return name        end)
+    result = result:gsub("%%srcName",   function() return srcName     end)
+    result = result:gsub("%%destName",  function() return destName    end)
     return result
 end
 
@@ -646,17 +651,19 @@ function Icon:ApplyCustomTexts(customTexts, styleOptions)
             fs:ClearAllPoints()
             fs:SetPoint(point, frame, point, xOffset, yOffset)
 
+            fs:SetText("")  -- clear stale text from previous icon use
             fs:Show()
         else
             fs:Hide()
         end
     end
 
-    -- Hide any FontStrings from a previous (larger) customTexts set
+    -- Hide any FontStrings from a previous (larger) customTexts set.
+    -- Do NOT call SetText here; the FontString is hidden so it won't display
+    -- anything, and its text will be set fresh the next time it is reused.
     for i = count + 1, #frame.customTextStrings do
         local fs = frame.customTextStrings[i]
         if fs then
-            fs:SetText("")
             fs:Hide()
         end
     end
