@@ -11,6 +11,7 @@ local GetInventoryItemTexture = GetInventoryItemTexture
 local CreateFrame = CreateFrame
 local UnitAura = UnitAura
 local UnitExists = UnitExists
+local UnitName = UnitName
 local ipairs, pairs = ipairs, pairs
 local math_abs = math.abs
 
@@ -175,6 +176,9 @@ function TrackedItem:New(id, trackType, options)
     self.expiration = 0
     self.stacks = 0
     self.actualCooldownEnd = nil
+    -- Source / destination names for custom text tokens (%srcName, %destName)
+    self.srcName  = ""
+    self.destName = ""
     
     -- Dual-track state
     if trackType == Config.TrackType.COOLDOWN_AURA then
@@ -262,6 +266,14 @@ end
 
 function TrackedItem:GetRemaining()
     return self.expiration - GetTime()
+end
+
+function TrackedItem:GetSrcName()
+    return self.srcName or ""
+end
+
+function TrackedItem:GetDestName()
+    return self.destName or ""
 end
 
 -- ==========================================================
@@ -363,7 +375,7 @@ function TrackedItem:UpdateAura()
         return self:UpdateAuraExclusive(filter, wasActive, prevStacks)
     end
 
-    local name, _, _, count, _, duration, expiration =
+    local name, _, _, count, _, duration, expiration, casterUnit =
         UnitAura(self.unit, self.name, nil, filter)
 
     if name then
@@ -371,11 +383,15 @@ function TrackedItem:UpdateAura()
         self.duration = duration or 0
         self.expiration = expiration or 0
         self.stacks = count or 0
+        self.srcName  = casterUnit and (UnitName(casterUnit) or "") or ""
+        self.destName = UnitName(self.unit) or ""
     else
         self.active = false
         self.duration = 0
         self.expiration = 0
         self.stacks = 0
+        self.srcName  = ""
+        self.destName = UnitName(self.unit) or ""
     end
 
     return wasActive ~= self.active or prevStacks ~= self.stacks
@@ -399,7 +415,7 @@ function TrackedItem:UpdateAuraSmartGroup(filter, wasActive, prevStacks)
         for _, u in ipairs(units) do
             if UnitExists(u) then
                 for i = 1, 40 do
-                    local name, _, _, count, _, duration, expiration, _, _, _, spellId =
+                    local name, _, _, count, _, duration, expiration, casterUnit, _, _, spellId =
                         UnitAura(u, i, filter)
                     if not name then break end
                     if spellId == self.auraId or group.spells[spellId]
@@ -408,6 +424,8 @@ function TrackedItem:UpdateAuraSmartGroup(filter, wasActive, prevStacks)
                         self.duration = duration or 0
                         self.expiration = expiration or 0
                         self.stacks = count or 0
+                        self.srcName  = casterUnit and (UnitName(casterUnit) or "") or ""
+                        self.destName = UnitName(u) or ""
                         local _, _, tex = GetSpellInfo(spellId)
                         if spellId and tex then self.texture = tex end
                         break
@@ -418,20 +436,28 @@ function TrackedItem:UpdateAuraSmartGroup(filter, wasActive, prevStacks)
         end
         if not self.active then
             self.texture = self.originalTexture
+            self.srcName  = ""
+            self.destName = ""
         end
     else
         for _, u in ipairs(units) do
             if UnitExists(u) then
-                local name, _, _, count, _, duration, expiration =
+                local name, _, _, count, _, duration, expiration, casterUnit =
                     UnitAura(u, self.name, nil, filter)
                 if name then
                     self.active = true
                     self.duration = duration or 0
                     self.expiration = expiration or 0
                     self.stacks = count or 0
+                    self.srcName  = casterUnit and (UnitName(casterUnit) or "") or ""
+                    self.destName = UnitName(u) or ""
                     break
                 end
             end
+        end
+        if not self.active then
+            self.srcName  = ""
+            self.destName = ""
         end
     end
 
@@ -449,7 +475,7 @@ function TrackedItem:UpdateAuraExclusive(filter, wasActive, prevStacks)
     self.stacks = 0
 
     for i = 1, 40 do
-        local name, _, _, count, _, duration, expiration, _, _, _, spellId =
+        local name, _, _, count, _, duration, expiration, casterUnit, _, _, spellId =
             UnitAura(unit, i, filter)
         if not name then break end
 
@@ -459,6 +485,8 @@ function TrackedItem:UpdateAuraExclusive(filter, wasActive, prevStacks)
             self.duration = duration or 0
             self.expiration = expiration or 0
             self.stacks = count or 0
+            self.srcName  = casterUnit and (UnitName(casterUnit) or "") or ""
+            self.destName = UnitName(unit) or ""
             local _, _, tex = GetSpellInfo(spellId)
             if tex then self.texture = tex end
             break
@@ -467,6 +495,8 @@ function TrackedItem:UpdateAuraExclusive(filter, wasActive, prevStacks)
 
     if not self.active then
         self.texture = self.originalTexture
+        self.srcName  = ""
+        self.destName = UnitName(unit) or ""
     end
 
     return wasActive ~= self.active or prevStacks ~= self.stacks
@@ -527,7 +557,7 @@ function TrackedItem:UpdateCooldownAura(gcdStart, gcdDuration, ignoreGCD)
     -- Aura part
     local filter = self:GetEffectiveFilter()
 
-    local aName, _, _, count, _, auraDuration, auraExpiration =
+    local aName, _, _, count, _, auraDuration, auraExpiration, casterUnit =
         UnitAura(self.unit, self.name, nil, filter)
 
     if aName then
@@ -535,11 +565,15 @@ function TrackedItem:UpdateCooldownAura(gcdStart, gcdDuration, ignoreGCD)
         self.auraDuration = auraDuration or 0
         self.auraExpiration = auraExpiration or 0
         self.auraStacks = count or 0
+        self.srcName  = casterUnit and (UnitName(casterUnit) or "") or ""
+        self.destName = UnitName(self.unit) or ""
     else
         self.auraActive = false
         self.auraDuration = 0
         self.auraExpiration = 0
         self.auraStacks = 0
+        self.srcName  = ""
+        self.destName = UnitName(self.unit) or ""
     end
 
     -- Combined state: "active" = ready to use (not on CD)

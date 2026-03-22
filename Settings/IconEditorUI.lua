@@ -10,7 +10,7 @@ local SU = ns.AuraTracker.SettingsUtils
 
 local pairs, ipairs, next = pairs, ipairs, next
 local tonumber, tostring = tonumber, tostring
-local table_insert, table_sort = table.insert, table.sort
+local table_insert, table_sort, table_remove = table.insert, table.sort, table.remove
 local math_max = math.max
 local string_format, string_upper = string.format, string.upper
 local GetSpellInfo, GetItemInfo = GetSpellInfo, GetItemInfo
@@ -465,6 +465,188 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
         end
     end
 
+    -- ---- CUSTOM TEXTS TAB -----------------------------------
+
+    local ANCHOR_POINTS = {
+        ["TOPLEFT"]     = "Top Left",
+        ["TOP"]         = "Top Center",
+        ["TOPRIGHT"]    = "Top Right",
+        ["LEFT"]        = "Left",
+        ["CENTER"]      = "Center",
+        ["RIGHT"]       = "Right",
+        ["BOTTOMLEFT"]  = "Bottom Left",
+        ["BOTTOM"]      = "Bottom Center",
+        ["BOTTOMRIGHT"] = "Bottom Right",
+    }
+
+    local customTextsArgs = {}
+
+    customTextsArgs.ctDesc = {
+        type  = "description",
+        name  = "Add extra text overlays to this icon. Each overlay has its own format string, "
+            .. "anchor point, and colour.\n\n"
+            .. "|cFFFFFF00Tokens:|r  "
+            .. "|cFFFFD700%stacks|r / |cFFFFD700%count|r – stack count  •  "
+            .. "|cFFFFD700%remaining|r – time left (hidden when 0)  •  "
+            .. "|cFFFFD700%progress|r – remaining/duration  •  "
+            .. "|cFFFFD700%name|r – spell/item name  •  "
+            .. "|cFFFFD700%srcName|r – caster name  •  "
+            .. "|cFFFFD700%destName|r – target unit name",
+        order = 1,
+        width = "full",
+    }
+
+    customTextsArgs.ctAdd = {
+        type  = "execute",
+        name  = "Add Custom Text",
+        desc  = "Append a new text overlay to this icon.",
+        order = 2,
+        width = "normal",
+        func  = function()
+            data.customTexts = data.customTexts or {}
+            table_insert(data.customTexts, {
+                enabled  = true,
+                format   = "%stacks",
+                point    = "BOTTOMRIGHT",
+                xOffset  = -2,
+                yOffset  = 2,
+                color    = { r = 1, g = 1, b = 1, a = 1 },
+            })
+            NotifyAndRebuild(barKey)
+        end,
+    }
+
+    -- Build an inline group for each existing custom text entry
+    local cts = data.customTexts
+    if cts and #cts > 0 then
+        for ctIdx, ctEntry in ipairs(cts) do
+            local ci = ctIdx  -- capture for closures
+            customTextsArgs["ct_" .. ci] = {
+                type   = "group",
+                name   = "Text " .. ci,
+                inline = true,
+                order  = 10 + ci,
+                args   = {
+                    ctEnabled = {
+                        type  = "toggle",
+                        name  = "Enabled",
+                        order = 1,
+                        width = "half",
+                        get   = function() return ctEntry.enabled ~= false end,
+                        set   = function(_, val)
+                            ctEntry.enabled = val
+                            NotifyAndRebuild(barKey)
+                        end,
+                    },
+                    ctDelete = {
+                        type    = "execute",
+                        name    = "Remove",
+                        order   = 2,
+                        width   = "half",
+                        confirm = true,
+                        confirmText = "Remove Text " .. ci .. "?",
+                        func    = function()
+                            -- ci is the index captured at UI-build time.
+                            -- NotifyAndRebuild immediately regenerates the UI from the
+                            -- updated array, so any stale closures from the old UI are
+                            -- replaced before the user can interact with them again.
+                            table_remove(data.customTexts, ci)
+                            if #data.customTexts == 0 then
+                                data.customTexts = nil
+                            end
+                            NotifyAndRebuild(barKey)
+                        end,
+                    },
+                    ctFormat = {
+                        type  = "input",
+                        name  = "Format",
+                        desc  = "Text to display. Use tokens: %stacks, %count, %remaining, %progress, %name, %srcName, %destName.",
+                        order = 3,
+                        width = "full",
+                        get   = function() return ctEntry.format or "" end,
+                        set   = function(_, val)
+                            ctEntry.format = val or ""
+                            NotifyAndRebuild(barKey)
+                        end,
+                    },
+                    ctPoint = {
+                        type   = "select",
+                        name   = "Anchor",
+                        desc   = "Where on the icon to place this text.",
+                        values = ANCHOR_POINTS,
+                        order  = 4,
+                        width  = "double",
+                        get    = function() return ctEntry.point or "BOTTOMRIGHT" end,
+                        set    = function(_, val)
+                            ctEntry.point = val
+                            NotifyAndRebuild(barKey)
+                        end,
+                    },
+                    ctXOffset = {
+                        type    = "range",
+                        name    = "X Offset",
+                        min     = -64, max = 64, step = 1,
+                        order   = 5,
+                        width   = "double",
+                        get     = function() return ctEntry.xOffset or 0 end,
+                        set     = function(_, val)
+                            ctEntry.xOffset = val
+                            NotifyAndRebuild(barKey)
+                        end,
+                    },
+                    ctYOffset = {
+                        type    = "range",
+                        name    = "Y Offset",
+                        min     = -64, max = 64, step = 1,
+                        order   = 6,
+                        width   = "double",
+                        get     = function() return ctEntry.yOffset or 0 end,
+                        set     = function(_, val)
+                            ctEntry.yOffset = val
+                            NotifyAndRebuild(barKey)
+                        end,
+                    },
+                    ctColor = {
+                        type  = "color",
+                        name  = "Color",
+                        desc  = "Text colour.",
+                        order = 7,
+                        hasAlpha = true,
+                        get   = function()
+                            local c = ctEntry.color or {}
+                            return c.r or 1, c.g or 1, c.b or 1, c.a or 1
+                        end,
+                        set   = function(_, r, g, b, a)
+                            ctEntry.color = { r = r, g = g, b = b, a = a }
+                            NotifyAndRebuild(barKey)
+                        end,
+                    },
+                    ctFontSize = {
+                        type  = "range",
+                        name  = "Font Size",
+                        desc  = "Font size for this text. Set to 0 to inherit the bar's default font size.",
+                        min   = 0, max = 32, step = 1,
+                        order = 8,
+                        width = "double",
+                        get   = function() return ctEntry.fontSize or 0 end,
+                        set   = function(_, val)
+                            -- 0 means "use bar default"; store nil so ApplyCustomTexts falls back
+                            ctEntry.fontSize = (val > 0) and val or nil
+                            NotifyAndRebuild(barKey)
+                        end,
+                    },
+                },
+            }
+        end
+    else
+        customTextsArgs.ctEmpty = {
+            type  = "description",
+            name  = "|cFFAAAAAFNo custom texts defined. Click |cFFFFFF00Add Custom Text|r to add one.|r",
+            order = 10,
+            width = "full",
+        }
+    end
+
     -- ----------------------------------------------------------
     -- Inject tab groups directly into outer args.
     -- The icons group (childGroups="tab") renders these as tabs;
@@ -497,6 +679,12 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
             args  = altArgs,
         }
     end
+    args.iconEditorCustomTexts = {
+        type  = "group",
+        name  = "Custom Texts",
+        order = 5,
+        args  = customTextsArgs,
+    }
 end
 
 -- ==========================================================
@@ -513,14 +701,103 @@ local function CreateIconListOptions(barKey, barData)
     end
     table_sort(sortedItems, function(a, b) return a.order < b.order end)
 
+    -- Track type choices available for the add-icon form
+    local ADD_TRACK_TYPE_VALUES = {
+        ["cooldown"]      = "Cooldown",
+        ["aura"]          = "Aura (Target Debuff)",
+        ["player_buff"]   = "Aura (Player Buff)",
+        ["target_buff"]   = "Aura (Target Buff)",
+        ["cooldown_aura"] = "Cooldown + Aura (Target Debuff)",
+        ["item"]          = "Item (use cooldown)",
+    }
+
     local args = {
+        -- ----------------------------------------------------------
+        -- Add Icon section  (orders 1-9)
+        -- ----------------------------------------------------------
+        addHeader = {
+            type  = "header",
+            name  = "Add Icon",
+            order = 1,
+        },
+        addDesc = {
+            type  = "description",
+            name  = "|cFFAAAAFFEnter a spell or item ID, choose a tracking type, then click Add.\n"
+                .. "You can also drag spells or items from your spellbook / bags directly onto the bar.|r",
+            order = 2,
+            width = "full",
+        },
+        addTrackType = {
+            type   = "select",
+            name   = "Track Type",
+            desc   = "How to track this spell or item.",
+            values = ADD_TRACK_TYPE_VALUES,
+            order  = 3,
+            width  = "double",
+            get    = function() return editState.addTrackType or "cooldown" end,
+            set    = function(_, val)
+                editState.addTrackType = val
+                NotifyChange()
+            end,
+        },
+        addIconId = {
+            type  = "input",
+            name  = "Spell / Item ID",
+            desc  = "Enter the numeric spell ID (for cooldowns and auras) or item ID (for items).",
+            order = 4,
+            width = "double",
+            get   = function() return editState.addIconId or "" end,
+            set   = function(_, val) editState.addIconId = val end,
+        },
+        addIconBtn = {
+            type  = "execute",
+            name  = "Add",
+            desc  = "Add this spell or item to the bar.",
+            order = 5,
+            width = "half",
+            func  = function()
+                local idStr = editState.addIconId or ""
+                local id = tonumber(idStr)
+                if not id or id <= 0 then
+                    print("|cFFFF0000Aura Tracker:|r Please enter a valid spell or item ID.")
+                    return
+                end
+                local ctrl = ns.AuraTracker and ns.AuraTracker.Controller
+                if not ctrl then return end
+                local trackType = editState.addTrackType or "cooldown"
+                local ok, result
+                if trackType == "cooldown" then
+                    ok, result = ctrl:AddCooldown(barKey, id)
+                elseif trackType == "item" then
+                    ok, result = ctrl:AddItem(barKey, id)
+                elseif trackType == "cooldown_aura" then
+                    ok, result = ctrl:AddCooldownAura(barKey, id, "TARGET_DEBUFF")
+                elseif trackType == "player_buff" then
+                    ok, result = ctrl:AddAura(barKey, id, "PLAYER_BUFF")
+                elseif trackType == "target_buff" then
+                    ok, result = ctrl:AddAura(barKey, id, "TARGET_BUFF")
+                else  -- "aura" → target debuff
+                    ok, result = ctrl:AddAura(barKey, id, "TARGET_DEBUFF")
+                end
+                if ok then
+                    editState.addIconId = ""
+                    NotifyAndRebuild(barKey)
+                else
+                    print("|cFFFF0000Aura Tracker:|r " .. (result or "Failed to add icon."))
+                end
+            end,
+        },
+
+        -- ----------------------------------------------------------
+        -- Tracked Icons list  (orders 10+)
+        -- ----------------------------------------------------------
         listHeader = { type = "header", name = "Tracked Icons", order = 10 },
     }
 
     if #sortedItems == 0 then
         args.emptyMsg = {
             type  = "description",
-            name  = "No spells tracked yet. Drag spells from your spellbook onto the bar.",
+            name  = "No icons tracked yet. Use the |cFFFFFF00Add Icon|r form above, or drag spells from your spellbook onto the bar.",
             order = 11,
             width = "full",
         }

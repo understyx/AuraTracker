@@ -120,6 +120,7 @@ function UpdateEngine:UpdateAllCooldowns()
                 -- avoiding a separate bars×icons traversal each tick.
                 if icon:GetFrame():IsShown() then
                     icon:UpdateCooldownText()
+                    icon:UpdateCustomTexts()
                 end
             end
         end
@@ -215,6 +216,7 @@ function UpdateEngine:RefreshBar(barKey)
 
     for _, icon in ipairs(bar:GetIcons()) do
         icon:ApplyStyle(styleOptions)
+        icon:ApplyCustomTexts(icon.customTexts, styleOptions)
         local item = icon:GetTrackedItem()
         if item then
             local tt = item:GetTrackType()

@@ -78,8 +78,11 @@ local L = {
 -- ==========================================================
 
 local editState = {
-    selectedBar  = nil,
-    selectedAura = nil,
+    selectedBar    = nil,
+    selectedAura   = nil,
+    -- Add-icon form state (persists across option rebuilds)
+    addTrackType   = "cooldown",
+    addIconId      = "",
 }
 
 -- ==========================================================
@@ -459,7 +462,7 @@ function ns.GetAuraTrackerOptions()
                 type        = "group",
                 name        = "Example Bars",
                 order       = 8,
-                childGroups = "tab",
+                childGroups = "tree",
                 args        = (function()
                     local args = {
                         desc = {
@@ -480,44 +483,99 @@ function ns.GetAuraTrackerOptions()
                             ["SHAMAN"] = "Shaman",   ["MAGE"] = "Mage",
                             ["WARLOCK"] = "Warlock", ["DRUID"] = "Druid",
                         }
+                        -- Desired display order for class groups
+                        local CLASS_DISPLAY_ORDER = {
+                            "NONE", "DEATHKNIGHT", "DRUID", "HUNTER", "MAGE",
+                            "PALADIN", "PRIEST", "ROGUE", "SHAMAN", "WARLOCK", "WARRIOR",
+                        }
+                        local CLASS_ORDER_INDEX = {}
+                        for i, k in ipairs(CLASS_DISPLAY_ORDER) do
+                            CLASS_ORDER_INDEX[k] = i
+                        end
+
+                        -- Group examples by class, preserving insertion order within each group
+                        local byClass = {}
+                        local classKeys = {}
                         for idx, example in ipairs(Config.ExampleBars) do
-                            local classLabel = L_CLASSES[example.class or "NONE"] or example.class
-                            local i = idx  -- capture for closures
-                            args["example_" .. idx] = {
-                                type   = "group",
-                                name   = "",
-                                inline = true,
-                                order  = 10 + idx,
-                                args   = {
-                                    info = {
-                                        type  = "description",
-                                        name  = string_format(
-                                            "|cFFFFFFFF%s|r  [%s]\n|cFFAAAAAA%s|r",
-                                            example.name or "Example " .. idx,
-                                            classLabel,
-                                            example.desc or ""),
-                                        order = 1,
-                                        width = "double",
+                            local classKey = example.class or "NONE"
+                            if not byClass[classKey] then
+                                byClass[classKey] = {}
+                                table_insert(classKeys, classKey)
+                            end
+                            table_insert(byClass[classKey], { idx = idx, example = example })
+                        end
+
+                        -- Sort class keys by the canonical display order
+                        table_sort(classKeys, function(a, b)
+                            local ia = CLASS_ORDER_INDEX[a] or 99
+                            local ib = CLASS_ORDER_INDEX[b] or 99
+                            return ia < ib
+                        end)
+
+                        -- Build one collapsible tree group per class
+                        for classGroupOrder, classKey in ipairs(classKeys) do
+                            local examples  = byClass[classKey]
+                            local classLabel = L_CLASSES[classKey] or classKey
+
+                            -- Apply RAID_CLASS_COLORS when available
+                            local classGroupName = classLabel
+                            if classKey ~= "NONE" then
+                                local color = RAID_CLASS_COLORS and RAID_CLASS_COLORS[classKey]
+                                if color then
+                                    local hex = string_format("%02X%02X%02X",
+                                        math_floor((color.r or 0) * 255),
+                                        math_floor((color.g or 0) * 255),
+                                        math_floor((color.b or 0) * 255))
+                                    classGroupName = "|cFF" .. hex .. classLabel .. "|r"
+                                end
+                            end
+
+                            local classArgs = {}
+                            for exOrder, entry in ipairs(examples) do
+                                local i       = entry.idx
+                                local example = entry.example
+                                classArgs["example_" .. i] = {
+                                    type   = "group",
+                                    name   = "",
+                                    inline = true,
+                                    order  = exOrder,
+                                    args   = {
+                                        info = {
+                                            type  = "description",
+                                            name  = string_format(
+                                                "|cFFFFFFFF%s|r\n|cFFAAAAAA%s|r",
+                                                example.name or "Example " .. i,
+                                                example.desc or ""),
+                                            order = 1,
+                                            width = "double",
+                                        },
+                                        importBtn = {
+                                            type  = "execute",
+                                            name  = "Import",
+                                            desc  = "Create a new bar based on this example.",
+                                            order = 2,
+                                            width = "half",
+                                            func  = function()
+                                                local ctrl = ns.AuraTracker and ns.AuraTracker.Controller
+                                                if not ctrl then return end
+                                                local ok, result = ctrl:ImportExampleBar(i, nil)
+                                                if ok then
+                                                    NotifyChange()
+                                                    print("|cFF00FF00Aura Tracker:|r Example bar imported as '" .. result .. "'.")
+                                                else
+                                                    print("|cFFFF0000Aura Tracker:|r Import failed: " .. (result or ""))
+                                                end
+                                            end,
+                                        },
                                     },
-                                    importBtn = {
-                                        type  = "execute",
-                                        name  = "Import",
-                                        desc  = "Create a new bar based on this example.",
-                                        order = 2,
-                                        width = "half",
-                                        func  = function()
-                                            local ctrl = ns.AuraTracker and ns.AuraTracker.Controller
-                                            if not ctrl then return end
-                                            local ok, result = ctrl:ImportExampleBar(i, nil)
-                                            if ok then
-                                                NotifyChange()
-                                                print("|cFF00FF00Aura Tracker:|r Example bar imported as '" .. result .. "'.")
-                                            else
-                                                print("|cFFFF0000Aura Tracker:|r Import failed: " .. (result or ""))
-                                            end
-                                        end,
-                                    },
-                                },
+                                }
+                            end
+
+                            args["class_" .. classKey] = {
+                                type  = "group",
+                                name  = classGroupName,
+                                order = 10 + classGroupOrder,
+                                args  = classArgs,
                             }
                         end
                     end
