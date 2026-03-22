@@ -31,6 +31,17 @@ local function GetNextOrder(trackedItems)
     return maxOrder + 1
 end
 
+-- Acquires a pooled frame, wraps it in an Icon, applies style settings, and
+-- registers the icon with the bar.  All Create*Icon helpers share this logic.
+local function CreateAndRegisterIcon(bar, item, order, styleOptions, displayMode)
+    local frame = LibFramePool:Acquire(Icon.POOL_KEY, bar:GetFrame())
+    local icon  = Icon:New(frame, item, displayMode)
+    icon.order  = order
+    icon:ApplyStyle(styleOptions)
+    bar:AddIcon(icon)
+    return icon
+end
+
 -- If spellId belongs to a preset exclusive group, adds all other group members
 -- to entry.exclusiveSpells. Used by AddAura and AddCooldownAura.
 local function ApplyExclusiveGroup(trackedItems, spellId)
@@ -62,18 +73,10 @@ function AuraTracker:CreateCooldownIcon(barKey, spellId, order, styleOptions, di
     
     local item = TrackedItem:New(spellId, Config.TrackType.COOLDOWN)
     if not item:GetName() then return nil end
-    
-    local frame = LibFramePool:Acquire(Icon.POOL_KEY, bar:GetFrame())
-    
-    local finalDisplayMode = displayMode or Config:GetDefaultDisplayMode(Config.TrackType.COOLDOWN)
-    local icon = Icon:New(frame, item, finalDisplayMode)
-    icon.order = order
 
-    icon:ApplyStyle(styleOptions)
-    
+    local resolvedMode = displayMode or Config:GetDefaultDisplayMode(Config.TrackType.COOLDOWN)
+    local icon = CreateAndRegisterIcon(bar, item, order, styleOptions, resolvedMode)
     self.items[barKey][spellId] = item
-    bar:AddIcon(icon)
-    
     return icon
 end
 
@@ -90,17 +93,10 @@ function AuraTracker:CreateAuraIcon(barKey, spellId, filterKey, auraId, order, s
         exclusiveSpells = exclusiveSpells,
     })
     if not item:GetName() then return nil end
-    
-    local frame = LibFramePool:Acquire(Icon.POOL_KEY, bar:GetFrame())
-    
-    local finalDisplayMode = displayMode or Config:GetDefaultDisplayMode(Config.TrackType.AURA, filterKey)
-    local icon = Icon:New(frame, item, finalDisplayMode)
-    icon.order = order
-    icon:ApplyStyle(styleOptions)
-    
+
+    local resolvedMode = displayMode or Config:GetDefaultDisplayMode(Config.TrackType.AURA, filterKey)
+    local icon = CreateAndRegisterIcon(bar, item, order, styleOptions, resolvedMode)
     self.items[barKey]["aura_" .. spellId] = item
-    bar:AddIcon(icon)
-    
     return icon
 end
 
@@ -111,17 +107,10 @@ function AuraTracker:CreateItemIcon(barKey, itemId, order, styleOptions, display
     
     local item = TrackedItem:New(itemId, Config.TrackType.ITEM)
     if not item:GetName() then return nil end
-    
-    local frame = LibFramePool:Acquire(Icon.POOL_KEY, bar:GetFrame())
-    
-    local finalDisplayMode = displayMode or Config:GetDefaultDisplayMode(Config.TrackType.ITEM)
-    local icon = Icon:New(frame, item, finalDisplayMode)
-    icon.order = order
-    icon:ApplyStyle(styleOptions)
-    
+
+    local resolvedMode = displayMode or Config:GetDefaultDisplayMode(Config.TrackType.ITEM)
+    local icon = CreateAndRegisterIcon(bar, item, order, styleOptions, resolvedMode)
     self.items[barKey]["item_" .. itemId] = item
-    bar:AddIcon(icon)
-    
     return icon
 end
 
@@ -132,15 +121,9 @@ function AuraTracker:CreateInternalCDIcon(barKey, itemId, order, styleOptions, d
 
     local item = TrackedItem:New(itemId, Config.TrackType.INTERNAL_CD)
 
-    local frame = LibFramePool:Acquire(Icon.POOL_KEY, bar:GetFrame())
-
-    local finalDisplayMode = displayMode or Config:GetDefaultDisplayMode(Config.TrackType.INTERNAL_CD)
-    local icon = Icon:New(frame, item, finalDisplayMode)
-    icon.order = order
-    icon:ApplyStyle(styleOptions)
-
+    local resolvedMode = displayMode or Config:GetDefaultDisplayMode(Config.TrackType.INTERNAL_CD)
+    local icon = CreateAndRegisterIcon(bar, item, order, styleOptions, resolvedMode)
     self.items[barKey]["icd_" .. itemId] = item
-    bar:AddIcon(icon)
 
     -- Register proc spell IDs for CLEU lookup
     local procSpells = item:GetProcSpellIds()
@@ -173,17 +156,10 @@ function AuraTracker:CreateCooldownAuraIcon(barKey, spellId, filterKey, auraId, 
         exclusiveSpells = exclusiveSpells,
     })
     if not item:GetName() then return nil end
-    
-    local frame = LibFramePool:Acquire(Icon.POOL_KEY, bar:GetFrame())
-    
-    local finalDisplayMode = displayMode or Config:GetDefaultDisplayMode(Config.TrackType.COOLDOWN_AURA)
-    local icon = Icon:New(frame, item, finalDisplayMode)
-    icon.order = order
-    icon:ApplyStyle(styleOptions)
-    
+
+    local resolvedMode = displayMode or Config:GetDefaultDisplayMode(Config.TrackType.COOLDOWN_AURA)
+    local icon = CreateAndRegisterIcon(bar, item, order, styleOptions, resolvedMode)
     self.items[barKey]["cda_" .. spellId] = item
-    bar:AddIcon(icon)
-    
     return icon
 end
 
@@ -400,16 +376,9 @@ function AuraTracker:CreateWeaponEnchantIcon(barKey, itemId, slot, order, styleO
     })
     if not item:GetName() then return nil end
 
-    local frame = LibFramePool:Acquire(Icon.POOL_KEY, bar:GetFrame())
-
-    local finalDisplayMode = displayMode or Config:GetDefaultDisplayMode(Config.TrackType.WEAPON_ENCHANT)
-    local icon = Icon:New(frame, item, finalDisplayMode)
-    icon.order = order
-    icon:ApplyStyle(styleOptions)
-
+    local resolvedMode = displayMode or Config:GetDefaultDisplayMode(Config.TrackType.WEAPON_ENCHANT)
+    local icon = CreateAndRegisterIcon(bar, item, order, styleOptions, resolvedMode)
     self.items[barKey]["wenchant_" .. itemId] = item
-    bar:AddIcon(icon)
-
     return icon
 end
 
@@ -476,16 +445,9 @@ function AuraTracker:CreateTotemIcon(barKey, totemId, spellId, order, styleOptio
     })
     if not item:GetName() then return nil end
 
-    local frame = LibFramePool:Acquire(Icon.POOL_KEY, bar:GetFrame())
-
-    local finalDisplayMode = displayMode or Config:GetDefaultDisplayMode(Config.TrackType.TOTEM)
-    local icon = Icon:New(frame, item, finalDisplayMode)
-    icon.order = order
-    icon:ApplyStyle(styleOptions)
-
+    local resolvedMode = displayMode or Config:GetDefaultDisplayMode(Config.TrackType.TOTEM)
+    local icon = CreateAndRegisterIcon(bar, item, order, styleOptions, resolvedMode)
     self.items[barKey]["totem_" .. totemId] = item
-    bar:AddIcon(icon)
-
     return icon
 end
 
