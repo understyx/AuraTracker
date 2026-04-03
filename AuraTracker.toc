@@ -26,6 +26,7 @@ BarManager.lua
 ItemFactory.lua
 EquipmentManager.lua
 MiniTalentWidget.lua
+FramePicker.lua
 Settings\ConditionUI.lua
 Settings\Settings.lua
 Settings\IconEditorUI.lua
