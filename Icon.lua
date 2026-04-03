@@ -688,14 +688,25 @@ end
 
 
 
+-- ==========================================================
+-- SNAPSHOT HELPERS
+-- ==========================================================
+
+-- Hides the snapshot diff overlay and resets the cooldown-text anchor back
+-- to the icon centre.  Guards on _prevSnapshotActive so the WoW frame API
+-- is only touched when a state transition actually occurs.
+function Icon:HideSnapshotDisplay()
+    self.frame.snapshotFrame:Hide()
+    self.frame.text:ClearAllPoints()
+    self.frame.text:SetPoint("CENTER")
+    self._prevSnapshotActive = false
+    self._prevSnapshotText   = nil
+end
+
 function Icon:UpdateSnapshotText()
     if not self.showSnapshotText or not self.trackedItem then
         if self._prevSnapshotActive ~= false then
-            self.frame.snapshotFrame:Hide()
-            self.frame.text:ClearAllPoints()
-            self.frame.text:SetPoint("CENTER")
-            self._prevSnapshotActive = false
-            self._prevSnapshotText   = nil
+            self:HideSnapshotDisplay()
         end
         return
     end
@@ -713,11 +724,7 @@ function Icon:UpdateSnapshotText()
 
     if not isAuraActive then
         if self._prevSnapshotActive ~= false then
-            self.frame.snapshotFrame:Hide()
-            self.frame.text:ClearAllPoints()
-            self.frame.text:SetPoint("CENTER")
-            self._prevSnapshotActive = false
-            self._prevSnapshotText   = nil
+            self:HideSnapshotDisplay()
         end
         return
     end
@@ -728,11 +735,7 @@ function Icon:UpdateSnapshotText()
     end
     if not SnapshotTracker then
         if self._prevSnapshotActive ~= false then
-            self.frame.snapshotFrame:Hide()
-            self.frame.text:ClearAllPoints()
-            self.frame.text:SetPoint("CENTER")
-            self._prevSnapshotActive = false
-            self._prevSnapshotText   = nil
+            self:HideSnapshotDisplay()
         end
         return
     end

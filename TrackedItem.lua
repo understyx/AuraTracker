@@ -72,55 +72,24 @@ local function DetectEnchantFromTooltip(invSlotId)
 end
 
 -- ==========================================================
--- CONSTRUCTOR
+-- CONSTRUCTOR HELPERS  (local – not part of the public API)
 -- ==========================================================
 
-function TrackedItem:New(id, trackType, options)
-    options = options or {}
-    
-    local self = setmetatable({}, TrackedItem)
-    
-    self.id = id
-    self.trackType = trackType
-    
-    self.auraId = options.auraId or Config:GetMappedAuraId(id)
-    self.filterKey = options.filterKey
-    self.onlyMine = options.onlyMine or false
-    
-    local filterData = Config:GetAuraFilter(self.filterKey)
-    if filterData then
-        self.unit = filterData.unit
-        self.filter = filterData.filter
-    end
-    
-    -- User-defined exclusive spell set for aura-tracking types.
-    -- When set, UpdateAuraExclusive scans for any of these spells on the unit.
-    -- We also build a name-based lookup so lower-level ranks match automatically.
-    if trackType == Config.TrackType.AURA or trackType == Config.TrackType.COOLDOWN_AURA then
-        local excl = options.exclusiveSpells
-        if excl and next(excl) then
-            local names = {}
-            for sid in pairs(excl) do
-                local sname = GetSpellInfo(sid)
-                if sname then
-                    names[sname] = true
-                end
-            end
-            self.exclusiveGroup = { spells = excl, names = names }
-        end
-    end
-    
-    -- Get name/texture based on track type
+--- Resolves the display name and icon texture for a TrackedItem based on its
+--- track type.  Must be called after self.auraId is set (used for the spell
+--- fallback path in the `else` branch).
+local function ResolveNameAndTexture(self, id, trackType, options)
     if trackType == Config.TrackType.ITEM
     or trackType == Config.TrackType.INTERNAL_CD then
         local itemName, _, _, _, _, _, _, _, _, itemTexture = GetItemInfo(id)
-        self.name = itemName
+        self.name    = itemName
         self.texture = itemTexture
+
     elseif trackType == Config.TrackType.WEAPON_ENCHANT then
         -- For positive item IDs, prefer the item's own name and icon.
         if type(id) == "number" and id > 0 then
             local itemName, _, _, _, _, _, _, _, _, itemTexture = GetItemInfo(id)
-            self.name = itemName
+            self.name    = itemName
             self.texture = itemTexture
         end
         -- For slot-based sentinel IDs or when item data is not yet cached,
@@ -132,7 +101,7 @@ function TrackedItem:New(id, trackType, options)
                 if auraId then
                     local auraName, _, auraTexture = GetSpellInfo(auraId)
                     if auraName then
-                        self.name = auraName
+                        self.name    = auraName
                         self.texture = auraTexture
                     end
                 end
@@ -141,15 +110,16 @@ function TrackedItem:New(id, trackType, options)
         -- Final generic fallback.
         if not self.name then
             local slot = options.slot or "mainhand"
-            self.name = (slot == "offhand") and "Offhand Enchant" or "Mainhand Enchant"
-            local weaponInvSlot = (slot == "offhand") and 17 or 16
-            self.texture = GetInventoryItemTexture("player", weaponInvSlot)
+            self.name    = (slot == "offhand") and "Offhand Enchant" or "Mainhand Enchant"
+            local invSlot = (slot == "offhand") and 17 or 16
+            self.texture = GetInventoryItemTexture("player", invSlot)
         end
+
     elseif trackType == Config.TrackType.TOTEM then
         -- Use the dragged spell's name/icon for display; fall back to element name.
         if options.spellId then
             local spellName, _, spellTexture = GetSpellInfo(options.spellId)
-            self.name = spellName
+            self.name    = spellName
             self.texture = spellTexture
         end
         if not self.name then
@@ -164,29 +134,26 @@ function TrackedItem:New(id, trackType, options)
                 self.texture = activeIcon
             end
         end
+
     else
         local name, _, texture = GetSpellInfo(self.auraId or id)
-        self.name = name
+        self.name    = name
         self.texture = texture
     end
-    self.originalTexture = self.texture
 
-    self.active = false
-    self.duration = 0
-    self.expiration = 0
-    self.stacks = 0
-    self.actualCooldownEnd = nil
-    -- Source / destination names for custom text tokens (%srcName, %destName)
-    self.srcName  = ""
-    self.destName = ""
-    
+    self.originalTexture = self.texture
+end
+
+--- Initialises the extra state fields that are specific to each track type.
+--- `id` is passed directly so this helper does not depend on any prior call.
+local function InitTypeState(self, id, trackType, options)
     -- Dual-track state
     if trackType == Config.TrackType.COOLDOWN_AURA then
-        self.onCooldown = false
-        self.auraActive = false
-        self.auraDuration = 0
+        self.onCooldown    = false
+        self.auraActive    = false
+        self.auraDuration  = 0
         self.auraExpiration = 0
-        self.auraStacks = 0
+        self.auraStacks    = 0
     end
 
     -- Internal cooldown state
@@ -202,11 +169,11 @@ function TrackedItem:New(id, trackType, options)
             self.icdDuration = Config:GetTrinketProcCooldown(self.procSpellIds[1])
         else
             self.procSpellIds = {}
-            self.icdDuration = Config.DEFAULT_ICD
+            self.icdDuration  = Config.DEFAULT_ICD
         end
-        self.nativeICD = self.icdDuration
+        self.nativeICD     = self.icdDuration
         self.icdExpiration = 0
-        self.equipped = false
+        self.equipped      = false
     end
 
     -- Temporary weapon enchant state
@@ -224,7 +191,59 @@ function TrackedItem:New(id, trackType, options)
     if trackType == Config.TrackType.TOTEM then
         self.totemSlot = options.totemSlot or Config:GetTotemSlot(id) or 1
     end
-    
+end
+
+-- ==========================================================
+-- CONSTRUCTOR
+-- ==========================================================
+
+function TrackedItem:New(id, trackType, options)
+    options = options or {}
+
+    local self = setmetatable({}, TrackedItem)
+
+    self.id        = id
+    self.trackType = trackType
+
+    self.auraId    = options.auraId or Config:GetMappedAuraId(id)
+    self.filterKey = options.filterKey
+    self.onlyMine  = options.onlyMine or false
+
+    local filterData = Config:GetAuraFilter(self.filterKey)
+    if filterData then
+        self.unit   = filterData.unit
+        self.filter = filterData.filter
+    end
+
+    -- User-defined exclusive spell set for aura-tracking types.
+    -- When set, UpdateAuraExclusive scans for any of these spells on the unit.
+    -- We also build a name-based lookup so lower-level ranks match automatically.
+    if trackType == Config.TrackType.AURA or trackType == Config.TrackType.COOLDOWN_AURA then
+        local excl = options.exclusiveSpells
+        if excl and next(excl) then
+            local names = {}
+            for sid in pairs(excl) do
+                local sname = GetSpellInfo(sid)
+                if sname then names[sname] = true end
+            end
+            self.exclusiveGroup = { spells = excl, names = names }
+        end
+    end
+
+    ResolveNameAndTexture(self, id, trackType, options)
+
+    -- Shared tracking state
+    self.active            = false
+    self.duration          = 0
+    self.expiration        = 0
+    self.stacks            = 0
+    self.actualCooldownEnd = nil
+    -- Source / destination names for custom text tokens (%srcName, %destName)
+    self.srcName  = ""
+    self.destName = ""
+
+    InitTypeState(self, id, trackType, options)
+
     return self
 end
 
@@ -286,6 +305,15 @@ function TrackedItem:GetEffectiveFilter()
         filter = filter .. "|PLAYER"
     end
     return filter
+end
+
+--- Resets the shared aura tracking fields to "not active".
+--- Called at the start of aura-scan paths to establish a clean baseline.
+function TrackedItem:ClearAuraState()
+    self.active     = false
+    self.duration   = 0
+    self.expiration = 0
+    self.stacks     = 0
 end
 
 -- ==========================================================
@@ -403,10 +431,7 @@ function TrackedItem:UpdateAuraSmartGroup(filter, wasActive, prevStacks)
     local Conditionals = ns.AuraTracker.Conditionals
     local units = Conditionals and Conditionals:GetSmartGroupUnits() or { "player" }
 
-    self.active = false
-    self.duration = 0
-    self.expiration = 0
-    self.stacks = 0
+    self:ClearAuraState()
 
     if self.exclusiveGroup then
         -- Exclusive-group variant: scan each group member for any of the exclusive spells.
@@ -420,12 +445,12 @@ function TrackedItem:UpdateAuraSmartGroup(filter, wasActive, prevStacks)
                     if not name then break end
                     if spellId == self.auraId or group.spells[spellId]
                     or name == self.name or (groupNames and groupNames[name]) then
-                        self.active = true
-                        self.duration = duration or 0
+                        self.active     = true
+                        self.duration   = duration or 0
                         self.expiration = expiration or 0
-                        self.stacks = count or 0
-                        self.srcName  = casterUnit and (UnitName(casterUnit) or "") or ""
-                        self.destName = UnitName(u) or ""
+                        self.stacks     = count or 0
+                        self.srcName    = casterUnit and (UnitName(casterUnit) or "") or ""
+                        self.destName   = UnitName(u) or ""
                         local _, _, tex = GetSpellInfo(spellId)
                         if spellId and tex then self.texture = tex end
                         break
@@ -435,7 +460,7 @@ function TrackedItem:UpdateAuraSmartGroup(filter, wasActive, prevStacks)
             if self.active then break end
         end
         if not self.active then
-            self.texture = self.originalTexture
+            self.texture  = self.originalTexture
             self.srcName  = ""
             self.destName = ""
         end
@@ -445,12 +470,12 @@ function TrackedItem:UpdateAuraSmartGroup(filter, wasActive, prevStacks)
                 local name, _, _, count, _, duration, expiration, casterUnit =
                     UnitAura(u, self.name, nil, filter)
                 if name then
-                    self.active = true
-                    self.duration = duration or 0
+                    self.active     = true
+                    self.duration   = duration or 0
                     self.expiration = expiration or 0
-                    self.stacks = count or 0
-                    self.srcName  = casterUnit and (UnitName(casterUnit) or "") or ""
-                    self.destName = UnitName(u) or ""
+                    self.stacks     = count or 0
+                    self.srcName    = casterUnit and (UnitName(casterUnit) or "") or ""
+                    self.destName   = UnitName(u) or ""
                     break
                 end
             end
@@ -465,14 +490,11 @@ function TrackedItem:UpdateAuraSmartGroup(filter, wasActive, prevStacks)
 end
 
 function TrackedItem:UpdateAuraExclusive(filter, wasActive, prevStacks)
-    local group = self.exclusiveGroup
-    local unit = self.unit
+    local group      = self.exclusiveGroup
+    local unit       = self.unit
     local groupNames = group.names
 
-    self.active = false
-    self.duration = 0
-    self.expiration = 0
-    self.stacks = 0
+    self:ClearAuraState()
 
     for i = 1, 40 do
         local name, _, _, count, _, duration, expiration, casterUnit, _, _, spellId =
@@ -480,13 +502,14 @@ function TrackedItem:UpdateAuraExclusive(filter, wasActive, prevStacks)
         if not name then break end
 
         -- Match original spell, exclusive group spells, or fall back to name
-        if spellId == self.auraId or group.spells[spellId] or name == self.name or (groupNames and groupNames[name]) then
-            self.active = true
-            self.duration = duration or 0
+        if spellId == self.auraId or group.spells[spellId]
+        or name == self.name or (groupNames and groupNames[name]) then
+            self.active     = true
+            self.duration   = duration or 0
             self.expiration = expiration or 0
-            self.stacks = count or 0
-            self.srcName  = casterUnit and (UnitName(casterUnit) or "") or ""
-            self.destName = UnitName(unit) or ""
+            self.stacks     = count or 0
+            self.srcName    = casterUnit and (UnitName(casterUnit) or "") or ""
+            self.destName   = UnitName(unit) or ""
             local _, _, tex = GetSpellInfo(spellId)
             if tex then self.texture = tex end
             break
@@ -494,7 +517,7 @@ function TrackedItem:UpdateAuraExclusive(filter, wasActive, prevStacks)
     end
 
     if not self.active then
-        self.texture = self.originalTexture
+        self.texture  = self.originalTexture
         self.srcName  = ""
         self.destName = UnitName(unit) or ""
     end

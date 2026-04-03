@@ -96,6 +96,32 @@ local BAR_DEFAULTS = {
     textColor = { r = 1, g = 1, b = 1, a = 1 },
 }
 
+-- ==========================================================
+-- PRIVATE HELPERS
+-- ==========================================================
+
+--- Recursively deep-copies a value so mutating the result does not affect
+--- the original table.  Used when instantiating bars from example templates.
+local function DeepCopy(t)
+    if type(t) ~= "table" then return t end
+    local copy = {}
+    for k, v in pairs(t) do copy[k] = DeepCopy(v) end
+    return copy
+end
+
+--- Returns a key that is not already present in dbBars.
+--- Tries baseKey first, then appends an incrementing counter until a free
+--- slot is found.
+local function FindUniqueBarKey(dbBars, baseKey)
+    local candidate = baseKey
+    local counter   = 1
+    while dbBars[candidate] do
+        candidate = baseKey .. counter
+        counter   = counter + 1
+    end
+    return candidate
+end
+
 -- Builds the style options table from a bar's DB entry.
 -- Exposed on ns.AuraTracker so UpdateEngine.lua can reuse it without duplication.
 local function BuildStyleOptions(db)
@@ -550,17 +576,11 @@ function AuraTracker:ImportBar(str, newBarKey)
         return false, "Failed to parse import data"
     end
 
-    -- Determine a unique bar key
+    local db = self:GetDB()
     local baseKey = (newBarKey and newBarKey ~= "") and newBarKey
                     or (exportData.name and exportData.name:gsub("[^%w]", ""))
                     or "ImportedBar"
-    newBarKey = baseKey
-    local db = self:GetDB()
-    local counter = 1
-    while db.bars[newBarKey] do
-        newBarKey = baseKey .. counter
-        counter   = counter + 1
-    end
+    newBarKey = FindUniqueBarKey(db.bars, baseKey)
 
     db.bars[newBarKey] = {
         enabled          = true,
@@ -593,24 +613,10 @@ function AuraTracker:ImportExampleBar(exampleIndex, newBarKey)
 
     local db = self:GetDB()
 
-    -- Unique key
     local baseKey = (newBarKey and newBarKey ~= "") and newBarKey
                     or (example.name and example.name:gsub("[^%w]", ""))
                     or "ExampleBar"
-    newBarKey = baseKey
-    local counter = 1
-    while db.bars[newBarKey] do
-        newBarKey = baseKey .. counter
-        counter   = counter + 1
-    end
-
-    -- Deep-copy a value so edits don't mutate the template
-    local function DeepCopy(t)
-        if type(t) ~= "table" then return t end
-        local copy = {}
-        for k, v in pairs(t) do copy[k] = DeepCopy(v) end
-        return copy
-    end
+    newBarKey = FindUniqueBarKey(db.bars, baseKey)
 
     -- Start from a deep copy of example.data so all authored settings are
     -- preserved (scale, textColor, classRestriction, talentRequirements, etc.).

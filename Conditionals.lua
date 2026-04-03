@@ -110,6 +110,18 @@ end
 -- COMPARISON HELPERS
 -- ==========================================================
 
+--- Evaluates a percentage-based condition for a unit.
+--- When unit == "smart_group" the check passes if ANY group member satisfies it.
+local function CheckUnitPct(unit, getFunc, maxFunc, op, value)
+    if unit == "smart_group" then
+        return SmartGroupPctCheck(getFunc, maxFunc, op, value)
+    end
+    local maxVal = maxFunc(unit)
+    if not maxVal or maxVal == 0 then return false end
+    local pct = (getFunc(unit) / maxVal) * 100
+    return Conditionals:CompareValue(pct, op, value)
+end
+
 Conditionals.ConditionOp = {
     LT  = "<",
     LTE = "<=",
@@ -274,14 +286,7 @@ function Conditionals:CheckLoadCondition(cond)
         return found
 
     elseif check == "unit_hp" then
-        local unit = cond.unit or "target"
-        if unit == "smart_group" then
-            return SmartGroupPctCheck(UnitHealth, UnitHealthMax, cond.op, cond.value)
-        end
-        local maxHP = UnitHealthMax(unit)
-        if not maxHP or maxHP == 0 then return false end
-        local pct = (UnitHealth(unit) / maxHP) * 100
-        return self:CompareValue(pct, cond.op, cond.value)
+        return CheckUnitPct(cond.unit or "target", UnitHealth, UnitHealthMax, cond.op, cond.value)
 
     elseif check == "in_group" then
         local inRaid = GetNumRaidMembers and (GetNumRaidMembers() > 0) or false
@@ -364,24 +369,10 @@ function Conditionals:CheckActionCondition(cond, item)
     local check = cond.check
 
     if check == "unit_hp" then
-        local unit = cond.unit or "target"
-        if unit == "smart_group" then
-            return SmartGroupPctCheck(UnitHealth, UnitHealthMax, cond.op, cond.value)
-        end
-        local maxHP = UnitHealthMax(unit)
-        if not maxHP or maxHP == 0 then return false end
-        local pct = (UnitHealth(unit) / maxHP) * 100
-        return self:CompareValue(pct, cond.op, cond.value)
+        return CheckUnitPct(cond.unit or "target", UnitHealth, UnitHealthMax, cond.op, cond.value)
 
     elseif check == "unit_power" then
-        local unit = cond.unit or "player"
-        if unit == "smart_group" then
-            return SmartGroupPctCheck(UnitPower, UnitPowerMax, cond.op, cond.value)
-        end
-        local maxPow = UnitPowerMax(unit)
-        if not maxPow or maxPow == 0 then return false end
-        local pct = (UnitPower(unit) / maxPow) * 100
-        return self:CompareValue(pct, cond.op, cond.value)
+        return CheckUnitPct(cond.unit or "player", UnitPower, UnitPowerMax, cond.op, cond.value)
 
     elseif check == "remaining" then
         if not item then return false end
