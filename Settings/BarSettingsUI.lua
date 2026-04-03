@@ -374,6 +374,71 @@ local function CreateBarSettings(barKey, barData)
                             end,
                         },
 
+                        posHeader = { type = "header", name = "Position & Anchoring", order = 40 },
+                        anchorFrame = {
+                            type  = "input",
+                            name  = "Anchor Frame",
+                            desc  = "Name of the WoW frame to anchor this bar to (e.g. PlayerFrame, TargetFrame, AuraTracker_Bar_MyBar). Leave blank to anchor to the screen.",
+                            order = 41,
+                            width = "double",
+                            get   = function() return barData.anchorFrame or "" end,
+                            set   = function(_, val)
+                                val = val and val:match("^%s*(.-)%s*$") or ""
+                                if val == "" then
+                                    barData.anchorFrame = nil
+                                else
+                                    barData.anchorFrame = val
+                                end
+                                RebuildBar(barKey)
+                            end,
+                        },
+                        anchorPoint = {
+                            type   = "select",
+                            name   = "Anchor To Point",
+                            desc   = "Which point on the anchor frame this bar attaches to. Only used when Anchor Frame is set.",
+                            order  = 42,
+                            width  = "double",
+                            values = {
+                                CENTER      = "Center",
+                                TOP         = "Top",
+                                BOTTOM      = "Bottom",
+                                LEFT        = "Left",
+                                RIGHT       = "Right",
+                                TOPLEFT     = "Top Left",
+                                TOPRIGHT    = "Top Right",
+                                BOTTOMLEFT  = "Bottom Left",
+                                BOTTOMRIGHT = "Bottom Right",
+                            },
+                            disabled = function() return not barData.anchorFrame or barData.anchorFrame == "" end,
+                            get      = function() return barData.anchorPoint or "CENTER" end,
+                            set      = function(_, val)
+                                barData.anchorPoint = val
+                                RebuildBar(barKey)
+                            end,
+                        },
+                        snapSizeHeader = { type = "header", name = "Edit Mode Dragging", order = 45 },
+                        snapSize = {
+                            type  = "range",
+                            name  = "Snap Size",
+                            desc  = "Grid snap size when dragging bars in edit mode. Set to 0 to disable snapping.",
+                            min   = 0, max = 128, step = 1,
+                            order = 46,
+                            width = "double",
+                            get   = function() return barData.snapSize or 32 end,
+                            set   = function(_, val)
+                                -- Store nil when the value equals the built-in default (32) so
+                                -- existing bars without this key keep the default behaviour.
+                                barData.snapSize = (val == 32) and nil or val
+                                local ctrl = ns.AuraTracker and ns.AuraTracker.Controller
+                                if ctrl then
+                                    local bar = ctrl.bars and ctrl.bars[barKey]
+                                    if bar and bar.mover then
+                                        bar.mover.snapSize = barData.snapSize
+                                    end
+                                end
+                            end,
+                        },
+
                         dangerHeader = { type = "header", name = "Danger Zone", order = 100 },
                         deleteBar = {
                             type        = "execute",
