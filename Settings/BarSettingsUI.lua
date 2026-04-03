@@ -392,6 +392,20 @@ local function CreateBarSettings(barKey, barData)
                                 RebuildBar(barKey)
                             end,
                         },
+                        pickAnchorFrame = {
+                            type  = "execute",
+                            name  = "Pick Frame",
+                            desc  = "Click to enter frame-picking mode. Hover over any visible game frame and left-click to use it as the anchor. Right-click or press Escape to cancel.",
+                            order = 41.5,
+                            func  = function()
+                                local FP = ns.AuraTracker.FramePicker
+                                FP:Start(function(frameName)
+                                    barData.anchorFrame = frameName
+                                    RebuildBar(barKey)
+                                    NotifyChange()
+                                end)
+                            end,
+                        },
                         anchorPoint = {
                             type   = "select",
                             name   = "Anchor To Point",
