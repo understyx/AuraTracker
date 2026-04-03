@@ -78,6 +78,38 @@ end
 local EXPORT_PREFIX = "ATv1:"
 
 -- ==========================================================
+-- POSITIONING HELPERS
+-- ==========================================================
+
+--- Resolves an anchor frame name string to an actual frame object.
+--- Returns UIParent when the name is nil, empty, or refers to a non-existent frame.
+local function ResolveAnchorFrame(anchorFrameName)
+    return (anchorFrameName and _G[anchorFrameName]) or UIParent
+end
+
+--- Returns the screen-space (UI unit) X,Y coordinates for the given named
+--- anchor point on a frame.  Used to convert UIParent-relative drag results
+--- back into anchor-frame-relative offsets when an anchorFrame is configured.
+local function GetPointScreenXY(frame, point)
+    local l, b = frame:GetLeft(), frame:GetBottom()
+    if not l or not b then return 0, 0 end
+    local w, h = frame:GetWidth(), frame:GetHeight()
+    local r, t = l + w, b + h
+    local cx, cy = l + w * 0.5, b + h * 0.5
+    if     point == "CENTER"      then return cx, cy
+    elseif point == "TOP"         then return cx, t
+    elseif point == "BOTTOM"      then return cx, b
+    elseif point == "LEFT"        then return l,  cy
+    elseif point == "RIGHT"       then return r,  cy
+    elseif point == "TOPLEFT"     then return l,  t
+    elseif point == "TOPRIGHT"    then return r,  t
+    elseif point == "BOTTOMLEFT"  then return l,  b
+    elseif point == "BOTTOMRIGHT" then return r,  b
+    end
+    return cx, cy
+end
+
+-- ==========================================================
 -- CONSTANTS
 -- ==========================================================
 
@@ -178,27 +210,44 @@ function AuraTracker:CreateBar(barKey)
         point = db.point,
         x = db.x,
         y = db.y,
+        anchorFrame = db.anchorFrame,
+        anchorPoint = db.anchorPoint,
     })
 
     self.bars[barKey] = bar
     self.items[barKey] = {}
+
+    local anchorFrameRef = ResolveAnchorFrame(db.anchorFrame)
+    local anchorRelPoint = db.anchorPoint or db.point or "CENTER"
 
     local mover = LibEditmode:Register(bar:GetFrame(), {
         label = "AT: " .. (db.name or barKey),
         syncSize = true,
         addonName = "AuraTracker",
         subKey = barKey,
+        snapSize = db.snapSize,
         initialPoint = {
             db.point or "CENTER",
-            UIParent,
-            db.point or "CENTER",
+            anchorFrameRef,
+            anchorRelPoint,
             db.x or 0,
             db.y or 0,
         },
         onMove = function(point, relTo, relPoint, x, y)
             db.point = point
-            db.x = x
-            db.y = y
+            local af = ResolveAnchorFrame(db.anchorFrame)
+            if af and af ~= UIParent then
+                -- Recalculate offset relative to the configured anchor frame so
+                -- that the bar stays anchored to that frame after dragging.
+                local anchorRelPt = db.anchorPoint or point
+                local barPtX, barPtY = GetPointScreenXY(bar:GetFrame(), point)
+                local afPtX, afPtY  = GetPointScreenXY(af, anchorRelPt)
+                db.x = barPtX - afPtX
+                db.y = barPtY - afPtY
+            else
+                db.x = x
+                db.y = y
+            end
         end,
         onRightClick = function()
             local SP = ns.AuraTracker.SettingsPanel
@@ -306,7 +355,7 @@ function AuraTracker:RebuildBar(barKey)
     bar:SetSpacing(db.spacing)
     bar:SetIconSize(db.iconSize)
     bar:SetScale(db.scale or 1.0)
-    bar:SetPosition(db.point, db.x, db.y)
+    bar:SetPosition(db.point, db.x, db.y, db.anchorFrame, db.anchorPoint)
     
     local styleOptions = BuildStyleOptions(db)
     
@@ -358,13 +407,16 @@ function AuraTracker:RebuildBar(barKey)
         local scale = frame:GetScale()
         bar.mover:SetSize(frame:GetWidth() * scale, frame:GetHeight() * scale)
         bar.mover:ClearAllPoints()
+        local anchorFrameRef = ResolveAnchorFrame(db.anchorFrame)
+        local anchorRelPoint = db.anchorPoint or db.point or "CENTER"
         bar.mover:SetPoint(
             db.point or "CENTER",
-            UIParent,
-            db.point or "CENTER",
+            anchorFrameRef,
+            anchorRelPoint,
             db.x or 0,
             db.y or 0
         )
+        bar.mover.snapSize = db.snapSize
     end
 end
 

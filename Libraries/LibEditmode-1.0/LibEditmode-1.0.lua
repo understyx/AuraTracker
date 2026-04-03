@@ -92,9 +92,11 @@ local SNAP_SIZE = 32
 local function SnapPosition(mover)
     local point, relTo, relPoint, x, y = mover:GetPoint()
     if not x or not y then return end
-    -- Round to nearest multiple of SNAP_SIZE using standard rounding.
-    x = math.floor((x / SNAP_SIZE) + 0.5) * SNAP_SIZE
-    y = math.floor((y / SNAP_SIZE) + 0.5) * SNAP_SIZE
+    local snap = (mover.snapSize ~= nil) and mover.snapSize or SNAP_SIZE
+    if snap <= 0 then return end
+    -- Round to nearest multiple of snap using standard rounding.
+    x = math.floor((x / snap) + 0.5) * snap
+    y = math.floor((y / snap) + 0.5) * snap
     mover:ClearAllPoints()
     mover:SetPoint(point, relTo, relPoint, x, y)
 end
@@ -153,6 +155,7 @@ function Lib:Register(frame, opts)
     mover.onClick = opts.onClick
     mover.onRightClick = opts.onRightClick
     mover.syncSize = opts.syncSize
+    mover.snapSize = opts.snapSize
     mover.addonName = opts.addonName
     mover.subKey = opts.subKey
 

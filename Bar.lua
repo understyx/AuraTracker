@@ -34,7 +34,9 @@ function Bar:New(name, parent, options)
     local point = options.point or "CENTER"
     local x = options.x or 0
     local y = options.y or 0
-    self.frame:SetPoint(point, parent or UIParent, point, x / self.scale, y / self.scale)
+    local anchor = (options.anchorFrame and _G[options.anchorFrame]) or (parent or UIParent)
+    local anchorPoint = options.anchorPoint or point
+    self.frame:SetPoint(point, anchor, anchorPoint, x / self.scale, y / self.scale)
     
     self.minWidth = self.iconSize
     self.minHeight = self.iconSize
@@ -222,9 +224,11 @@ end
 -- POSITIONING
 -- ==========================================================
 
-function Bar:SetPosition(point, x, y)
+function Bar:SetPosition(point, x, y, anchorFrame, anchorPoint)
+    local anchor = (anchorFrame and _G[anchorFrame]) or UIParent
+    local relPoint = anchorPoint or point
     self.frame:ClearAllPoints()
-    self.frame:SetPoint(point, UIParent, point, x / self.scale, y / self.scale)
+    self.frame:SetPoint(point, anchor, relPoint, x / self.scale, y / self.scale)
 end
 
 function Bar:SetMinSize(width, height)
