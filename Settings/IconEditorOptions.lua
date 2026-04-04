@@ -10,6 +10,12 @@ local GetSpellInfo = GetSpellInfo
 local L = SU.L
 local editState = SU.editState
 
+local InjectIconEditorArgs = ns.AuraTracker._InjectIconEditorArgs
+
+local function NotifyChange()
+    SU.NotifyChange()
+end
+
 local function NotifyAndRebuild(barKey)
     SU.NotifyAndRebuild(barKey)
 end

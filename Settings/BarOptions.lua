@@ -9,7 +9,6 @@ local table_insert, table_sort, table_remove = table.insert, table.sort, table.r
 local math_max, math_min, math_floor = math.max, math.min, math.floor
 local string_format, string_upper = string.format, string.upper
 local GetSpellInfo, GetItemInfo = GetSpellInfo, GetItemInfo
-local GetInventoryItemTexture = GetInventoryItemTexture
 
 local LibEditmode = LibStub("LibEditmode-1.0", true)
 

@@ -687,3 +687,6 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
     }
 end
 
+
+-- Export for IconEditorOptions.lua
+ns.AuraTracker._InjectIconEditorArgs = InjectIconEditorArgs
