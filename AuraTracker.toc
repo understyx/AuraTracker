@@ -13,10 +13,16 @@ Data\Config.lua
 Data\ConfigWeaponEnchant.lua
 Data\ConfigTotem.lua
 Data\ExampleBars.lua
+Data\ExampleBarsB.lua
 Data\TrinketData.lua
+Data\TrinketProcData.lua
 Display\Skin.lua
+Display\SkinTabs.lua
+Display\SkinDropdown.lua
 Tracking\Conditionals.lua
+Tracking\ConditionalChecks.lua
 
+Tracking\SnapshotData.lua
 Tracking\SnapshotTracker.lua
 Tracking\TrackedItem.lua
 Tracking\TrackedItemUpdates.lua
@@ -30,11 +36,17 @@ AuraTracker.lua
 Core\BarManager.lua
 Core\BarImportExport.lua
 Core\ItemFactory.lua
+Core\ItemFactoryEnchantTotem.lua
 Core\EquipmentManager.lua
 Display\MiniTalentWidget.lua
 Display\FramePicker.lua
 Settings\ConditionUI.lua
+Settings\LoadConditionUI.lua
+Settings\ActionConditionUI.lua
+Settings\IconActionsUI.lua
 Settings\Settings.lua
+Settings\BarOptions.lua
 Settings\IconEditorUI.lua
+Settings\IconEditorOptions.lua
 Settings\BarSettingsUI.lua
 Settings\SettingsMappings.lua
