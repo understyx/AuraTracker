@@ -19,10 +19,6 @@ end
 -- CLASS-SPECIFIC DATA TABLES
 -- ==========================================================
 
--- ==========================================================
--- CLASS-SPECIFIC DATA TABLES
--- ==========================================================
-
 -- The unit used for target-dependent calculations (level, debuffs, health)
 local TARGET_UNIT = "target"
 
