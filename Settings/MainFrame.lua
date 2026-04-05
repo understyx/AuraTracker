@@ -608,7 +608,7 @@ local function BuildMainFrame()
     toolSep:SetHeight(1)
 
     -- Scroll frame for bar/icon list
-    scrollFrame = CreateFrame("ScrollFrame", nil, leftPanel, "UIPanelScrollFrameTemplate")
+    scrollFrame = CreateFrame("ScrollFrame", "AuraTrackerMainScrollFrame", leftPanel, "UIPanelScrollFrameTemplate")
     scrollFrame:SetPoint("TOPLEFT",     leftPanel, "TOPLEFT",     4, -(TOOLBAR_H + 6))
     scrollFrame:SetPoint("BOTTOMRIGHT", leftPanel, "BOTTOMRIGHT", -22, 4)
 
