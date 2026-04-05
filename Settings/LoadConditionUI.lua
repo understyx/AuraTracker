@@ -26,6 +26,10 @@ local GetIconUnitHPCond = _H.GetIconUnitHPCond
 local GetIconUnitHPEnabled = _H.GetIconUnitHPEnabled
 local SetIconUnitHPEnabled = _H.SetIconUnitHPEnabled
 
+local TRISTATE_YES_COLOR = "|cFF00CC00"
+local TRISTATE_NO_COLOR  = "|cFFCC0000"
+local TRISTATE_COLOR_END = "|r"
+
 --- Build AceConfig args for load conditions.
 --- @param args      table   Args table to inject into
 --- @param owner     table   DB table that has .loadConditions
