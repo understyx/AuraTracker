@@ -251,7 +251,6 @@ function FramePicker:Start(callback)
     _overlay.highlight:Hide()
     _overlay.labelBg:Hide()
     _overlay:Show()
-    _overlay:SetPropagateKeyboardInput(false)
 end
 
 --- Close the frame picker without making a selection.
