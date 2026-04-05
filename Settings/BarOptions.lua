@@ -440,19 +440,22 @@ end
 -- ==========================================================
 -- SETTINGS PANEL SHIM
 -- ==========================================================
+-- Delegates to the WeakAuras-style MainFrame when available,
+-- with a fallback to the legacy AceConfigDialog window.
 
 local AceConfigDialog = LibStub("AceConfigDialog-3.0")
 
 ns.AuraTracker = ns.AuraTracker or {}
 ns.AuraTracker.SettingsPanel = {
     Show = function(self, barKey)
+        -- Prefer the new custom two-panel frame
+        local mf = ns.AuraTracker.MainFrame
+        if mf then
+            mf:Open(barKey)
+            return
+        end
+        -- Fallback: legacy AceConfigDialog standalone window
         AceConfigDialog:SetDefaultSize(addonName, 900, 650)
-
-        -- Pre-expand "Any Class" and the player's own class group so bars are
-        -- immediately visible in the tree without any manual clicking.
-        -- AceConfigDialog stores tree-node expansion in:
-        --   GetStatusTable(app).groups.groups["<parentKey>\001<childKey>"] = true
-        -- We seed this BEFORE Open() so the first render is already correct.
         do
             local rootStatus = AceConfigDialog:GetStatusTable(addonName)
             rootStatus.groups = rootStatus.groups or {}
@@ -465,16 +468,12 @@ ns.AuraTracker.SettingsPanel = {
                 tg["bars\001class_" .. playerClass] = true
             end
         end
-
         AceConfigDialog:Open(addonName)
         local f = AceConfigDialog.OpenFrames and AceConfigDialog.OpenFrames[addonName]
         if f and f.frame then
             f.frame:SetMinResize(750, 550)
         end
         if barKey then
-            -- Bars are now nested under class group nodes.  Resolve the
-            -- correct class group key so SelectGroup navigates straight to
-            -- the bar's settings page.
             local classGroupKey = "class_NONE"
             local found = false
             if ns.AuraTracker and ns.AuraTracker.Controller then
@@ -491,12 +490,16 @@ ns.AuraTracker.SettingsPanel = {
                 AceConfigDialog:SelectGroup(addonName, "bars")
             end
         else
-            -- Navigate to the bars section; the pre-expanded groups will be visible.
             AceConfigDialog:SelectGroup(addonName, "bars")
         end
     end,
 
     Hide = function(self)
+        local mf = ns.AuraTracker.MainFrame
+        if mf then
+            mf:Close()
+            return
+        end
         local frame = AceConfigDialog.OpenFrames and AceConfigDialog.OpenFrames[addonName]
         if frame then frame:Hide() end
     end,
