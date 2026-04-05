@@ -19,14 +19,18 @@ Data\TrinketProcData.lua
 Display\Skin.lua
 Display\SkinTabs.lua
 Display\SkinDropdown.lua
+Display\SkinWidgets.lua
 Tracking\Conditionals.lua
 Tracking\ConditionalChecks.lua
+Tracking\ConditionalActions.lua
 
 Tracking\SnapshotData.lua
 Tracking\SnapshotTracker.lua
 Tracking\TrackedItem.lua
 Tracking\TrackedItemUpdates.lua
+Tracking\TrackedItemSpecial.lua
 Display\Icon.lua
+Display\IconRender.lua
 Display\IconText.lua
 Display\Bar.lua
 Display\DragDrop.lua
@@ -34,6 +38,7 @@ Display\DragDropHooks.lua
 Core\UpdateEngine.lua
 AuraTracker.lua
 Core\BarManager.lua
+Core\BarVisibility.lua
 Core\BarImportExport.lua
 Core\ItemFactory.lua
 Core\ItemFactoryEnchantTotem.lua
