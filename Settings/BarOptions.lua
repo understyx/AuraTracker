@@ -186,10 +186,10 @@ function ns.GetAuraTrackerOptions()
                 },
             },
 
-            -- Example bars for common class configurations
+            -- Predefined bars for common class configurations
             exampleBars = {
                 type        = "group",
-                name        = "Example Bars",
+                name        = "Predefined Bars",
                 order       = 8,
                 childGroups = "tree",
                 args        = (function()
