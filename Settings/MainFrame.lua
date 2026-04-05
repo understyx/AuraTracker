@@ -118,6 +118,11 @@ local function SetTexColor(tex, c)
     tex:SetVertexColor(c[1], c[2], c[3], c[4])
 end
 
+-- Build a dimmed RGBA color from a class color table {r,g,b} + brightness + alpha
+local function ClassColor(cc, brightness, alpha)
+    return { cc[1]*brightness, cc[2]*brightness, cc[3]*brightness, alpha }
+end
+
 -- ======================================================
 -- ROW POOL HELPERS
 -- ======================================================
@@ -140,11 +145,10 @@ local function AcquireBarRow()
     SetTexColor(bg, C_ROW_NORMAL)
     f._bg = bg
 
-    -- Expand/collapse arrow  (▶  ▼)
-    local arrow = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    arrow:SetPoint("LEFT", f, "LEFT", 6, 0)
-    arrow:SetWidth(14)
-    arrow:SetJustifyH("LEFT")
+    -- Expand/collapse arrow
+    local arrow = f:CreateTexture(nil, "OVERLAY")
+    arrow:SetSize(12, 12)
+    arrow:SetPoint("LEFT", f, "LEFT", 5, 0)
     f._arrow = arrow
 
     -- Bar name
@@ -167,19 +171,29 @@ local function AcquireBarRow()
     del:SetSize(20, 20)
     del:SetPoint("RIGHT", f, "RIGHT", -4, 0)
     del:SetNormalFontObject("GameFontNormalSmall")
-    del:SetText("|cFFFF4444✕|r")
-    del:SetScript("OnEnter", function() del:SetText("|cFFFF0000✕|r") end)
-    del:SetScript("OnLeave", function() del:SetText("|cFFFF4444✕|r") end)
+    del:SetText("|cFFFF4444X|r")
+    del:SetScript("OnEnter", function() del:SetText("|cFFFF0000X|r") end)
+    del:SetScript("OnLeave", function() del:SetText("|cFFFF4444X|r") end)
     f._del = del
 
     -- Selection/hover highlight
     f:SetScript("OnEnter", function(self)
         if self._selected then return end
-        SetTexColor(self._bg, C_ROW_HOVER)
+        local cc = self._classColor
+        if cc then
+            SetTexColor(self._bg, ClassColor(cc, 0.45, 0.90))
+        else
+            SetTexColor(self._bg, C_ROW_HOVER)
+        end
     end)
     f:SetScript("OnLeave", function(self)
         if self._selected then return end
-        SetTexColor(self._bg, C_ROW_NORMAL)
+        local cc = self._classColor
+        if cc then
+            SetTexColor(self._bg, ClassColor(cc, 0.30, 0.85))
+        else
+            SetTexColor(self._bg, C_ROW_NORMAL)
+        end
     end)
 
     return f
@@ -187,6 +201,7 @@ end
 
 local function ReleaseBarRow(row)
     row:Hide()
+    row._classColor = nil
     table_insert(barRowPool, row)
 end
 
@@ -322,9 +337,19 @@ end
 local function SetRowSelected(row, sel)
     row._selected = sel
     if sel then
-        SetTexColor(row._bg, C_ROW_SEL)
+        local cc = row._classColor
+        if cc then
+            SetTexColor(row._bg, ClassColor(cc, 0.55, 1.0))
+        else
+            SetTexColor(row._bg, C_ROW_SEL)
+        end
     else
-        SetTexColor(row._bg, C_ROW_NORMAL)
+        local cc = row._classColor
+        if cc then
+            SetTexColor(row._bg, ClassColor(cc, 0.30, 0.85))
+        else
+            SetTexColor(row._bg, C_ROW_NORMAL)
+        end
     end
 end
 
@@ -345,28 +370,33 @@ local function RebuildList()
         -- ── Bar row ──────────────────────────────────────────
         local row = AcquireBarRow()
         row._barKey = barKey
-        SetRowSelected(row, isSel)
 
-        -- Arrow
-        row._arrow:SetText(expanded and "|cFFFFFFFF▼|r" or "|cFFCCCCCC▶|r")
-
-        -- Name
-        local displayName = SU.GetBarDisplayName(barData, barKey)
-        row._name:SetText(displayName)
-
-        -- Class badge color
+        -- Class badge color (must be set before SetRowSelected uses _classColor)
         local classKey = barData.classRestriction or "NONE"
         if classKey ~= "NONE" then
             local color = RAID_CLASS_COLORS and RAID_CLASS_COLORS[classKey]
             if color then
+                row._classColor = { color.r, color.g, color.b }
                 row._badge:SetVertexColor(color.r, color.g, color.b, 1)
                 row._badge:Show()
             else
+                row._classColor = nil
                 row._badge:Hide()
             end
         else
+            row._classColor = nil
             row._badge:Hide()
         end
+
+        SetRowSelected(row, isSel)
+
+        -- Arrow
+        row._arrow:SetTexture(expanded and "Interface\\Buttons\\UI-MinusButton-Up"
+                                        or "Interface\\Buttons\\UI-PlusButton-Up")
+
+        -- Name
+        local displayName = SU.GetBarDisplayName(barData, barKey)
+        row._name:SetText(displayName)
 
         -- Delete handler
         local capturedKey = barKey
