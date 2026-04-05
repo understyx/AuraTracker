@@ -15,19 +15,20 @@ local GetSpellInfo, GetItemInfo = GetSpellInfo, GetItemInfo
 -- CONSTANTS
 -- ======================================================
 
-local FRAME_W   = 920
-local FRAME_H   = 660
-local LEFT_W    = 252   -- left panel pixel width
-local TITLE_H   = 28    -- title bar height
-local TOOLBAR_H = 64    -- bottom toolbar height (two rows of buttons)
-local PAD       = 6     -- general padding
-local ROW_H_BAR = 28    -- bar row height in list
-local ROW_H_ICO = 23    -- icon row height in list
-local ICON_SIZE = 18    -- icon texture size in list
+local FRAME_W        = 920
+local FRAME_H        = 660
+local LEFT_W         = 252   -- left panel pixel width
+local TITLE_H        = 28    -- title bar height
+local TOP_TOOLBAR_H  = 36    -- full-width toolbar below title bar
+local INPUT_AREA_H   = 30    -- reserved space at top of left panel for new-bar input
+local PAD            = 6     -- general padding
+local ROW_H_BAR      = 28    -- bar row height in list
+local ROW_H_ICO      = 23    -- icon row height in list
+local ICON_SIZE      = 18    -- icon texture size in list
 
 -- Right panel dimensions (filled by anchors, but AceGUI needs explicit size)
 local RIGHT_W = FRAME_W - LEFT_W - 1 - PAD * 3  -- 1 = divider
-local RIGHT_H = FRAME_H - TITLE_H - PAD * 2
+local RIGHT_H = FRAME_H - TITLE_H - TOP_TOOLBAR_H - PAD * 4
 
 -- Colours
 local C_TITLE_BG    = { 0.10, 0.10, 0.10, 1.0 }
@@ -76,6 +77,13 @@ local function GetSortedBars()
         table_insert(list, { key = key, data = data })
     end
     table_sort(list, function(a, b)
+        local classA = a.data.classRestriction or "NONE"
+        local classB = b.data.classRestriction or "NONE"
+        if classA ~= classB then
+            if classA == "NONE" then return true end
+            if classB == "NONE" then return false end
+            return classA < classB
+        end
         return (a.data.name or a.key) < (b.data.name or b.key)
     end)
     return list
@@ -118,6 +126,21 @@ local function SetTexColor(tex, c)
     tex:SetVertexColor(c[1], c[2], c[3], c[4])
 end
 
+-- Apply a consistent dark custom style to a button (no Blizzard UIPanelButtonTemplate)
+local function StyleAsCustomButton(btn, w, h)
+    btn:SetSize(w, h)
+    btn:SetNormalFontObject("GameFontNormalSmall")
+    btn:SetHighlightFontObject("GameFontHighlightSmall")
+    local bg = btn:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
+    bg:SetVertexColor(0.16, 0.16, 0.16, 1.0)
+    btn:SetHighlightTexture("Interface\\ChatFrame\\ChatFrameBackground")
+    btn:GetHighlightTexture():SetVertexColor(1, 1, 1, 0.12)
+    btn:SetPushedTexture("Interface\\ChatFrame\\ChatFrameBackground")
+    btn:GetPushedTexture():SetVertexColor(0.08, 0.08, 0.08, 1.0)
+end
+
 -- Build a dimmed RGBA color from a class color table {r,g,b} + brightness + alpha
 local function ClassColor(cc, brightness, alpha)
     return { cc[1]*brightness, cc[2]*brightness, cc[3]*brightness, alpha }
@@ -145,10 +168,9 @@ local function AcquireBarRow()
     SetTexColor(bg, C_ROW_NORMAL)
     f._bg = bg
 
-    -- Expand/collapse arrow
-    local arrow = f:CreateTexture(nil, "OVERLAY")
-    arrow:SetSize(12, 12)
-    arrow:SetPoint("LEFT", f, "LEFT", 5, 0)
+    -- Expand/collapse arrow (text glyph, no Blizzard texture)
+    local arrow = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    arrow:SetPoint("LEFT", f, "LEFT", 4, 0)
     f._arrow = arrow
 
     -- Bar name
@@ -405,26 +427,30 @@ local function RebuildList()
         SetRowSelected(row, isSel)
 
         -- Arrow
-        row._arrow:SetTexture(expanded and "Interface\\Buttons\\UI-MinusButton-Up"
-                                        or "Interface\\Buttons\\UI-PlusButton-Up")
+        row._arrow:SetText(expanded and "|cFFAAAAAA▾|r" or "|cFFAAAAAA▸|r")
 
         -- Name
         local displayName = SU.GetBarDisplayName(barData, barKey)
         row._name:SetText(displayName)
 
-        -- Delete handler
-        local capturedKey = barKey
+        -- Delete handler (with confirmation popup)
+        local capturedKey  = barKey
+        local capturedName = barData.name or barKey
         row._del:SetScript("OnClick", function()
-            local ctrl = GetController()
-            if not ctrl then return end
-            ctrl:DeleteBar(capturedKey)
-            if currentBar == capturedKey then
-                currentBar  = nil
-                currentIcon = nil
-                SU.editState.selectedBar  = nil
-                SU.editState.selectedAura = nil
-            end
-            SU.NotifyChange()
+            StaticPopup_Show("AURATRACKER_CONFIRM_DELETE_BAR", capturedName, nil, {
+                fn = function()
+                    local ctrl = GetController()
+                    if not ctrl then return end
+                    ctrl:DeleteBar(capturedKey)
+                    if currentBar == capturedKey then
+                        currentBar  = nil
+                        currentIcon = nil
+                        SU.editState.selectedBar  = nil
+                        SU.editState.selectedAura = nil
+                    end
+                    SU.NotifyChange()
+                end
+            })
         end)
 
         -- Click to select / expand
@@ -518,6 +544,23 @@ local function ShowNewBarInput()
 end
 
 -- ======================================================
+-- CONFIRM-DELETE POPUP
+-- ======================================================
+
+StaticPopupDialogs["AURATRACKER_CONFIRM_DELETE_BAR"] = {
+    text          = "Delete bar \"%s\"?",
+    button1       = "Delete",
+    button2       = "Cancel",
+    OnAccept      = function(self, data)
+        if data and data.fn then data.fn() end
+    end,
+    timeout       = 0,
+    whileDead     = true,
+    hideOnEscape  = true,
+    preferredIndex = 3,
+}
+
+-- ======================================================
 -- MAIN FRAME BUILDER
 -- ======================================================
 
@@ -572,31 +615,33 @@ local function BuildMainFrame()
     closeBtn:SetPoint("RIGHT", titleBar, "RIGHT", -2, 0)
     closeBtn:SetScript("OnClick", function() mainFrame:Hide() end)
 
-    -- ── Left panel ───────────────────────────────────────────
-    local leftPanel = CreateFrame("Frame", nil, mainFrame)
-    leftPanel:SetPoint("TOPLEFT",    mainFrame, "TOPLEFT",    3, -(TITLE_H + 3))
-    leftPanel:SetPoint("BOTTOMLEFT", mainFrame, "BOTTOMLEFT", 3, 3)
-    leftPanel:SetWidth(LEFT_W)
-    leftPanel:SetBackdrop({ bgFile = "Interface\\ChatFrame\\ChatFrameBackground" })
-    leftPanel:SetBackdropColor(C_LEFT_BG[1], C_LEFT_BG[2], C_LEFT_BG[3], C_LEFT_BG[4])
+    -- ── Full-width top toolbar (below title bar) ─────────────
+    local topToolbar = CreateFrame("Frame", nil, mainFrame)
+    topToolbar:SetPoint("TOPLEFT",  titleBar, "BOTTOMLEFT",  0, -2)
+    topToolbar:SetPoint("TOPRIGHT", titleBar, "BOTTOMRIGHT", 0, -2)
+    topToolbar:SetHeight(TOP_TOOLBAR_H)
+    topToolbar:SetBackdrop({ bgFile = "Interface\\ChatFrame\\ChatFrameBackground" })
+    topToolbar:SetBackdropColor(C_LEFT_BG[1], C_LEFT_BG[2], C_LEFT_BG[3], C_LEFT_BG[4])
 
-    -- Toolbar inside left panel
-    local toolbar = CreateFrame("Frame", nil, leftPanel)
-    toolbar:SetPoint("TOPLEFT",  leftPanel, "TOPLEFT",  4, -4)
-    toolbar:SetPoint("TOPRIGHT", leftPanel, "TOPRIGHT", -4, -4)
-    toolbar:SetHeight(TOOLBAR_H - 8)
+    -- Separator below top toolbar
+    local ttSep = mainFrame:CreateTexture(nil, "BACKGROUND")
+    ttSep:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
+    ttSep:SetVertexColor(C_DIVIDER[1], C_DIVIDER[2], C_DIVIDER[3], C_DIVIDER[4])
+    ttSep:SetPoint("TOPLEFT",  topToolbar, "BOTTOMLEFT",  0, 0)
+    ttSep:SetPoint("TOPRIGHT", topToolbar, "BOTTOMRIGHT", 0, 0)
+    ttSep:SetHeight(1)
 
     -- "New Bar" button
-    local newBarBtn = CreateFrame("Button", nil, toolbar, "UIPanelButtonTemplate")
-    newBarBtn:SetSize(80, 22)
-    newBarBtn:SetPoint("TOPLEFT", toolbar, "TOPLEFT", 0, 0)
+    local newBarBtn = CreateFrame("Button", nil, topToolbar)
+    StyleAsCustomButton(newBarBtn, 80, 24)
+    newBarBtn:SetPoint("LEFT", topToolbar, "LEFT", 8, 0)
     newBarBtn:SetText("New Bar")
     newBarBtn:SetScript("OnClick", function() ShowNewBarInput() end)
 
     -- "Edit Mode" button
-    local editModeBtn = CreateFrame("Button", nil, toolbar, "UIPanelButtonTemplate")
-    editModeBtn:SetSize(90, 22)
-    editModeBtn:SetPoint("LEFT", newBarBtn, "RIGHT", 4, 0)
+    local editModeBtn = CreateFrame("Button", nil, topToolbar)
+    StyleAsCustomButton(editModeBtn, 82, 24)
+    editModeBtn:SetPoint("LEFT", newBarBtn, "RIGHT", 6, 0)
     editModeBtn:SetText("Edit Mode")
     editModeBtn:SetScript("OnClick", function()
         if LibEditmode then
@@ -604,24 +649,32 @@ local function BuildMainFrame()
         end
     end)
 
-    -- "Import" button (second toolbar row)
-    local importBtn = CreateFrame("Button", nil, toolbar, "UIPanelButtonTemplate")
-    importBtn:SetSize(90, 22)
-    importBtn:SetPoint("TOPLEFT", newBarBtn, "BOTTOMLEFT", 0, -4)
+    -- "Import" button
+    local importBtn = CreateFrame("Button", nil, topToolbar)
+    StyleAsCustomButton(importBtn, 72, 24)
+    importBtn:SetPoint("LEFT", editModeBtn, "RIGHT", 6, 0)
     importBtn:SetText("Import")
     importBtn:SetScript("OnClick", function() RightPanelShowImport() end)
 
-    -- "Example Bars" button (second toolbar row)
-    local examplesBtn = CreateFrame("Button", nil, toolbar, "UIPanelButtonTemplate")
-    examplesBtn:SetSize(110, 22)
-    examplesBtn:SetPoint("LEFT", importBtn, "RIGHT", 4, 0)
-    examplesBtn:SetText("Examples")
-    examplesBtn:SetScript("OnClick", function() RightPanelShowExamples() end)
+    -- "Predefined" button (formerly "Examples")
+    local predefinedBtn = CreateFrame("Button", nil, topToolbar)
+    StyleAsCustomButton(predefinedBtn, 90, 24)
+    predefinedBtn:SetPoint("LEFT", importBtn, "RIGHT", 6, 0)
+    predefinedBtn:SetText("Predefined")
+    predefinedBtn:SetScript("OnClick", function() RightPanelShowExamples() end)
+
+    -- ── Left panel ───────────────────────────────────────────
+    local leftPanel = CreateFrame("Frame", nil, mainFrame)
+    leftPanel:SetPoint("TOPLEFT",    topToolbar, "BOTTOMLEFT",  0, -2)
+    leftPanel:SetPoint("BOTTOMLEFT", mainFrame,  "BOTTOMLEFT",  3,  3)
+    leftPanel:SetWidth(LEFT_W)
+    leftPanel:SetBackdrop({ bgFile = "Interface\\ChatFrame\\ChatFrameBackground" })
+    leftPanel:SetBackdropColor(C_LEFT_BG[1], C_LEFT_BG[2], C_LEFT_BG[3], C_LEFT_BG[4])
 
     -- New-bar input (hidden until "New Bar" clicked)
     local newBarBox = CreateFrame("EditBox", nil, leftPanel, "InputBoxTemplate")
-    newBarBox:SetSize(LEFT_W - 16, 20)
-    newBarBox:SetPoint("TOPLEFT", toolbar, "BOTTOMLEFT", 0, -4)
+    newBarBox:SetSize(LEFT_W - 28, 20)
+    newBarBox:SetPoint("TOPLEFT", leftPanel, "TOPLEFT", 8, -5)
     newBarBox:SetAutoFocus(false)
     newBarBox:SetMaxLetters(64)
     local placeholder = newBarBox:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
@@ -663,13 +716,13 @@ local function BuildMainFrame()
     local toolSep = leftPanel:CreateTexture(nil, "BACKGROUND")
     toolSep:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
     toolSep:SetVertexColor(C_DIVIDER[1], C_DIVIDER[2], C_DIVIDER[3], C_DIVIDER[4])
-    toolSep:SetPoint("TOPLEFT",  leftPanel, "TOPLEFT",  4, -(TOOLBAR_H + 2))
-    toolSep:SetPoint("TOPRIGHT", leftPanel, "TOPRIGHT", -4, -(TOOLBAR_H + 2))
+    toolSep:SetPoint("TOPLEFT",  leftPanel, "TOPLEFT",  4, -INPUT_AREA_H)
+    toolSep:SetPoint("TOPRIGHT", leftPanel, "TOPRIGHT", -4, -INPUT_AREA_H)
     toolSep:SetHeight(1)
 
     -- Scroll frame for bar/icon list
     scrollFrame = CreateFrame("ScrollFrame", "AuraTrackerMainScrollFrame", leftPanel, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT",     leftPanel, "TOPLEFT",     4, -(TOOLBAR_H + 6))
+    scrollFrame:SetPoint("TOPLEFT",     leftPanel, "TOPLEFT",     4, -(INPUT_AREA_H + 4))
     scrollFrame:SetPoint("BOTTOMRIGHT", leftPanel, "BOTTOMRIGHT", -22, 4)
 
     scrollContent = CreateFrame("Frame", nil, scrollFrame)
