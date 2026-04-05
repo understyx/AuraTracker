@@ -50,6 +50,7 @@ Settings\LoadConditionUI.lua
 Settings\ActionConditionUI.lua
 Settings\IconActionsUI.lua
 Settings\Settings.lua
+Settings\MainFrame.lua
 Settings\BarOptions.lua
 Settings\IconEditorUI.lua
 Settings\IconEditorOptions.lua
