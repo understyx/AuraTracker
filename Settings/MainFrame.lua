@@ -169,7 +169,7 @@ local function AcquireBarRow()
     f._bg = bg
 
     -- Expand/collapse arrow (text glyph, no Blizzard texture)
-    local arrow = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    local arrow = f:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
     arrow:SetPoint("LEFT", f, "LEFT", 4, 0)
     f._arrow = arrow
 
@@ -414,7 +414,7 @@ local function RebuildList()
             if color then
                 row._classColor = { color.r, color.g, color.b }
                 row._badge:SetVertexColor(color.r, color.g, color.b, 1)
-                row._badge:Show()
+                row._badge:Hide() -- Note: We are hiding this, because this is just a class colored square currently!
             else
                 row._classColor = nil
                 row._badge:Hide()
