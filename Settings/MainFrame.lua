@@ -118,6 +118,11 @@ local function SetTexColor(tex, c)
     tex:SetVertexColor(c[1], c[2], c[3], c[4])
 end
 
+-- Build a dimmed RGBA color from a class color table {r,g,b} + brightness + alpha
+local function ClassColor(cc, brightness, alpha)
+    return { cc[1]*brightness, cc[2]*brightness, cc[3]*brightness, alpha }
+end
+
 -- ======================================================
 -- ROW POOL HELPERS
 -- ======================================================
@@ -176,7 +181,7 @@ local function AcquireBarRow()
         if self._selected then return end
         local cc = self._classColor
         if cc then
-            SetTexColor(self._bg, { cc[1]*0.45, cc[2]*0.45, cc[3]*0.45, 0.90 })
+            SetTexColor(self._bg, ClassColor(cc, 0.45, 0.90))
         else
             SetTexColor(self._bg, C_ROW_HOVER)
         end
@@ -185,7 +190,7 @@ local function AcquireBarRow()
         if self._selected then return end
         local cc = self._classColor
         if cc then
-            SetTexColor(self._bg, { cc[1]*0.30, cc[2]*0.30, cc[3]*0.30, 0.85 })
+            SetTexColor(self._bg, ClassColor(cc, 0.30, 0.85))
         else
             SetTexColor(self._bg, C_ROW_NORMAL)
         end
@@ -334,14 +339,14 @@ local function SetRowSelected(row, sel)
     if sel then
         local cc = row._classColor
         if cc then
-            SetTexColor(row._bg, { cc[1]*0.55, cc[2]*0.55, cc[3]*0.55, 1.0 })
+            SetTexColor(row._bg, ClassColor(cc, 0.55, 1.0))
         else
             SetTexColor(row._bg, C_ROW_SEL)
         end
     else
         local cc = row._classColor
         if cc then
-            SetTexColor(row._bg, { cc[1]*0.30, cc[2]*0.30, cc[3]*0.30, 0.85 })
+            SetTexColor(row._bg, ClassColor(cc, 0.30, 0.85))
         else
             SetTexColor(row._bg, C_ROW_NORMAL)
         end
