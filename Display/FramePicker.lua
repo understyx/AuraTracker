@@ -5,6 +5,11 @@ local _, ns = ...
 -- Lets the user interactively click on any named WoW frame
 -- to capture its global name for use as an anchor target.
 --
+-- Based on the WeakAuras FrameChooser approach: uses
+-- GetMouseFocus() + IsMouseButtonDown() so that WoW's own
+-- hit-testing determines the focused frame (no mouse-capturing
+-- overlay that would intercept focus from all other frames).
+--
 -- Usage:
 --   ns.AuraTracker.FramePicker:Start(function(frameName) ... end)
 -- ==========================================================
@@ -14,225 +19,45 @@ ns.AuraTracker = ns.AuraTracker or {}
 ns.AuraTracker.FramePicker = FramePicker
 
 -- -------------------------------------------------------
--- Constants
--- -------------------------------------------------------
-
-local SCAN_INTERVAL = 0.05   -- seconds between cursor-position scans
-local HIGHLIGHT_BORDER_COLOR = { r = 0, g = 1, b = 0.2, a = 1 }
-local LABEL_BG_COLOR         = { r = 0, g = 0, b = 0,   a = 0.75 }
-local DIM_ALPHA              = 0.45
-
-local STRATA_ORDER = {
-    BACKGROUND        = 1,
-    LOW               = 2,
-    MEDIUM            = 3,
-    HIGH              = 4,
-    DIALOG            = 5,
-    FULLSCREEN        = 6,
-    FULLSCREEN_DIALOG = 7,
-    TOOLTIP           = 8,
-}
-
--- -------------------------------------------------------
 -- Internals
 -- -------------------------------------------------------
 
-local _overlay  = nil   -- picker overlay frame (lazy-created)
-local _callback = nil   -- function(frameName) called on selection
+local _callback      = nil   -- function(frameName) called on selection
+local _updateFrame   = nil   -- plain (non-mouse-capturing) OnUpdate host
+local _highlightBox  = nil   -- green border around the focused frame
+local _banner        = nil   -- instruction text shown while picker is active
+local _lastFocus     = nil
+local _lastFocusName = nil
 
 -- -------------------------------------------------------
--- Cursor-position hit-testing
+-- Frame construction (lazy, first Start() call)
 -- -------------------------------------------------------
 
--- Recursively collect all named, visible child frames that contain (cx, cy).
--- cx/cy are in UIParent-coordinate space.
-local function CollectHits(parent, cx, cy, skipFrame, out)
-    if not parent then return end
-    local children = { parent:GetChildren() }
-    for i = 1, #children do
-        local f = children[i]
-        -- Skip the picker overlay itself and its subtree
-        if f ~= skipFrame then
-            if f:IsVisible() then
-                local left   = f:GetLeft()
-                local bottom = f:GetBottom()
-                local right  = f:GetRight()
-                local top    = f:GetTop()
-                if left and right and bottom and top
-                   and cx >= left  and cx <= right
-                   and cy >= bottom and cy <= top
-                then
-                    if f:GetName() then
-                        out[#out + 1] = f
-                    end
-                    -- Recurse into children even if this frame is unnamed
-                    CollectHits(f, cx, cy, skipFrame, out)
-                end
-            end
-        end
-    end
-end
+local function BuildFrames()
+    -- Plain frame with no mouse capture – lets WoW report GetMouseFocus() normally.
+    _updateFrame = CreateFrame("Frame")
 
--- Return the topmost named frame under the cursor, or nil.
-local function GetFrameUnderCursor(skipFrame)
-    local cx, cy = GetCursorPosition()
-    local uiScale = UIParent:GetEffectiveScale()
-    cx = cx / uiScale
-    cy = cy / uiScale
-
-    local hits = {}
-    CollectHits(UIParent,   cx, cy, skipFrame, hits)
-    CollectHits(WorldFrame, cx, cy, skipFrame, hits)
-
-    -- Pick the highest (strata + level) frame
-    local best, bestSO, bestFL = nil, -1, -1
-    for _, f in ipairs(hits) do
-        local so = STRATA_ORDER[f:GetFrameStrata() or "LOW"] or 2
-        local fl = f:GetFrameLevel() or 0
-        if so > bestSO or (so == bestSO and fl > bestFL) then
-            best  = f
-            bestSO = so
-            bestFL = fl
-        end
-    end
-    return best
-end
-
--- -------------------------------------------------------
--- Overlay construction
--- -------------------------------------------------------
-
-local function BuildOverlay()
-    -- Full-screen capture frame
-    local ov = CreateFrame("Frame", "AuraTracker_FramePickerOverlay", UIParent)
-    ov:SetAllPoints(UIParent)
-    ov:SetFrameStrata("TOOLTIP")
-    ov:SetFrameLevel(200)
-    ov:EnableMouse(true)
-    ov:EnableKeyboard(true)
-    ov:Hide()
-
-    -- Dim background
-    local dim = ov:CreateTexture(nil, "BACKGROUND")
-    dim:SetAllPoints(ov)
-    dim:SetTexture("Interface\\Buttons\\WHITE8x8")
-    dim:SetVertexColor(0, 0, 0, DIM_ALPHA)
-
-    -- Instruction banner
-    local banner = ov:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    banner:SetPoint("TOP", ov, "TOP", 0, -40)
-    banner:SetText("|cffFFFF00[AuraTracker]|r  |cffFFFFFFHover over a frame and |cff00FF00LEFT-CLICK|r |cffFFFFFFto select it.|r  |cffFF8080Right-click or Escape to cancel.|r")
-    banner:SetShadowOffset(1, -1)
-
-    -- Green border highlight around the hovered frame
-    local hi = CreateFrame("Frame", nil, ov)
-    hi:SetFrameStrata("TOOLTIP")
-    hi:SetFrameLevel(201)
-    hi:SetBackdrop({
+    -- Green border highlight (parented to UIParent so it renders independently).
+    _highlightBox = CreateFrame("Frame", nil, UIParent)
+    _highlightBox:SetFrameStrata("TOOLTIP")
+    _highlightBox:SetBackdrop({
         edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        edgeSize = 8,
-        insets   = { left = 2, right = 2, top = 2, bottom = 2 },
+        edgeSize = 12,
+        insets   = { left = 0, right = 0, top = 0, bottom = 0 },
     })
-    hi:SetBackdropBorderColor(
-        HIGHLIGHT_BORDER_COLOR.r,
-        HIGHLIGHT_BORDER_COLOR.g,
-        HIGHLIGHT_BORDER_COLOR.b,
-        HIGHLIGHT_BORDER_COLOR.a
-    )
-    hi:Hide()
-    ov.highlight = hi
+    _highlightBox:SetBackdropBorderColor(0, 1, 0)
+    _highlightBox:Hide()
 
-    -- Label showing the hovered frame's name
-    local labelBg = CreateFrame("Frame", nil, ov)
-    labelBg:SetFrameStrata("TOOLTIP")
-    labelBg:SetFrameLevel(202)
-    labelBg:SetBackdrop({
-        bgFile   = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile     = true, tileSize = 8, edgeSize = 8,
-        insets   = { left = 3, right = 3, top = 3, bottom = 3 },
-    })
-    labelBg:SetBackdropColor(LABEL_BG_COLOR.r, LABEL_BG_COLOR.g, LABEL_BG_COLOR.b, LABEL_BG_COLOR.a)
-    labelBg:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
-    labelBg:Hide()
-    ov.labelBg = labelBg
-
-    local label = labelBg:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    label:SetPoint("TOPLEFT", labelBg, "TOPLEFT", 6, -6)
-    label:SetPoint("BOTTOMRIGHT", labelBg, "BOTTOMRIGHT", -6, 6)
-    ov.label = label
-
-    -- -------------------------------------------------------
-    -- OnUpdate: scan for the frame under the cursor
-    -- -------------------------------------------------------
-    ov._lastScan    = 0
-    ov._hovered     = nil
-
-    ov:SetScript("OnUpdate", function(self)
-        local now = GetTime()
-        if now - self._lastScan < SCAN_INTERVAL then return end
-        self._lastScan = now
-
-        local f = GetFrameUnderCursor(self)
-
-        if f then
-            hi:ClearAllPoints()
-            hi:SetAllPoints(f)
-            hi:Show()
-
-            local name = f:GetName()
-            local cx, cy = GetCursorPosition()
-            local uiScale = UIParent:GetEffectiveScale()
-            cx = cx / uiScale
-            cy = cy / uiScale
-
-            ov.label:SetText("|cff00FF00" .. name .. "|r")
-            labelBg:SetWidth(ov.label:GetStringWidth() + 12)
-            labelBg:SetHeight(ov.label:GetStringHeight() + 12)
-
-            -- Position label near the cursor, nudged so it stays on screen
-            labelBg:ClearAllPoints()
-            local lbW = labelBg:GetWidth()
-            local lbH = labelBg:GetHeight()
-            local screenW = UIParent:GetRight() or GetScreenWidth()
-            local anchorX = math.min(cx + 12, screenW - lbW)
-            local anchorY = math.max(cy - 12, lbH)
-            labelBg:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", anchorX, anchorY)
-            labelBg:Show()
-
-            self._hovered = f
-        else
-            hi:Hide()
-            labelBg:Hide()
-            self._hovered = nil
-        end
-    end)
-
-    -- -------------------------------------------------------
-    -- Mouse input
-    -- -------------------------------------------------------
-    ov:SetScript("OnMouseDown", function(self, button)
-        if button == "LeftButton" then
-            local picked = self._hovered
-            FramePicker:Stop()
-            if picked and _callback then
-                _callback(picked:GetName())
-            end
-        elseif button == "RightButton" then
-            FramePicker:Stop()
-        end
-    end)
-
-    -- -------------------------------------------------------
-    -- Keyboard input
-    -- -------------------------------------------------------
-    ov:SetScript("OnKeyDown", function(self, key)
-        if key == "ESCAPE" then
-            FramePicker:Stop()
-        end
-    end)
-
-    return ov
+    -- Instruction banner (no mouse capture).
+    _banner = CreateFrame("Frame", nil, UIParent)
+    _banner:SetFrameStrata("TOOLTIP")
+    _banner:SetPoint("TOP", UIParent, "TOP", 0, -40)
+    _banner:SetSize(700, 30)
+    local fs = _banner:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    fs:SetAllPoints(_banner)
+    fs:SetText("|cffFFFF00[AuraTracker]|r  |cffFFFFFFHover over a frame and |cff00FF00LEFT-CLICK|r |cffFFFFFFto select.|r  |cffFF8080Right-click to cancel.|r")
+    fs:SetShadowOffset(1, -1)
+    _banner:Hide()
 end
 
 -- -------------------------------------------------------
@@ -242,29 +67,73 @@ end
 --- Open the frame picker.
 --- @param callback function  Called with (frameName) when the user clicks a frame.
 function FramePicker:Start(callback)
-    _callback = callback
-    if not _overlay then
-        _overlay = BuildOverlay()
+    _callback      = callback
+    _lastFocus     = nil
+    _lastFocusName = nil
+
+    if not _updateFrame then
+        BuildFrames()
     end
-    _overlay._hovered  = nil
-    _overlay._lastScan = 0
-    _overlay.highlight:Hide()
-    _overlay.labelBg:Hide()
-    _overlay:Show()
+
+    _highlightBox:Hide()
+    _banner:Show()
+
+    _updateFrame:SetScript("OnUpdate", function()
+        -- Right-click cancels.
+        if IsMouseButtonDown("RightButton") then
+            FramePicker:Stop()
+            return
+        end
+
+        -- Left-click selects the last highlighted frame.
+        if IsMouseButtonDown("LeftButton") and _lastFocusName then
+            local name = _lastFocusName
+            FramePicker:Stop()
+            if _callback then
+                _callback(name)
+            end
+            return
+        end
+
+        SetCursor("CAST_CURSOR")
+
+        local focus     = GetMouseFocus()
+        local focusName = focus and focus:GetName()
+
+        -- Ignore WorldFrame and unnamed frames.
+        if focusName == "WorldFrame" or not focusName then
+            focusName = nil
+        end
+
+        if focus ~= _lastFocus then
+            _lastFocusName = focusName
+            _lastFocus     = focus
+            if focusName then
+                _highlightBox:ClearAllPoints()
+                _highlightBox:SetPoint("BOTTOMLEFT", focus, "BOTTOMLEFT", -4, -4)
+                _highlightBox:SetPoint("TOPRIGHT",   focus, "TOPRIGHT",    4,  4)
+                _highlightBox:Show()
+            else
+                _highlightBox:Hide()
+            end
+        end
+    end)
 end
 
 --- Close the frame picker without making a selection.
 function FramePicker:Stop()
-    _callback = nil
-    if _overlay then
-        _overlay:Hide()
-        _overlay.highlight:Hide()
-        _overlay.labelBg:Hide()
-        _overlay._hovered = nil
+    if _updateFrame then
+        _updateFrame:SetScript("OnUpdate", nil)
     end
+    if _highlightBox then _highlightBox:Hide() end
+    if _banner       then _banner:Hide()       end
+    ResetCursor()
+    _callback      = nil
+    _lastFocus     = nil
+    _lastFocusName = nil
 end
 
---- Returns true when the picker overlay is currently visible.
+--- Returns true when the picker is currently active.
 function FramePicker:IsActive()
-    return _overlay ~= nil and _overlay:IsShown()
+    return _callback ~= nil
 end
