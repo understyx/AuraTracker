@@ -106,18 +106,16 @@ function FramePicker:Start(callback)
         end
 
         if focus ~= _lastFocus then
+            _lastFocusName = focusName
+            _lastFocus     = focus
             if focusName then
                 _highlightBox:ClearAllPoints()
                 _highlightBox:SetPoint("BOTTOMLEFT", focus, "BOTTOMLEFT", -4, -4)
                 _highlightBox:SetPoint("TOPRIGHT",   focus, "TOPRIGHT",    4,  4)
                 _highlightBox:Show()
+            else
+                _highlightBox:Hide()
             end
-            _lastFocusName = focusName
-            _lastFocus     = focus
-        end
-
-        if not focusName then
-            _highlightBox:Hide()
         end
     end)
 end
@@ -137,6 +135,5 @@ end
 
 --- Returns true when the picker is currently active.
 function FramePicker:IsActive()
-    return _updateFrame ~= nil
-        and _updateFrame:GetScript("OnUpdate") ~= nil
+    return _callback ~= nil
 end
