@@ -427,7 +427,7 @@ local function RebuildList()
         SetRowSelected(row, isSel)
 
         -- Arrow
-        row._arrow:SetText(expanded and "|cFFAAAAAA▾|r" or "|cFFAAAAAA▸|r")
+        row._arrow:SetText(expanded and "|cFFAAAAAA-|r" or "|cFFAAAAAA+|r")
 
         -- Name
         local displayName = SU.GetBarDisplayName(barData, barKey)
