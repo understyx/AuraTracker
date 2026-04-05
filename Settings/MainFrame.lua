@@ -19,7 +19,7 @@ local FRAME_W   = 920
 local FRAME_H   = 660
 local LEFT_W    = 252   -- left panel pixel width
 local TITLE_H   = 28    -- title bar height
-local TOOLBAR_H = 36    -- bottom toolbar height
+local TOOLBAR_H = 64    -- bottom toolbar height (two rows of buttons)
 local PAD       = 6     -- general padding
 local ROW_H_BAR = 28    -- bar row height in list
 local ROW_H_ICO = 23    -- icon row height in list
@@ -289,6 +289,20 @@ local function RightPanelShowIcon(barKey, spellId)
     rightGroup:SetUserData("basepath", path)
     rightGroup:SetUserData("appName", addonName)
     AceConfigDialog:Open(addonName, rightGroup, "bars", "class_" .. classKey, barKey)
+end
+
+local function RightPanelShowImport()
+    if not rightGroup then return end
+    rightGroup:SetUserData("basepath", nil)
+    rightGroup:SetUserData("appName", addonName)
+    AceConfigDialog:Open(addonName, rightGroup, "importBar")
+end
+
+local function RightPanelShowExamples()
+    if not rightGroup then return end
+    rightGroup:SetUserData("basepath", nil)
+    rightGroup:SetUserData("appName", addonName)
+    AceConfigDialog:Open(addonName, rightGroup, "exampleBars")
 end
 
 local function RightPanelShowPlaceholder()
@@ -590,6 +604,20 @@ local function BuildMainFrame()
         end
     end)
 
+    -- "Import" button (second toolbar row)
+    local importBtn = CreateFrame("Button", nil, toolbar, "UIPanelButtonTemplate")
+    importBtn:SetSize(90, 22)
+    importBtn:SetPoint("TOPLEFT", newBarBtn, "BOTTOMLEFT", 0, -4)
+    importBtn:SetText("Import")
+    importBtn:SetScript("OnClick", function() RightPanelShowImport() end)
+
+    -- "Example Bars" button (second toolbar row)
+    local examplesBtn = CreateFrame("Button", nil, toolbar, "UIPanelButtonTemplate")
+    examplesBtn:SetSize(110, 22)
+    examplesBtn:SetPoint("LEFT", importBtn, "RIGHT", 4, 0)
+    examplesBtn:SetText("Examples")
+    examplesBtn:SetScript("OnClick", function() RightPanelShowExamples() end)
+
     -- New-bar input (hidden until "New Bar" clicked)
     local newBarBox = CreateFrame("EditBox", nil, leftPanel, "InputBoxTemplate")
     newBarBox:SetSize(LEFT_W - 16, 20)
@@ -601,7 +629,7 @@ local function BuildMainFrame()
     placeholder:SetText("Bar name, then Enter...")
     placeholder:SetJustifyH("LEFT")
     newBarBox:SetScript("OnTextChanged", function(self)
-        placeholder:SetShown(self:GetText() == "")
+        if self:GetText() == "" then placeholder:Show() else placeholder:Hide() end
     end)
     newBarBox:SetScript("OnEnterPressed", function(self)
         local val = self:GetText():match("^%s*(.-)%s*$")
@@ -628,6 +656,8 @@ local function BuildMainFrame()
     end)
     newBarBox:Hide()
     newBarInput = newBarBox
+    -- Raise above the scroll-content rows so it draws on top when visible
+    newBarBox:SetFrameLevel(newBarBox:GetFrameLevel() + 10)
 
     -- Toolbar/input separator
     local toolSep = leftPanel:CreateTexture(nil, "BACKGROUND")
