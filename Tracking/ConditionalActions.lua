@@ -5,6 +5,9 @@ local Conditionals = ns.AuraTracker.Conditionals
 -- Localize globals needed by action evaluation
 local UnitHealth, UnitHealthMax = UnitHealth, UnitHealthMax
 local UnitPower, UnitPowerMax = UnitPower, UnitPowerMax
+local UnitExists = UnitExists
+local GetNumRaidMembers = GetNumRaidMembers
+local GetNumPartyMembers = GetNumPartyMembers
 local GetTime = GetTime
 local GetTalentInfo = GetTalentInfo
 local GetTalentTabInfo = GetTalentTabInfo
@@ -20,6 +23,48 @@ local LSM = LibStub("LibSharedMedia-3.0")
 local math_floor = math.floor
 local string_format = string.format
 local string_gsub = string.gsub
+
+-- Local copy of group-unit helper (mirrors ConditionalChecks.lua)
+local function GetSmartGroupUnits()
+    local numRaid = GetNumRaidMembers and GetNumRaidMembers() or 0
+    if numRaid > 0 then
+        local units = {}
+        for i = 1, numRaid do
+            units[#units + 1] = "raid" .. i
+        end
+        return units
+    end
+    local numParty = GetNumPartyMembers and GetNumPartyMembers() or 0
+    if numParty > 0 then
+        local units = { "player" }
+        for i = 1, numParty do
+            units[#units + 1] = "party" .. i
+        end
+        return units
+    end
+    return { "player" }
+end
+
+local function CheckUnitPct(unit, getFunc, maxFunc, op, value)
+    if unit == "smart_group" then
+        for _, u in ipairs(GetSmartGroupUnits()) do
+            if UnitExists(u) then
+                local maxVal = maxFunc(u)
+                if maxVal and maxVal > 0 then
+                    local pct = (getFunc(u) / maxVal) * 100
+                    if Conditionals:CompareValue(pct, op, value) then
+                        return true
+                    end
+                end
+            end
+        end
+        return false
+    end
+    local maxVal = maxFunc(unit)
+    if not maxVal or maxVal == 0 then return false end
+    local pct = (getFunc(unit) / maxVal) * 100
+    return Conditionals:CompareValue(pct, op, value)
+end
 
 -- ==========================================================
 -- ACTION CONDITIONALS  (icon-only)
