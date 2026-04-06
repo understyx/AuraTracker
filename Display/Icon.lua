@@ -294,9 +294,11 @@ function Icon:Refresh()
 
     if shouldShow then
         self.frame:Show()
-        if self.trackedItem:GetTrackType() == Config.TrackType.COOLDOWN_AURA then
+        local tt = self.trackedItem:GetTrackType()
+        if tt == Config.TrackType.COOLDOWN_AURA then
             self:RenderDualTrack()
-        elseif self.trackedItem:GetTrackType() == Config.TrackType.INTERNAL_CD then
+        elseif tt == Config.TrackType.INTERNAL_CD
+        or tt == Config.TrackType.CUSTOM_ICD then
             self:RenderInternalCD()
         elseif self.trackedItem:IsActive() then
             self:RenderActive()

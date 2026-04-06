@@ -95,6 +95,7 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
     local isAura         = (data.trackType == "aura")
     local isCooldownAura = (data.trackType == "cooldown_aura")
     local isInternalCD   = (data.trackType == "internal_cd")
+    local isCustomICD    = (data.trackType == "custom_icd")
     local isWeaponEnchant = (data.trackType == "weapon_enchant")
     local isTotem        = (data.trackType == "totem")
     local hasAuraOptions = isAura or isCooldownAura
@@ -143,7 +144,7 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
     local displayValues
     if isCooldownAura then
         displayValues = L.DUAL_DISPLAY_MODES
-    elseif isCooldown or isItem or isInternalCD or isTotem then
+    elseif isCooldown or isItem or isInternalCD or isCustomICD or isTotem then
         displayValues = L.COOLDOWN_DISPLAY_MODES
     else
         displayValues = L.AURA_DISPLAY_MODES
@@ -160,6 +161,27 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
             NotifyAndRebuild(barKey)
         end,
     }
+
+    -- Custom ICD options
+    if isCustomICD then
+        generalArgs.editorCustomICDDuration = {
+            type  = "input",
+            name  = "ICD Duration (seconds)",
+            desc  = "The internal cooldown duration in seconds that starts when the trigger buff is applied to the player.",
+            order = 2,
+            width = "double",
+            get   = function()
+                return tostring(data.icdDuration or "")
+            end,
+            set   = function(_, val)
+                local n = tonumber(val)
+                if n and n > 0 then
+                    data.icdDuration = n
+                    NotifyAndRebuild(barKey)
+                end
+            end,
+        }
+    end
 
     -- Aura-specific options
     if hasAuraOptions then

@@ -176,6 +176,13 @@ local function InitTypeState(self, id, trackType, options)
         self.equipped      = false
     end
 
+    -- User-defined custom ICD: trigger spell ID is the proc to watch
+    if trackType == Config.TrackType.CUSTOM_ICD then
+        self.procSpellIds  = { id }
+        self.icdDuration   = options.icdDuration or Config.DEFAULT_ICD
+        self.icdExpiration = 0
+    end
+
     -- Temporary weapon enchant state
     if trackType == Config.TrackType.WEAPON_ENCHANT then
         self.weaponSlot = options.slot or "mainhand"

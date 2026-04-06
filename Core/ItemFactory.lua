@@ -138,6 +138,28 @@ function AuraTracker:CreateInternalCDIcon(barKey, itemId, order, styleOptions, d
     return icon
 end
 
+function AuraTracker:CreateCustomICDIcon(barKey, triggerSpellId, icdDuration, order, styleOptions, displayMode)
+    local bar = self.bars[barKey]
+    local db = self:GetBarDB(barKey)
+    if not bar or not db then return nil end
+
+    local item = TrackedItem:New(triggerSpellId, Config.TrackType.CUSTOM_ICD, {
+        icdDuration = icdDuration or Config.DEFAULT_ICD,
+    })
+    if not item:GetName() then return nil end
+
+    local resolvedMode = displayMode or Config:GetDefaultDisplayMode(Config.TrackType.CUSTOM_ICD)
+    local icon = CreateAndRegisterIcon(bar, item, order, styleOptions, resolvedMode)
+    self.items[barKey]["cicd_" .. triggerSpellId] = item
+
+    -- Register trigger spell ID for CLEU proc lookup
+    self._procToItems = self._procToItems or {}
+    self._procToItems[triggerSpellId] = self._procToItems[triggerSpellId] or {}
+    self._procToItems[triggerSpellId][item] = true
+
+    return icon
+end
+
 function AuraTracker:CreateCooldownAuraIcon(barKey, spellId, filterKey, auraId, order, styleOptions, displayMode, onlyMine, exclusiveSpells)
     local bar = self.bars[barKey]
     local db = self:GetBarDB(barKey)
@@ -286,6 +308,32 @@ function AuraTracker:AddInternalCD(barKey, itemId)
     db.trackedItems[itemId] = {
         order = GetNextOrder(db.trackedItems),
         trackType = Config.TrackType.INTERNAL_CD,
+        displayMode = Config.DisplayMode.ALWAYS,
+    }
+    self:RebuildBar(barKey)
+
+    return true, name
+end
+
+function AuraTracker:AddCustomICD(barKey, triggerSpellId, icdDuration)
+    local db = self:GetBarDB(barKey)
+    if not db then return false, "Bar not found" end
+
+    local name = GetSpellInfo(triggerSpellId)
+    if not name then return false, "Spell not found" end
+
+    icdDuration = tonumber(icdDuration)
+    if not icdDuration or icdDuration <= 0 then
+        return false, "ICD duration must be greater than 0"
+    end
+
+    db.trackedItems = db.trackedItems or {}
+    if db.trackedItems[triggerSpellId] then return false, "Already tracked" end
+
+    db.trackedItems[triggerSpellId] = {
+        order = GetNextOrder(db.trackedItems),
+        trackType = Config.TrackType.CUSTOM_ICD,
+        icdDuration = icdDuration,
         displayMode = Config.DisplayMode.ALWAYS,
     }
     self:RebuildBar(barKey)
