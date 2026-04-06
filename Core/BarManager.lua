@@ -310,8 +310,9 @@ function AuraTracker:RebuildProcLookup()
     self._procToItems = {}
     for bk, itemTable in pairs(self.items) do
         for key, item in pairs(itemTable) do
-            if item:GetTrackType() == Config.TrackType.INTERNAL_CD
-            or item:GetTrackType() == Config.TrackType.CUSTOM_ICD then
+            local tt = item:GetTrackType()
+            if tt == Config.TrackType.INTERNAL_CD
+            or tt == Config.TrackType.CUSTOM_ICD then
                 local procSpells = item:GetProcSpellIds()
                 if procSpells then
                     for _, procId in ipairs(procSpells) do
