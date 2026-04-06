@@ -16,6 +16,7 @@ Config.TrackType = {
     INTERNAL_CD   = "internal_cd",    -- Trinket / enchant internal cooldown tracking via combat log
     WEAPON_ENCHANT = "weapon_enchant", -- Temporary weapon enchant (sharpening stones, imbues, etc.)
     TOTEM         = "totem",          -- Shaman totem element slot (fire/earth/water/air)
+    CUSTOM_ICD    = "custom_icd",     -- User-defined ICD triggered by any buff/proc applied to the player
 }
 
 Config.DisplayMode = {
@@ -61,6 +62,7 @@ Config.DefaultDisplayMode = {
     INTERNAL_CD        = Config.DisplayMode.ALWAYS,
     WEAPON_ENCHANT     = Config.DisplayMode.ALWAYS,
     TOTEM              = Config.DisplayMode.ALWAYS,
+    CUSTOM_ICD         = Config.DisplayMode.ALWAYS,
 }
 
 Config.GCD_SPELL_ID = 61304
@@ -563,6 +565,9 @@ function Config:GetDefaultDisplayMode(trackType, filterKey)
     end
     if trackType == self.TrackType.INTERNAL_CD then
         return self.DefaultDisplayMode.INTERNAL_CD
+    end
+    if trackType == self.TrackType.CUSTOM_ICD then
+        return self.DefaultDisplayMode.CUSTOM_ICD
     end
     if trackType == self.TrackType.WEAPON_ENCHANT then
         return self.DefaultDisplayMode.WEAPON_ENCHANT

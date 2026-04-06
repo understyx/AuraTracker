@@ -310,7 +310,8 @@ function AuraTracker:RebuildProcLookup()
     self._procToItems = {}
     for bk, itemTable in pairs(self.items) do
         for key, item in pairs(itemTable) do
-            if item:GetTrackType() == Config.TrackType.INTERNAL_CD then
+            if item:GetTrackType() == Config.TrackType.INTERNAL_CD
+            or item:GetTrackType() == Config.TrackType.CUSTOM_ICD then
                 local procSpells = item:GetProcSpellIds()
                 if procSpells then
                     for _, procId in ipairs(procSpells) do
@@ -377,6 +378,8 @@ function AuraTracker:RebuildBar(barKey)
                 if icon then icon.showSnapshotText = data.showSnapshotText or false end
             elseif data.trackType == Config.TrackType.INTERNAL_CD then
                 icon = self:CreateInternalCDIcon(barKey, spellId, order, styleOptions, data.displayMode)
+            elseif data.trackType == Config.TrackType.CUSTOM_ICD then
+                icon = self:CreateCustomICDIcon(barKey, spellId, data.icdDuration, order, styleOptions, data.displayMode)
             elseif data.trackType == Config.TrackType.WEAPON_ENCHANT then
                 icon = self:CreateWeaponEnchantIcon(barKey, spellId, data.slot, order, styleOptions, data.displayMode, data.expectedEnchant)
             elseif data.trackType == Config.TrackType.TOTEM then

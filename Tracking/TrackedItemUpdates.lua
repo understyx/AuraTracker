@@ -22,6 +22,8 @@ function TrackedItem:Update(gcdStart, gcdDuration, ignoreGCD)
         return self:UpdateCooldownAura(gcdStart, gcdDuration, ignoreGCD)
     elseif self.trackType == Config.TrackType.INTERNAL_CD then
         return self:UpdateInternalCD()
+    elseif self.trackType == Config.TrackType.CUSTOM_ICD then
+        return self:UpdateInternalCD()
     elseif self.trackType == Config.TrackType.WEAPON_ENCHANT then
         return self:UpdateWeaponEnchant()
     elseif self.trackType == Config.TrackType.TOTEM then

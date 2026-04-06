@@ -65,6 +65,7 @@ local L = {
         ["cooldown_aura"]  = "Cooldown + Aura",
         ["internal_cd"]    = "Trinket ICD",
         ["weapon_enchant"] = "Weapon Enchant",
+        ["custom_icd"]     = "Custom ICD",
     },
     DUAL_DISPLAY_MODES = {
         ["always"]       = "Always Show",
@@ -83,6 +84,7 @@ local editState = {
     -- Add-icon form state (persists across option rebuilds)
     addTrackType   = "cooldown",
     addIconId      = "",
+    addIcdDuration = "",
 }
 
 -- ==========================================================
@@ -132,6 +134,9 @@ local function GetTrackTypeLabel(trackType, filterKey)
     end
     if trackType == "internal_cd" then
         return "|cFFFF8800trinket ICD|r"
+    end
+    if trackType == "custom_icd" then
+        return "|cFFFFAA00custom ICD|r"
     end
     if trackType == "weapon_enchant" then
         return "|cFFAAFF88weapon enchant|r"

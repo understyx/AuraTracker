@@ -62,6 +62,7 @@ local function CreateIconListOptions(barKey, barData)
         ["target_buff"]   = "Aura (Target Buff)",
         ["cooldown_aura"] = "Cooldown + Aura (Target Debuff)",
         ["item"]          = "Item (use cooldown)",
+        ["custom_icd"]    = "Custom ICD (trigger buff → cooldown)",
     }
 
     local args = {
@@ -102,6 +103,16 @@ local function CreateIconListOptions(barKey, barData)
             get   = function() return editState.addIconId or "" end,
             set   = function(_, val) editState.addIconId = val end,
         },
+        addIcdDuration = {
+            type   = "input",
+            name   = "ICD Duration (seconds)",
+            desc   = "The internal cooldown duration in seconds that starts when the trigger buff is applied to the player.",
+            order  = 4.5,
+            width  = "double",
+            hidden = function() return (editState.addTrackType or "cooldown") ~= "custom_icd" end,
+            get    = function() return editState.addIcdDuration or "" end,
+            set    = function(_, val) editState.addIcdDuration = val end,
+        },
         addIconBtn = {
             type  = "execute",
             name  = "Add",
@@ -129,11 +140,19 @@ local function CreateIconListOptions(barKey, barData)
                     ok, result = ctrl:AddAura(barKey, id, "PLAYER_BUFF")
                 elseif trackType == "target_buff" then
                     ok, result = ctrl:AddAura(barKey, id, "TARGET_BUFF")
+                elseif trackType == "custom_icd" then
+                    local dur = tonumber(editState.addIcdDuration or "")
+                    if not dur or dur <= 0 then
+                        print("|cFFFF0000Aura Tracker:|r Please enter a valid ICD duration greater than 0.")
+                        return
+                    end
+                    ok, result = ctrl:AddCustomICD(barKey, id, dur)
                 else  -- "aura" → target debuff
                     ok, result = ctrl:AddAura(barKey, id, "TARGET_DEBUFF")
                 end
                 if ok then
                     editState.addIconId = ""
+                    editState.addIcdDuration = ""
                     NotifyAndRebuild(barKey)
                 else
                     print("|cFFFF0000Aura Tracker:|r " .. (result or "Failed to add icon."))

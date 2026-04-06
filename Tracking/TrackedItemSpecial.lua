@@ -101,7 +101,13 @@ end
 --- Called from CLEU handler when a matching proc spell is detected on the player.
 --- Sets the ICD timer based on when the proc buff was applied.
 function TrackedItem:OnProcDetected(procSpellId, buffAppliedTime)
-    local icd = Config:GetTrinketProcCooldown(procSpellId)
+    local icd
+    if self.trackType == Config.TrackType.CUSTOM_ICD then
+        -- Custom ICDs use the user-specified duration stored on the item
+        icd = self.icdDuration
+    else
+        icd = Config:GetTrinketProcCooldown(procSpellId)
+    end
     if icd > 0 then
         self.icdDuration = icd
         self.icdExpiration = buffAppliedTime + icd

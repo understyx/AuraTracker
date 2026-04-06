@@ -110,6 +110,7 @@ function UpdateEngine:UpdateAllCooldowns()
                 or tt == Config.TrackType.ITEM
                 or tt == Config.TrackType.COOLDOWN_AURA
                 or tt == Config.TrackType.INTERNAL_CD
+                or tt == Config.TrackType.CUSTOM_ICD
                 or tt == Config.TrackType.WEAPON_ENCHANT
                 or tt == Config.TrackType.TOTEM then
                     item:Update(gcdStart, gcdDuration, db.ignoreGCD)
@@ -224,6 +225,7 @@ function UpdateEngine:RefreshBar(barKey)
             or tt == Config.TrackType.ITEM
             or tt == Config.TrackType.COOLDOWN_AURA
             or tt == Config.TrackType.INTERNAL_CD
+            or tt == Config.TrackType.CUSTOM_ICD
             or tt == Config.TrackType.WEAPON_ENCHANT
             or tt == Config.TrackType.TOTEM then
                 item:Update(gcdStart, gcdDuration, db.ignoreGCD)
