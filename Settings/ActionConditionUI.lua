@@ -25,6 +25,8 @@ local GetIconTalentKey = _H.GetIconTalentKey
 local GetIconUnitHPCond = _H.GetIconUnitHPCond
 local GetIconUnitHPEnabled = _H.GetIconUnitHPEnabled
 local SetIconUnitHPEnabled = _H.SetIconUnitHPEnabled
+local condOpLabels = _H.condOpLabels
+local actionCheckLabels = _H.actionCheckLabels
 
 -- ==========================================================
 -- UI: ACTION CONDITIONAL BUILDER  (icon-only)

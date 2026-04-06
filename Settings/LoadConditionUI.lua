@@ -25,6 +25,7 @@ local GetIconTalentKey = _H.GetIconTalentKey
 local GetIconUnitHPCond = _H.GetIconUnitHPCond
 local GetIconUnitHPEnabled = _H.GetIconUnitHPEnabled
 local SetIconUnitHPEnabled = _H.SetIconUnitHPEnabled
+local condOpLabels = _H.condOpLabels
 
 local TRISTATE_YES_COLOR = "|cFF00CC00"
 local TRISTATE_NO_COLOR  = "|cFFCC0000"
