@@ -319,6 +319,8 @@ ns.AuraTracker._ConditionUIHelpers = {
     GetIconUnitHPCond = GetIconUnitHPCond,
     GetIconUnitHPEnabled = GetIconUnitHPEnabled,
     SetIconUnitHPEnabled = SetIconUnitHPEnabled,
+    condOpLabels = condOpLabels,
+    actionCheckLabels = actionCheckLabels,
 }
 
 -- ==========================================================

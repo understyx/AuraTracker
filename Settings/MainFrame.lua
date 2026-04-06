@@ -873,6 +873,14 @@ SU.NotifyAndRebuild = function(barKey)
     -- Rebuild list only (right panel auto-refreshes via BlizOptions hook above)
     if mainFrame and mainFrame:IsShown() then
         RebuildList()
+        -- If the currently-selected bar's class restriction changed, the bar
+        -- moves to a different class bucket in the options tree.  Refresh the
+        -- basepath stored in rightGroup NOW (before the next-frame auto-refresh
+        -- fires) so AceConfigDialog navigates to the correct path.
+        if currentBar == barKey and rightGroup then
+            local classKey = GetBarClassKey(barKey)
+            rightGroup:SetUserData("basepath", { "bars", "class_" .. classKey, barKey })
+        end
     end
 end
 
