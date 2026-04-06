@@ -872,6 +872,28 @@ SU.NotifyAndRebuild = function(barKey)
     _origNotifyAndRebuild(barKey)
     -- Rebuild list only (right panel auto-refreshes via BlizOptions hook above)
     if mainFrame and mainFrame:IsShown() then
+        -- Validate currentIcon: the icon (or bar) may have just been deleted.
+        -- Clearing stale references here prevents SU.NotifyChange (which may be
+        -- called synchronously later, e.g. from inside an AceConfigDialog execute
+        -- callback) from detecting selectionInvalid=true and calling
+        -- RightPanelShowPlaceholder() → rightGroup:ReleaseChildren() while
+        -- AceConfigDialog's ActivateControl is still running on the clicked widget,
+        -- which would nil out user.rootframe and cause an "attempt to index field
+        -- 'rootframe' (a nil value)" crash at AceConfigDialog-3.0.lua:853.
+        if currentBar then
+            local ctrl = GetController()
+            local bars  = ctrl and ctrl:GetBars()
+            if not bars or not bars[currentBar] then
+                currentBar  = nil
+                currentIcon = nil
+                SU.editState.selectedBar  = nil
+                SU.editState.selectedAura = nil
+            elseif currentIcon and (not bars[currentBar].trackedItems
+                                    or not bars[currentBar].trackedItems[currentIcon]) then
+                currentIcon = nil
+                SU.editState.selectedAura = nil
+            end
+        end
         RebuildList()
         -- If the currently-selected bar's class restriction changed, the bar
         -- moves to a different class bucket in the options tree.  Refresh the
