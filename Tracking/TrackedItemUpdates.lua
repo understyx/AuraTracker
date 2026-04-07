@@ -1,11 +1,13 @@
 local _, ns = ...
 local TrackedItem = ns.AuraTracker.TrackedItem
 local Config = ns.AuraTracker.Config
+local SQ = ns.AuraTracker.StateQuery
 local GetTime = GetTime
-local GetSpellCooldown = GetSpellCooldown
 local UnitAura = UnitAura
+local UnitName = UnitName
+local UnitExists = UnitExists
+local GetSpellInfo = GetSpellInfo
 local math_abs = math.abs
-local math_floor = math.floor
 
 -- ==========================================================
 -- UPDATE
@@ -33,51 +35,11 @@ end
 
 function TrackedItem:UpdateCooldown(gcdStart, gcdDuration, ignoreGCD)
     local wasActive = self.active
-    local start, duration, enabled = GetSpellCooldown(self.id)
-    local now = GetTime()
-    
-    if not start or enabled ~= 1 then
-        self.active = false
-        self.duration = 0
-        self.expiration = 0
-        self.actualCooldownEnd = nil
-        return wasActive ~= self.active
-    end
-    
-    if duration == 0 then
-        self.active = true
-        self.duration = 0
-        self.expiration = 0
-        self.actualCooldownEnd = nil
-        return wasActive ~= self.active
-    end
-    
-    local cooldownEnd = start + duration
-    
-    local isGCD = false
-    if gcdStart and gcdDuration then
-        isGCD = math_abs(start - gcdStart) < 0.05 and math_abs(duration - gcdDuration) < 0.05
-    end
-    
-    if self.actualCooldownEnd and self.actualCooldownEnd > now then
-        self.active = false
-        self.expiration = self.actualCooldownEnd
-        return wasActive ~= self.active
-    end
-    
-    if ignoreGCD and isGCD then
-        self.active = true
-        self.duration = 0
-        self.expiration = 0
-        self.actualCooldownEnd = nil
-        return wasActive ~= self.active
-    end
-    
-    self.active = false
-    self.duration = duration
-    self.expiration = cooldownEnd
-    self.actualCooldownEnd = cooldownEnd
-    
+    local result = SQ.QueryCooldown(self.id, gcdStart, gcdDuration, ignoreGCD, self.actualCooldownEnd)
+    self.active           = result.active
+    self.duration         = result.duration
+    self.expiration       = result.expiration
+    self.actualCooldownEnd = result.actualCooldownEnd
     return wasActive ~= self.active
 end
 
@@ -95,24 +57,13 @@ function TrackedItem:UpdateAura()
         return self:UpdateAuraExclusive(filter, wasActive, prevStacks)
     end
 
-    local name, _, _, count, _, duration, expiration, casterUnit =
-        UnitAura(self.unit, self.name, nil, filter)
-
-    if name then
-        self.active = true
-        self.duration = duration or 0
-        self.expiration = expiration or 0
-        self.stacks = count or 0
-        self.srcName  = casterUnit and (UnitName(casterUnit) or "") or ""
-        self.destName = UnitName(self.unit) or ""
-    else
-        self.active = false
-        self.duration = 0
-        self.expiration = 0
-        self.stacks = 0
-        self.srcName  = ""
-        self.destName = UnitName(self.unit) or ""
-    end
+    local result = SQ.QueryAura(self.unit, self.name, filter)
+    self.active     = result.active
+    self.duration   = result.duration
+    self.expiration = result.expiration
+    self.stacks     = result.stacks
+    self.srcName    = result.srcName
+    self.destName   = result.destName
 
     return wasActive ~= self.active or prevStacks ~= self.stacks
 end
@@ -126,53 +77,32 @@ function TrackedItem:UpdateAuraSmartGroup(filter, wasActive, prevStacks)
     self:ClearAuraState()
 
     if self.exclusiveGroup then
-        -- Exclusive-group variant: scan each group member for any of the exclusive spells.
         local group = self.exclusiveGroup
-        local groupNames = group.names
-        for _, u in ipairs(units) do
-            if UnitExists(u) then
-                for i = 1, 40 do
-                    local name, _, _, count, _, duration, expiration, casterUnit, _, _, spellId =
-                        UnitAura(u, i, filter)
-                    if not name then break end
-                    if spellId == self.auraId or group.spells[spellId]
-                    or name == self.name or (groupNames and groupNames[name]) then
-                        self.active     = true
-                        self.duration   = duration or 0
-                        self.expiration = expiration or 0
-                        self.stacks     = count or 0
-                        self.srcName    = casterUnit and (UnitName(casterUnit) or "") or ""
-                        self.destName   = UnitName(u) or ""
-                        local _, _, tex = GetSpellInfo(spellId)
-                        if spellId and tex then self.texture = tex end
-                        break
-                    end
-                end
-            end
-            if self.active then break end
-        end
-        if not self.active then
+        local result = SQ.QueryAuraExclusiveSmartGroup(
+            units, filter, self.auraId, group.spells, self.name, group.names)
+        if result.active then
+            self.active     = true
+            self.duration   = result.duration
+            self.expiration = result.expiration
+            self.stacks     = result.stacks
+            self.srcName    = result.srcName
+            self.destName   = result.destName
+            if result.texture then self.texture = result.texture end
+        else
             self.texture  = self.originalTexture
             self.srcName  = ""
             self.destName = ""
         end
     else
-        for _, u in ipairs(units) do
-            if UnitExists(u) then
-                local name, _, _, count, _, duration, expiration, casterUnit =
-                    UnitAura(u, self.name, nil, filter)
-                if name then
-                    self.active     = true
-                    self.duration   = duration or 0
-                    self.expiration = expiration or 0
-                    self.stacks     = count or 0
-                    self.srcName    = casterUnit and (UnitName(casterUnit) or "") or ""
-                    self.destName   = UnitName(u) or ""
-                    break
-                end
-            end
-        end
-        if not self.active then
+        local result = SQ.QueryAuraSmartGroup(units, self.name, filter)
+        if result.active then
+            self.active     = true
+            self.duration   = result.duration
+            self.expiration = result.expiration
+            self.stacks     = result.stacks
+            self.srcName    = result.srcName
+            self.destName   = result.destName
+        else
             self.srcName  = ""
             self.destName = ""
         end
@@ -182,36 +112,23 @@ function TrackedItem:UpdateAuraSmartGroup(filter, wasActive, prevStacks)
 end
 
 function TrackedItem:UpdateAuraExclusive(filter, wasActive, prevStacks)
-    local group      = self.exclusiveGroup
-    local unit       = self.unit
-    local groupNames = group.names
-
+    local group = self.exclusiveGroup
     self:ClearAuraState()
 
-    for i = 1, 40 do
-        local name, _, _, count, _, duration, expiration, casterUnit, _, _, spellId =
-            UnitAura(unit, i, filter)
-        if not name then break end
-
-        -- Match original spell, exclusive group spells, or fall back to name
-        if spellId == self.auraId or group.spells[spellId]
-        or name == self.name or (groupNames and groupNames[name]) then
-            self.active     = true
-            self.duration   = duration or 0
-            self.expiration = expiration or 0
-            self.stacks     = count or 0
-            self.srcName    = casterUnit and (UnitName(casterUnit) or "") or ""
-            self.destName   = UnitName(unit) or ""
-            local _, _, tex = GetSpellInfo(spellId)
-            if tex then self.texture = tex end
-            break
-        end
-    end
-
-    if not self.active then
+    local result = SQ.QueryAuraExclusive(
+        self.unit, filter, self.auraId, group.spells, self.name, group.names)
+    if result.active then
+        self.active     = true
+        self.duration   = result.duration
+        self.expiration = result.expiration
+        self.stacks     = result.stacks
+        self.srcName    = result.srcName
+        self.destName   = result.destName
+        if result.texture then self.texture = result.texture end
+    else
         self.texture  = self.originalTexture
         self.srcName  = ""
-        self.destName = UnitName(unit) or ""
+        self.destName = UnitName(self.unit) or ""
     end
 
     return wasActive ~= self.active or prevStacks ~= self.stacks
@@ -219,97 +136,58 @@ end
 
 function TrackedItem:UpdateItem()
     local wasActive = self.active
-    local start, duration, enabled = GetItemCooldown(self.id)
-
-    if not start or enabled ~= 1 then
-        self.active = false
-        self.duration = 0
-        self.expiration = 0
-        return wasActive ~= self.active
-    end
-
-    if duration == 0 then
-        self.active = true
-        self.duration = 0
-        self.expiration = 0
-        return wasActive ~= self.active
-    end
-
-    self.active = false
-    self.duration = duration
-    self.expiration = start + duration
-
+    local result = SQ.QueryItemCooldown(self.id)
+    self.active     = result.active
+    self.duration   = result.duration
+    self.expiration = result.expiration
     return wasActive ~= self.active
 end
 
 function TrackedItem:UpdateCooldownAura(gcdStart, gcdDuration, ignoreGCD)
-    local changed = false
-    local wasActive = self.active
-    local wasOnCD = self.onCooldown
+    local wasActive     = self.active
+    local wasOnCD       = self.onCooldown
     local wasAuraActive = self.auraActive
-    local prevStacks = self.auraStacks
+    local prevStacks    = self.auraStacks
 
     -- Cooldown part
-    local start, duration, enabled = GetSpellCooldown(self.id)
-    local now = GetTime()
-
-    if start and enabled == 1 and duration > 0 then
-        local isGCD = false
-        if gcdStart and gcdDuration then
-            isGCD = math_abs(start - gcdStart) < 0.05 and math_abs(duration - gcdDuration) < 0.05
-        end
-        if ignoreGCD and isGCD then
-            self.onCooldown = false
-        else
-            self.onCooldown = true
-            self.duration = duration
-            self.expiration = start + duration
-        end
+    local cdResult = SQ.QueryCooldown(self.id, gcdStart, gcdDuration, ignoreGCD, self.actualCooldownEnd)
+    if cdResult.active == false and cdResult.expiration > 0 then
+        self.onCooldown        = true
+        self.duration          = cdResult.duration
+        self.expiration        = cdResult.expiration
+        self.actualCooldownEnd = cdResult.actualCooldownEnd
     else
-        self.onCooldown = false
+        self.onCooldown        = false
+        self.actualCooldownEnd = nil
     end
 
     -- Aura part
     local filter = self:GetEffectiveFilter()
-
-    local aName, _, _, count, _, auraDuration, auraExpiration, casterUnit =
-        UnitAura(self.unit, self.name, nil, filter)
-
-    if aName then
-        self.auraActive = true
-        self.auraDuration = auraDuration or 0
-        self.auraExpiration = auraExpiration or 0
-        self.auraStacks = count or 0
-        self.srcName  = casterUnit and (UnitName(casterUnit) or "") or ""
-        self.destName = UnitName(self.unit) or ""
-    else
-        self.auraActive = false
-        self.auraDuration = 0
-        self.auraExpiration = 0
-        self.auraStacks = 0
-        self.srcName  = ""
-        self.destName = UnitName(self.unit) or ""
-    end
+    local aResult = SQ.QueryAura(self.unit, self.name, filter)
+    self.auraActive     = aResult.active
+    self.auraDuration   = aResult.duration
+    self.auraExpiration = aResult.expiration
+    self.auraStacks     = aResult.stacks
+    self.srcName        = aResult.srcName
+    self.destName       = aResult.destName
 
     -- Combined state: "active" = ready to use (not on CD)
     self.active = not self.onCooldown
 
     -- Set display values based on priority
     if not self.onCooldown and self.auraActive then
-        self.duration = self.auraDuration
+        self.duration   = self.auraDuration
         self.expiration = self.auraExpiration
-        self.stacks = self.auraStacks
+        self.stacks     = self.auraStacks
     elseif not self.onCooldown then
-        self.duration = 0
+        self.duration   = 0
         self.expiration = 0
-        self.stacks = 0
+        self.stacks     = 0
     else
         self.stacks = self.auraStacks
     end
 
-    changed = wasActive ~= self.active or wasOnCD ~= self.onCooldown
+    return wasActive ~= self.active or wasOnCD ~= self.onCooldown
         or wasAuraActive ~= self.auraActive or prevStacks ~= self.auraStacks
-
-    return changed
 end
 

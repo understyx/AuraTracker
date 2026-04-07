@@ -24,30 +24,9 @@ local math_floor = math.floor
 local string_format = string.format
 local string_gsub = string.gsub
 
--- Local copy of group-unit helper (mirrors ConditionalChecks.lua)
-local function GetSmartGroupUnits()
-    local numRaid = GetNumRaidMembers and GetNumRaidMembers() or 0
-    if numRaid > 0 then
-        local units = {}
-        for i = 1, numRaid do
-            units[#units + 1] = "raid" .. i
-        end
-        return units
-    end
-    local numParty = GetNumPartyMembers and GetNumPartyMembers() or 0
-    if numParty > 0 then
-        local units = { "player" }
-        for i = 1, numParty do
-            units[#units + 1] = "party" .. i
-        end
-        return units
-    end
-    return { "player" }
-end
-
 local function CheckUnitPct(unit, getFunc, maxFunc, op, value)
     if unit == "smart_group" then
-        for _, u in ipairs(GetSmartGroupUnits()) do
+        for _, u in ipairs(Conditionals:GetSmartGroupUnits()) do
             if UnitExists(u) then
                 local maxVal = maxFunc(u)
                 if maxVal and maxVal > 0 then
