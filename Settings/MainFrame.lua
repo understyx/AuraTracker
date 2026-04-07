@@ -43,22 +43,14 @@ local C_ROW_NORMAL  = { 0.00, 0.00, 0.00, 0.00 }
 -- PRIVATE STATE
 -- ======================================================
 
-local mainFrame      = nil
-local scrollFrame    = nil
-local scrollContent  = nil
-local rightGroup     = nil   -- AceGUI SimpleGroup used as right panel
-
-local expandedBars   = {}    -- [barKey] = true/false
-local currentBar     = nil   -- selected bar key (or nil)
-local currentIcon    = nil   -- selected icon id  (or nil)
-
--- Row button pools (bar rows and icon rows are different heights)
-local barRowPool  = {}
-local icoRowPool  = {}
-local activeRows  = {}  -- rows currently in use (in display order)
-
--- new-bar input state
-local newBarInput = nil   -- EditBox widget (created once)
+local state = {
+    expandedBars = {},
+    barRowPool   = {},
+    icoRowPool   = {},
+    activeRows   = {},
+}
+ns.AuraTracker._MFState = state
+-- mainFrame, scrollFrame, scrollContent, rightGroup, currentBar, currentIcon, newBarInput start nil
 
 -- ======================================================
 -- HELPERS
@@ -146,137 +138,6 @@ local function ClassColor(cc, brightness, alpha)
     return { cc[1]*brightness, cc[2]*brightness, cc[3]*brightness, alpha }
 end
 
--- ======================================================
--- ROW POOL HELPERS
--- ======================================================
-
-local function AcquireBarRow()
-    local row = table_remove(barRowPool)
-    if row then
-        row:ClearAllPoints()
-        row:Show()
-        return row
-    end
-    local f = CreateFrame("Button", nil, scrollContent)
-    f:SetHeight(ROW_H_BAR)
-    f._type = "bar"
-
-    -- Background highlight texture
-    local bg = f:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints()
-    bg:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-    SetTexColor(bg, C_ROW_NORMAL)
-    f._bg = bg
-
-    -- Expand/collapse arrow (text glyph, no Blizzard texture)
-    local arrow = f:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
-    arrow:SetPoint("LEFT", f, "LEFT", 4, 0)
-    f._arrow = arrow
-
-    -- Bar name
-    local name = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    name:SetPoint("LEFT", f, "LEFT", 24, 0)
-    name:SetPoint("RIGHT", f, "RIGHT", -52, 0)
-    name:SetJustifyH("LEFT")
-    name:SetWordWrap(false)
-    f._name = name
-
-    -- Class badge (small colored rectangle)
-    local badge = f:CreateTexture(nil, "OVERLAY")
-    badge:SetSize(4, 18)
-    badge:SetPoint("RIGHT", f, "RIGHT", -48, 0)
-    badge:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-    f._badge = badge
-
-    -- Delete button
-    local del = CreateFrame("Button", nil, f)
-    del:SetSize(20, 20)
-    del:SetPoint("RIGHT", f, "RIGHT", -4, 0)
-    del:SetNormalFontObject("GameFontNormalSmall")
-    del:SetText("|cFFFF4444X|r")
-    del:SetScript("OnEnter", function() del:SetText("|cFFFF0000X|r") end)
-    del:SetScript("OnLeave", function() del:SetText("|cFFFF4444X|r") end)
-    f._del = del
-
-    -- Selection/hover highlight
-    f:SetScript("OnEnter", function(self)
-        if self._selected then return end
-        local cc = self._classColor
-        if cc then
-            SetTexColor(self._bg, ClassColor(cc, 0.45, 0.90))
-        else
-            SetTexColor(self._bg, C_ROW_HOVER)
-        end
-    end)
-    f:SetScript("OnLeave", function(self)
-        if self._selected then return end
-        local cc = self._classColor
-        if cc then
-            SetTexColor(self._bg, ClassColor(cc, 0.30, 0.85))
-        else
-            SetTexColor(self._bg, C_ROW_NORMAL)
-        end
-    end)
-
-    return f
-end
-
-local function ReleaseBarRow(row)
-    row:Hide()
-    row._classColor = nil
-    table_insert(barRowPool, row)
-end
-
-local function AcquireIcoRow()
-    local row = table_remove(icoRowPool)
-    if row then
-        row:ClearAllPoints()
-        row:Show()
-        return row
-    end
-    local f = CreateFrame("Button", nil, scrollContent)
-    f:SetHeight(ROW_H_ICO)
-    f._type = "icon"
-
-    -- Background
-    local bg = f:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints()
-    bg:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-    SetTexColor(bg, C_ROW_NORMAL)
-    f._bg = bg
-
-    -- Icon
-    local ico = f:CreateTexture(nil, "ARTWORK")
-    ico:SetSize(ICON_SIZE, ICON_SIZE)
-    ico:SetPoint("LEFT", f, "LEFT", 30, 0)
-    ico:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-    f._ico = ico
-
-    -- Spell name
-    local name = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    name:SetPoint("LEFT", ico, "RIGHT", 5, 0)
-    name:SetPoint("RIGHT", f, "RIGHT", -4, 0)
-    name:SetJustifyH("LEFT")
-    name:SetWordWrap(false)
-    f._name = name
-
-    -- Hover/select
-    f:SetScript("OnEnter", function(self)
-        if self._selected then return end
-        SetTexColor(self._bg, C_ROW_HOVER)
-    end)
-    f:SetScript("OnLeave", function(self)
-        if self._selected then return end
-        SetTexColor(self._bg, C_ROW_NORMAL)
-    end)
-
-    return f
-end
-
-local function ReleaseIcoRow(row)
-    row:Hide()
-    table_insert(icoRowPool, row)
-end
 
 -- ======================================================
 -- RIGHT PANEL NAVIGATION
@@ -292,63 +153,63 @@ local function GetBarClassKey(barKey)
 end
 
 local function RightPanelShowBar(barKey)
-    if not rightGroup or not barKey then return end
+    if not state.rightGroup or not barKey then return end
     local classKey = GetBarClassKey(barKey)
     local path = { "bars", "class_" .. classKey, barKey }
-    rightGroup:SetUserData("basepath", path)
-    rightGroup:SetUserData("appName", addonName)
-    AceConfigDialog:Open(addonName, rightGroup, "bars", "class_" .. classKey, barKey)
+    state.rightGroup:SetUserData("basepath", path)
+    state.rightGroup:SetUserData("appName", addonName)
+    AceConfigDialog:Open(addonName, state.rightGroup, "bars", "class_" .. classKey, barKey)
 end
 
 local function RightPanelShowIcon(barKey, spellId)
-    if not rightGroup or not barKey then return end
+    if not state.rightGroup or not barKey then return end
     local classKey = GetBarClassKey(barKey)
     local path = { "bars", "class_" .. classKey, barKey }
     -- Force the Icons tab active
     local barStatus = AceConfigDialog:GetStatusTable(addonName, path)
     barStatus.groups        = barStatus.groups or {}
     barStatus.groups.selected = "icons"
-    rightGroup:SetUserData("basepath", path)
-    rightGroup:SetUserData("appName", addonName)
-    AceConfigDialog:Open(addonName, rightGroup, "bars", "class_" .. classKey, barKey)
+    state.rightGroup:SetUserData("basepath", path)
+    state.rightGroup:SetUserData("appName", addonName)
+    AceConfigDialog:Open(addonName, state.rightGroup, "bars", "class_" .. classKey, barKey)
 end
 
 local function RightPanelShowImport()
-    if not rightGroup then return end
-    rightGroup:SetUserData("basepath", nil)
-    rightGroup:SetUserData("appName", addonName)
-    AceConfigDialog:Open(addonName, rightGroup, "importBar")
+    if not state.rightGroup then return end
+    state.rightGroup:SetUserData("basepath", nil)
+    state.rightGroup:SetUserData("appName", addonName)
+    AceConfigDialog:Open(addonName, state.rightGroup, "importBar")
 end
 
 local function RightPanelShowExamples()
-    if not rightGroup then return end
-    rightGroup:SetUserData("basepath", nil)
-    rightGroup:SetUserData("appName", addonName)
-    AceConfigDialog:Open(addonName, rightGroup, "exampleBars")
+    if not state.rightGroup then return end
+    state.rightGroup:SetUserData("basepath", nil)
+    state.rightGroup:SetUserData("appName", addonName)
+    AceConfigDialog:Open(addonName, state.rightGroup, "exampleBars")
 end
 
 local function RightPanelShowPlaceholder()
-    if not rightGroup then return end
+    if not state.rightGroup then return end
     -- Clear basepath so auto-refresh doesn't navigate away
-    rightGroup:SetUserData("basepath", nil)
-    rightGroup:SetUserData("appName", addonName)
-    rightGroup:ReleaseChildren()
-    rightGroup:SetLayout("fill")
+    state.rightGroup:SetUserData("basepath", nil)
+    state.rightGroup:SetUserData("appName", addonName)
+    state.rightGroup:ReleaseChildren()
+    state.rightGroup:SetLayout("fill")
     local lbl = AceGUI:Create("Label")
     lbl:SetText("\n\n\n\n   |cFF888888← Select a bar from the list to configure it.\n\n"
              .. "   Use the |cFFFFFFFFNew Bar|r button to create your first bar, "
              .. "or use |cFFFFFFFFEdit Mode|r to drag bars on screen.|r")
     lbl:SetFullWidth(true)
-    rightGroup:AddChild(lbl)
+    state.rightGroup:AddChild(lbl)
 end
 
 local function RefreshRightPanel()
-    if not mainFrame or not mainFrame:IsShown() then return end
-    if currentBar then
-        if currentIcon then
-            RightPanelShowIcon(currentBar, currentIcon)
+    if not state.mainFrame or not state.mainFrame:IsShown() then return end
+    if state.currentBar then
+        if state.currentIcon then
+            RightPanelShowIcon(state.currentBar, state.currentIcon)
         else
-            RightPanelShowBar(currentBar)
+            RightPanelShowBar(state.currentBar)
         end
     else
         RightPanelShowPlaceholder()
@@ -356,191 +217,35 @@ local function RefreshRightPanel()
 end
 
 -- ======================================================
--- LEFT PANEL  –  list rebuild
+-- STATE HELPER EXPORTS  (for MainFrameRows.lua)
 -- ======================================================
 
-local function ClearActiveRows()
-    for _, row in ipairs(activeRows) do
-        if row._type == "bar" then
-            ReleaseBarRow(row)
-        else
-            ReleaseIcoRow(row)
-        end
-    end
-    activeRows = {}
-end
+state.SetTexColor       = SetTexColor
+state.ClassColor        = ClassColor
+state.GetController     = GetController
+state.GetSortedBars     = GetSortedBars
+state.GetSortedIcons    = GetSortedIcons
+state.GetIconTexture    = GetIconTexture
+state.GetBarClassKey    = GetBarClassKey
+state.RightPanelShowBar  = RightPanelShowBar
+state.RightPanelShowIcon = RightPanelShowIcon
+state.ROW_H_BAR   = ROW_H_BAR
+state.ROW_H_ICO   = ROW_H_ICO
+state.ICON_SIZE   = ICON_SIZE
+state.C_ROW_NORMAL = C_ROW_NORMAL
+state.C_ROW_HOVER  = C_ROW_HOVER
+state.C_ROW_SEL    = C_ROW_SEL
 
-local function SetRowSelected(row, sel)
-    row._selected = sel
-    if sel then
-        local cc = row._classColor
-        if cc then
-            SetTexColor(row._bg, ClassColor(cc, 0.55, 1.0))
-        else
-            SetTexColor(row._bg, C_ROW_SEL)
-        end
-    else
-        local cc = row._classColor
-        if cc then
-            SetTexColor(row._bg, ClassColor(cc, 0.30, 0.85))
-        else
-            SetTexColor(row._bg, C_ROW_NORMAL)
-        end
-    end
-end
 
-local function RebuildList()
-    if not scrollContent then return end
-
-    ClearActiveRows()
-
-    local bars = GetSortedBars()
-    local yOffset = 0
-
-    for _, entry in ipairs(bars) do
-        local barKey  = entry.key
-        local barData = entry.data
-        local expanded = expandedBars[barKey]
-        local isSel    = (barKey == currentBar and currentIcon == nil)
-
-        -- ── Bar row ──────────────────────────────────────────
-        local row = AcquireBarRow()
-        row._barKey = barKey
-
-        -- Class badge color (must be set before SetRowSelected uses _classColor)
-        local classKey = barData.classRestriction or "NONE"
-        if classKey ~= "NONE" then
-            local color = RAID_CLASS_COLORS and RAID_CLASS_COLORS[classKey]
-            if color then
-                row._classColor = { color.r, color.g, color.b }
-                row._badge:SetVertexColor(color.r, color.g, color.b, 1)
-                row._badge:Hide() -- Note: We are hiding this, because this is just a class colored square currently!
-            else
-                row._classColor = nil
-                row._badge:Hide()
-            end
-        else
-            row._classColor = nil
-            row._badge:Hide()
-        end
-
-        SetRowSelected(row, isSel)
-
-        -- Arrow
-        row._arrow:SetText(expanded and "|cFFAAAAAA-|r" or "|cFFAAAAAA+|r")
-
-        -- Name
-        local displayName = SU.GetBarDisplayName(barData, barKey)
-        row._name:SetText(displayName)
-
-        -- Delete handler (with confirmation popup)
-        local capturedKey  = barKey
-        local capturedName = barData.name or barKey
-        row._del:SetScript("OnClick", function()
-            StaticPopup_Show("AURATRACKER_CONFIRM_DELETE_BAR", capturedName, nil, {
-                fn = function()
-                    local ctrl = GetController()
-                    if not ctrl then return end
-                    ctrl:DeleteBar(capturedKey)
-                    if currentBar == capturedKey then
-                        currentBar  = nil
-                        currentIcon = nil
-                        SU.editState.selectedBar  = nil
-                        SU.editState.selectedAura = nil
-                    end
-                    SU.NotifyChange()
-                end
-            })
-        end)
-
-        -- Click to select / expand
-        row:SetScript("OnClick", function(self, btn)
-            if btn == "LeftButton" then
-                -- Toggle expand only if clicking the arrow area (x < 20)
-                -- Otherwise select the bar
-                local x = GetCursorPosition()
-                local fx = self:GetLeft()
-                local scale = self:GetEffectiveScale()
-                local localX = (x / scale) - fx
-                if localX <= 20 then
-                    expandedBars[barKey] = not expandedBars[barKey]
-                    RebuildList()
-                else
-                    currentBar  = barKey
-                    currentIcon = nil
-                    SU.editState.selectedBar  = barKey
-                    SU.editState.selectedAura = nil
-                    RebuildList()
-                    RightPanelShowBar(barKey)
-                end
-            end
-        end)
-
-        row:SetPoint("TOPLEFT",  scrollContent, "TOPLEFT",  0, -yOffset)
-        row:SetPoint("TOPRIGHT", scrollContent, "TOPRIGHT", 0, -yOffset)
-        table_insert(activeRows, row)
-        yOffset = yOffset + ROW_H_BAR
-
-        -- ── Icon rows (when expanded) ─────────────────────────
-        if expanded then
-            local icons = GetSortedIcons(barData)
-            for _, iconEntry in ipairs(icons) do
-                local spellId  = iconEntry.spellId
-                local iconData = iconEntry.data
-                local isIconSel = (barKey == currentBar and currentIcon == spellId)
-
-                local irow = AcquireIcoRow()
-                irow._barKey  = barKey
-                irow._spellId = spellId
-                SetRowSelected(irow, isIconSel)
-
-                -- Icon texture
-                local tex = GetIconTexture(spellId, iconData.trackType)
-                irow._ico:SetTexture(tex)
-
-                -- Name + track type label
-                local spellName = SU.GetTrackedNameAndIcon(spellId, iconData.trackType)
-                local typeLabel = SU.GetTrackTypeLabel(iconData.trackType, iconData.type)
-                irow._name:SetText(spellName .. "  " .. typeLabel)
-
-                -- Click to select icon
-                local cBarKey  = barKey
-                local cSpellId = spellId
-                irow:SetScript("OnClick", function()
-                    currentBar  = cBarKey
-                    currentIcon = cSpellId
-                    SU.editState.selectedBar  = cBarKey
-                    SU.editState.selectedAura = cSpellId
-                    RebuildList()
-                    RightPanelShowIcon(cBarKey, cSpellId)
-                end)
-
-                irow:SetPoint("TOPLEFT",  scrollContent, "TOPLEFT",  0, -yOffset)
-                irow:SetPoint("TOPRIGHT", scrollContent, "TOPRIGHT", 0, -yOffset)
-                table_insert(activeRows, irow)
-                yOffset = yOffset + ROW_H_ICO
-            end
-        end
-
-        -- Thin separator line after each bar block
-        yOffset = yOffset + 2
-    end
-
-    if #bars == 0 then
-        yOffset = 40
-    end
-
-    scrollContent:SetHeight(math_max(yOffset, 10))
-end
 
 -- ======================================================
 -- NEW-BAR INPUT
 -- ======================================================
 
 local function ShowNewBarInput()
-    if not newBarInput then return end
-    newBarInput:Show()
-    newBarInput:SetFocus()
+    if not state.newBarInput then return end
+    state.newBarInput:Show()
+    state.newBarInput:SetFocus()
 end
 
 -- ======================================================
@@ -565,7 +270,7 @@ StaticPopupDialogs["AURATRACKER_CONFIRM_DELETE_BAR"] = {
 -- ======================================================
 
 local function BuildMainFrame()
-    if mainFrame then return end
+    if state.mainFrame then return end
 
     -- ── Backdrop template safe for WotLK ────────────────────
     local backdrop = {
@@ -575,28 +280,28 @@ local function BuildMainFrame()
         insets   = { left = 3, right = 3, top = 3, bottom = 3 },
     }
 
-    mainFrame = CreateFrame("Frame", "AuraTrackerMainFrame", UIParent)
-    mainFrame:SetSize(FRAME_W, FRAME_H)
-    mainFrame:SetPoint("CENTER")
-    mainFrame:SetFrameStrata("DIALOG")
-    mainFrame:SetBackdrop(backdrop)
-    mainFrame:SetBackdropColor(C_MAIN_BG[1], C_MAIN_BG[2], C_MAIN_BG[3], C_MAIN_BG[4])
-    mainFrame:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
-    mainFrame:EnableMouse(true)
-    mainFrame:SetMovable(true)
-    mainFrame:RegisterForDrag("LeftButton")
-    mainFrame:SetScript("OnDragStart", mainFrame.StartMoving)
-    mainFrame:SetScript("OnDragStop",  mainFrame.StopMovingOrSizing)
-    mainFrame:SetToplevel(true)
-    mainFrame:Hide()
+    state.mainFrame = CreateFrame("Frame", "AuraTrackerMainFrame", UIParent)
+    state.mainFrame:SetSize(FRAME_W, FRAME_H)
+    state.mainFrame:SetPoint("CENTER")
+    state.mainFrame:SetFrameStrata("DIALOG")
+    state.mainFrame:SetBackdrop(backdrop)
+    state.mainFrame:SetBackdropColor(C_MAIN_BG[1], C_MAIN_BG[2], C_MAIN_BG[3], C_MAIN_BG[4])
+    state.mainFrame:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
+    state.mainFrame:EnableMouse(true)
+    state.mainFrame:SetMovable(true)
+    state.mainFrame:RegisterForDrag("LeftButton")
+    state.mainFrame:SetScript("OnDragStart", state.mainFrame.StartMoving)
+    state.mainFrame:SetScript("OnDragStop",  state.mainFrame.StopMovingOrSizing)
+    state.mainFrame:SetToplevel(true)
+    state.mainFrame:Hide()
 
     -- Close with Escape
     table_insert(UISpecialFrames, "AuraTrackerMainFrame")
 
     -- ── Title bar ────────────────────────────────────────────
-    local titleBar = CreateFrame("Frame", nil, mainFrame)
-    titleBar:SetPoint("TOPLEFT",  mainFrame, "TOPLEFT",   3, -3)
-    titleBar:SetPoint("TOPRIGHT", mainFrame, "TOPRIGHT",  -3, -3)
+    local titleBar = CreateFrame("Frame", nil, state.mainFrame)
+    titleBar:SetPoint("TOPLEFT",  state.mainFrame, "TOPLEFT",   3, -3)
+    titleBar:SetPoint("TOPRIGHT", state.mainFrame, "TOPRIGHT",  -3, -3)
     titleBar:SetHeight(TITLE_H)
     titleBar:SetBackdrop({ bgFile = "Interface\\ChatFrame\\ChatFrameBackground" })
     titleBar:SetBackdropColor(C_TITLE_BG[1], C_TITLE_BG[2], C_TITLE_BG[3], C_TITLE_BG[4])
@@ -613,10 +318,10 @@ local function BuildMainFrame()
     local closeBtn = CreateFrame("Button", nil, titleBar, "UIPanelCloseButton")
     closeBtn:SetSize(24, 24)
     closeBtn:SetPoint("RIGHT", titleBar, "RIGHT", -2, 0)
-    closeBtn:SetScript("OnClick", function() mainFrame:Hide() end)
+    closeBtn:SetScript("OnClick", function() state.mainFrame:Hide() end)
 
     -- ── Full-width top toolbar (below title bar) ─────────────
-    local topToolbar = CreateFrame("Frame", nil, mainFrame)
+    local topToolbar = CreateFrame("Frame", nil, state.mainFrame)
     topToolbar:SetPoint("TOPLEFT",  titleBar, "BOTTOMLEFT",  0, -2)
     topToolbar:SetPoint("TOPRIGHT", titleBar, "BOTTOMRIGHT", 0, -2)
     topToolbar:SetHeight(TOP_TOOLBAR_H)
@@ -624,7 +329,7 @@ local function BuildMainFrame()
     topToolbar:SetBackdropColor(C_LEFT_BG[1], C_LEFT_BG[2], C_LEFT_BG[3], C_LEFT_BG[4])
 
     -- Separator below top toolbar
-    local ttSep = mainFrame:CreateTexture(nil, "BACKGROUND")
+    local ttSep = state.mainFrame:CreateTexture(nil, "BACKGROUND")
     ttSep:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
     ttSep:SetVertexColor(C_DIVIDER[1], C_DIVIDER[2], C_DIVIDER[3], C_DIVIDER[4])
     ttSep:SetPoint("TOPLEFT",  topToolbar, "BOTTOMLEFT",  0, 0)
@@ -664,9 +369,9 @@ local function BuildMainFrame()
     predefinedBtn:SetScript("OnClick", function() RightPanelShowExamples() end)
 
     -- ── Left panel ───────────────────────────────────────────
-    local leftPanel = CreateFrame("Frame", nil, mainFrame)
+    local leftPanel = CreateFrame("Frame", nil, state.mainFrame)
     leftPanel:SetPoint("TOPLEFT",    topToolbar, "BOTTOMLEFT",  0, -2)
-    leftPanel:SetPoint("BOTTOMLEFT", mainFrame,  "BOTTOMLEFT",  3,  3)
+    leftPanel:SetPoint("BOTTOMLEFT", state.mainFrame,  "BOTTOMLEFT",  3,  3)
     leftPanel:SetWidth(LEFT_W)
     leftPanel:SetBackdrop({ bgFile = "Interface\\ChatFrame\\ChatFrameBackground" })
     leftPanel:SetBackdropColor(C_LEFT_BG[1], C_LEFT_BG[2], C_LEFT_BG[3], C_LEFT_BG[4])
@@ -708,7 +413,7 @@ local function BuildMainFrame()
         self:Hide()
     end)
     newBarBox:Hide()
-    newBarInput = newBarBox
+    state.newBarInput = newBarBox
     -- Raise above the scroll-content rows so it draws on top when visible
     newBarBox:SetFrameLevel(newBarBox:GetFrameLevel() + 10)
 
@@ -721,17 +426,17 @@ local function BuildMainFrame()
     toolSep:SetHeight(1)
 
     -- Scroll frame for bar/icon list
-    scrollFrame = CreateFrame("ScrollFrame", "AuraTrackerMainScrollFrame", leftPanel, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT",     leftPanel, "TOPLEFT",     4, -(INPUT_AREA_H + 4))
-    scrollFrame:SetPoint("BOTTOMRIGHT", leftPanel, "BOTTOMRIGHT", -22, 4)
+    state.scrollFrame = CreateFrame("ScrollFrame", "AuraTrackerMainScrollFrame", leftPanel, "UIPanelScrollFrameTemplate")
+    state.scrollFrame:SetPoint("TOPLEFT",     leftPanel, "TOPLEFT",     4, -(INPUT_AREA_H + 4))
+    state.scrollFrame:SetPoint("BOTTOMRIGHT", leftPanel, "BOTTOMRIGHT", -22, 4)
 
-    scrollContent = CreateFrame("Frame", nil, scrollFrame)
-    scrollContent:SetWidth(LEFT_W - 30)
-    scrollContent:SetHeight(1)
-    scrollFrame:SetScrollChild(scrollContent)
+    state.scrollContent = CreateFrame("Frame", nil, state.scrollFrame)
+    state.scrollContent:SetWidth(LEFT_W - 30)
+    state.scrollContent:SetHeight(1)
+    state.scrollFrame:SetScrollChild(state.scrollContent)
 
     -- ── Vertical divider ─────────────────────────────────────
-    local divider = mainFrame:CreateTexture(nil, "BACKGROUND")
+    local divider = state.mainFrame:CreateTexture(nil, "BACKGROUND")
     divider:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
     divider:SetVertexColor(C_DIVIDER[1], C_DIVIDER[2], C_DIVIDER[3], C_DIVIDER[4])
     divider:SetPoint("TOPLEFT",    leftPanel, "TOPRIGHT",    1, 0)
@@ -739,26 +444,26 @@ local function BuildMainFrame()
     divider:SetWidth(1)
 
     -- ── Right panel (AceGUI container) ───────────────────────
-    rightGroup = AceGUI:Create("SimpleGroup")
-    rightGroup:SetLayout("fill")
+    state.rightGroup = AceGUI:Create("SimpleGroup")
+    state.rightGroup:SetLayout("fill")
     -- Explicitly set dimensions so AceGUI knows the available size
-    rightGroup:SetWidth(RIGHT_W)
-    rightGroup:SetHeight(RIGHT_H)
+    state.rightGroup:SetWidth(RIGHT_W)
+    state.rightGroup:SetHeight(RIGHT_H)
 
     -- Parent the widget's frame to our main frame and anchor it
-    rightGroup.frame:SetParent(mainFrame)
-    rightGroup.frame:ClearAllPoints()
-    rightGroup.frame:SetPoint("TOPLEFT",    leftPanel, "TOPRIGHT",    PAD, 0)
-    rightGroup.frame:SetPoint("BOTTOMRIGHT", mainFrame, "BOTTOMRIGHT", -PAD, PAD)
-    rightGroup.frame:Show()
+    state.rightGroup.frame:SetParent(state.mainFrame)
+    state.rightGroup.frame:ClearAllPoints()
+    state.rightGroup.frame:SetPoint("TOPLEFT",    leftPanel, "TOPRIGHT",    PAD, 0)
+    state.rightGroup.frame:SetPoint("BOTTOMRIGHT", state.mainFrame, "BOTTOMRIGHT", -PAD, PAD)
+    state.rightGroup.frame:Show()
 
     -- Register in BlizOptions so AceConfigDialog's NotifyChange
     -- mechanism auto-refreshes the right panel when options change.
     AceConfigDialog.BlizOptions = AceConfigDialog.BlizOptions or {}
     AceConfigDialog.BlizOptions[addonName] = AceConfigDialog.BlizOptions[addonName] or {}
-    AceConfigDialog.BlizOptions[addonName]["ATMainFrame"] = rightGroup
-    rightGroup:SetUserData("appName", addonName)
-    rightGroup:SetUserData("iscustom", true)
+    AceConfigDialog.BlizOptions[addonName]["ATMainFrame"] = state.rightGroup
+    state.rightGroup:SetUserData("appName", addonName)
+    state.rightGroup:SetUserData("iscustom", true)
 
     RightPanelShowPlaceholder()
 end
@@ -772,42 +477,42 @@ ns.AuraTracker.MainFrame = AT_MainFrame
 
 function AT_MainFrame:Open(barKey)
     BuildMainFrame()
-    mainFrame:Show()
-    mainFrame:Raise()
+    state.mainFrame:Show()
+    state.mainFrame:Raise()
 
     -- Restore or set initial selection
     if barKey then
-        currentBar  = barKey
-        currentIcon = nil
+        state.currentBar  = barKey
+        state.currentIcon = nil
         SU.editState.selectedBar  = barKey
         SU.editState.selectedAura = nil
-        expandedBars[barKey]  = true
+        state.expandedBars[barKey]  = true
     end
 
-    RebuildList()
+    state.RebuildList()
 
-    if currentBar then
-        RightPanelShowBar(currentBar)
+    if state.currentBar then
+        RightPanelShowBar(state.currentBar)
     else
         RightPanelShowPlaceholder()
     end
 end
 
 function AT_MainFrame:Close()
-    if mainFrame then mainFrame:Hide() end
+    if state.mainFrame then state.mainFrame:Hide() end
 end
 
 function AT_MainFrame:IsOpen()
-    return mainFrame and mainFrame:IsShown()
+    return state.mainFrame and state.mainFrame:IsShown()
 end
 
 function AT_MainFrame:SelectBar(barKey)
-    currentBar  = barKey
-    currentIcon = nil
+    state.currentBar  = barKey
+    state.currentIcon = nil
     SU.editState.selectedBar  = barKey
     SU.editState.selectedAura = nil
-    expandedBars[barKey] = expandedBars[barKey] or nil
-    RebuildList()
+    state.expandedBars[barKey] = state.expandedBars[barKey] or nil
+    state.RebuildList()
     if barKey then
         RightPanelShowBar(barKey)
     else
@@ -816,18 +521,18 @@ function AT_MainFrame:SelectBar(barKey)
 end
 
 function AT_MainFrame:SelectIcon(barKey, spellId)
-    currentBar  = barKey
-    currentIcon = spellId
+    state.currentBar  = barKey
+    state.currentIcon = spellId
     SU.editState.selectedBar  = barKey
     SU.editState.selectedAura = spellId
-    expandedBars[barKey] = true
-    RebuildList()
+    state.expandedBars[barKey] = true
+    state.RebuildList()
     RightPanelShowIcon(barKey, spellId)
 end
 
 function AT_MainFrame:RefreshList()
-    if mainFrame and mainFrame:IsShown() then
-        RebuildList()
+    if state.mainFrame and state.mainFrame:IsShown() then
+        state.RebuildList()
     end
 end
 
@@ -838,26 +543,26 @@ end
 local _origNotifyChange = SU.NotifyChange
 SU.NotifyChange = function()
     _origNotifyChange()
-    if mainFrame and mainFrame:IsShown() then
+    if state.mainFrame and state.mainFrame:IsShown() then
         -- Validate selection (bar/icon might have been deleted)
         local selectionInvalid = false
-        if currentBar then
+        if state.currentBar then
             local ctrl = GetController()
             local bars  = ctrl and ctrl:GetBars()
-            if not bars or not bars[currentBar] then
-                currentBar  = nil
-                currentIcon = nil
+            if not bars or not bars[state.currentBar] then
+                state.currentBar  = nil
+                state.currentIcon = nil
                 SU.editState.selectedBar  = nil
                 SU.editState.selectedAura = nil
                 selectionInvalid = true
-            elseif currentIcon and (not bars[currentBar].trackedItems
-                                    or not bars[currentBar].trackedItems[currentIcon]) then
-                currentIcon = nil
+            elseif state.currentIcon and (not bars[state.currentBar].trackedItems
+                                    or not bars[state.currentBar].trackedItems[state.currentIcon]) then
+                state.currentIcon = nil
                 SU.editState.selectedAura = nil
                 selectionInvalid = true
             end
         end
-        RebuildList()
+        state.RebuildList()
         -- If selection was invalidated, clear the right panel so the old
         -- basepath is not used by AceConfigDialog's auto-refresh mechanism.
         if selectionInvalid then
@@ -871,37 +576,37 @@ local _origNotifyAndRebuild = SU.NotifyAndRebuild
 SU.NotifyAndRebuild = function(barKey)
     _origNotifyAndRebuild(barKey)
     -- Rebuild list only (right panel auto-refreshes via BlizOptions hook above)
-    if mainFrame and mainFrame:IsShown() then
-        -- Validate currentIcon: the icon (or bar) may have just been deleted.
+    if state.mainFrame and state.mainFrame:IsShown() then
+        -- Validate state.currentIcon: the icon (or bar) may have just been deleted.
         -- Clearing stale references here prevents SU.NotifyChange (which may be
         -- called synchronously later, e.g. from inside an AceConfigDialog execute
         -- callback) from detecting selectionInvalid=true and calling
-        -- RightPanelShowPlaceholder() → rightGroup:ReleaseChildren() while
+        -- RightPanelShowPlaceholder() → state.rightGroup:ReleaseChildren() while
         -- AceConfigDialog's ActivateControl is still running on the clicked widget,
         -- which would nil out user.rootframe and cause an "attempt to index field
         -- 'rootframe' (a nil value)" crash at AceConfigDialog-3.0.lua:853.
-        if currentBar then
+        if state.currentBar then
             local ctrl = GetController()
             local bars  = ctrl and ctrl:GetBars()
-            if not bars or not bars[currentBar] then
-                currentBar  = nil
-                currentIcon = nil
+            if not bars or not bars[state.currentBar] then
+                state.currentBar  = nil
+                state.currentIcon = nil
                 SU.editState.selectedBar  = nil
                 SU.editState.selectedAura = nil
-            elseif currentIcon and (not bars[currentBar].trackedItems
-                                    or not bars[currentBar].trackedItems[currentIcon]) then
-                currentIcon = nil
+            elseif state.currentIcon and (not bars[state.currentBar].trackedItems
+                                    or not bars[state.currentBar].trackedItems[state.currentIcon]) then
+                state.currentIcon = nil
                 SU.editState.selectedAura = nil
             end
         end
-        RebuildList()
+        state.RebuildList()
         -- If the currently-selected bar's class restriction changed, the bar
         -- moves to a different class bucket in the options tree.  Refresh the
-        -- basepath stored in rightGroup NOW (before the next-frame auto-refresh
+        -- basepath stored in state.rightGroup NOW (before the next-frame auto-refresh
         -- fires) so AceConfigDialog navigates to the correct path.
-        if currentBar == barKey and rightGroup then
+        if state.currentBar == barKey and state.rightGroup then
             local classKey = GetBarClassKey(barKey)
-            rightGroup:SetUserData("basepath", { "bars", "class_" .. classKey, barKey })
+            state.rightGroup:SetUserData("basepath", { "bars", "class_" .. classKey, barKey })
         end
     end
 end

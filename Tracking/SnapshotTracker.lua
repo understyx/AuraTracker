@@ -6,26 +6,11 @@ local SnapshotTracker = ns.AuraTracker.SnapshotTracker
 -- Localize frequently-used globals
 local pairs, ipairs, select, type = pairs, ipairs, select, type
 local math_floor = math.floor
-local string_match = string.match
 local GetTime = GetTime
 local UnitAura = UnitAura
 local UnitGUID = UnitGUID
-local UnitLevel = UnitLevel
-local UnitHealth = UnitHealth
-local UnitHealthMax = UnitHealthMax
-local UnitDamage = UnitDamage
 local UnitClass = UnitClass
-local UnitCreatureType = UnitCreatureType
-local GetSpellCritChance = GetSpellCritChance
-local GetTalentInfo = GetTalentInfo
-local GetWeaponEnchantInfo = GetWeaponEnchantInfo
-local GetInventoryItemLink = GetInventoryItemLink
 local GetLocale = GetLocale
-local INVSLOT_HEAD = INVSLOT_HEAD
-
--- Minimap tracking API (C_Minimap in Classic, global in original WotLK)
-local GetNumTrackingTypes = C_Minimap and C_Minimap.GetNumTrackingTypes or GetNumTrackingTypes
-local GetTrackingInfo = C_Minimap and C_Minimap.GetTrackingInfo or GetTrackingInfo
 
 -- Module-private state
 local playerClass = nil
@@ -55,53 +40,11 @@ local function Round(num, nearest)
     return (upper - num < num - lower) and upper or lower
 end
 
--- Aliases for data tables defined in SnapshotData.lua
-local TARGET_UNIT = SnapshotTracker._TARGET_UNIT
+-- Aliases for data tables defined in SnapshotData.lua (still needed here)
+local TARGET_UNIT             = SnapshotTracker._TARGET_UNIT
 local masterPoisonerWhitelist = SnapshotTracker._masterPoisonerWhitelist
-local noRecalcOnRefresh = SnapshotTracker._noRecalcOnRefresh
-local indirectApplicators = SnapshotTracker._indirectApplicators
-local critSchools = SnapshotTracker._critSchools
-local critChanceTalents = SnapshotTracker._critChanceTalents
-local critChanceSetBonuses = SnapshotTracker._critChanceSetBonuses
-local critModDamageBonusTalents = SnapshotTracker._critModDamageBonusTalents
-local critModDamageBonusBuffs = SnapshotTracker._critModDamageBonusBuffs
-local critModDamageBonusSetBonuses = SnapshotTracker._critModDamageBonusSetBonuses
-local critModBuffs = SnapshotTracker._critModBuffs
-local critModMetaGems = SnapshotTracker._critModMetaGems
-local critChanceEnemyDebuffs = SnapshotTracker._critChanceEnemyDebuffs
-local critCategoryExclusiveWithMP = SnapshotTracker._critCategoryExclusiveWithMP
-local critChanceEnemyMasterPoisonerDebuffs = SnapshotTracker._critChanceEnemyMasterPoisonerDebuffs
-local damageModBuffs = SnapshotTracker._damageModBuffs
-local damageModDebuffs = SnapshotTracker._damageModDebuffs
-local damageModTalents = SnapshotTracker._damageModTalents
-local damageModSetBonuses = SnapshotTracker._damageModSetBonuses
-local damageModWeaponEnchants = SnapshotTracker._damageModWeaponEnchants
-local damageModExecuteTalents = SnapshotTracker._damageModExecuteTalents
-local damageModTrackingTalents = SnapshotTracker._damageModTrackingTalents
-local GAME_LOCALE = SnapshotTracker._GAME_LOCALE
-local localizations = SnapshotTracker._localizations
-local trackingSpells = SnapshotTracker._trackingSpells
-local DelocalizeTracking = SnapshotTracker._DelocalizeTracking
-
--- Master Poisoner crit bonus helper
--- Master Poisoner crit bonus helper
-local function GetMasterPoisonerCritBonus(casterUnit, now)
-    if casterUnit then
-        local guid = UnitGUID(casterUnit)
-        if guid then
-            local expiry = masterPoisoners[guid]
-            if expiry then
-                if expiry > now then
-                    return 3
-                else
-                    masterPoisoners[guid] = nil
-                end
-            end
-        end
-    end
-    return nil
-end
-
+local noRecalcOnRefresh       = SnapshotTracker._noRecalcOnRefresh
+local indirectApplicators     = SnapshotTracker._indirectApplicators
 
 -- ==========================================================
 -- INITIALIZATION
@@ -119,273 +62,27 @@ function SnapshotTracker:ResetPlayerInfo()
 end
 
 -- ==========================================================
--- CALCULATION: CRIT CHANCE
+-- CALCULATION DELEGATES  (pure math lives in SnapshotCalc.lua)
 -- ==========================================================
 
 function SnapshotTracker:GetCritChance()
-    local baseCrit = GetSpellCritChance(critSchools[playerClass] or 1)
-    local now = GetTime()
-
-    -- Talent-based crit (only one class-specific talent applies)
-    local talentCrit = 0
-    for indices, val in pairs(critChanceTalents[playerClass] or {}) do
-        local talentIndex = indices % 100
-        local tab = (indices - talentIndex) / 100
-        local _, _, _, _, rank = GetTalentInfo(tab, talentIndex)
-        if rank and rank > 0 then
-            talentCrit = val * rank
-            break -- only one talent applies per class
-        end
-    end
-
-    -- Crit suppression based on target level
-    local targetLevel = UnitLevel(TARGET_UNIT)
-    local playerLevel = UnitLevel("player")
-    if targetLevel == -1 then
-        targetLevel = playerLevel + 3
-    elseif targetLevel < playerLevel then
-        targetLevel = playerLevel
-    end
-    local critSuppression = playerLevel - targetLevel
-
-    -- Enemy debuffs that increase crit chance
-    local critDebuff = 0
-    local exclusiveCritSeen = false  -- true if HotC or ToW is present
-    local mpBonusValue = nil         -- MP bonus deferred until after the loop
-    for i = 1, 40 do
-        local name, _, _, count, _, _, _, source, _, _, spellId =
-            UnitAura(TARGET_UNIT, i, "HARMFUL")
-        if not name then break end
-
-        local debuffVal = critChanceEnemyDebuffs[spellId]
-        if debuffVal then
-            local stacks = count or 0
-            if stacks == 0 then stacks = 1 end
-            critDebuff = critDebuff + debuffVal * stacks
-            if critCategoryExclusiveWithMP[spellId] then
-                exclusiveCritSeen = true
-            end
-        end
-
-        if not mpBonusValue and critChanceEnemyMasterPoisonerDebuffs[spellId] then
-            mpBonusValue = GetMasterPoisonerCritBonus(source, now)
-        end
-    end
-    -- Master Poisoner shares the exclusive "spell-crit taken" category with
-    -- Heart of the Crusader and Totem of Wrath; only add it when neither of
-    -- those is already present, to avoid double-counting.
-    if mpBonusValue and not exclusiveCritSeen then
-        critDebuff = critDebuff + mpBonusValue
-    end
-
-    -- Set-bonus crit
-    local critSet = 0
-    for _, func in ipairs(critChanceSetBonuses[playerClass] or {}) do
-        local val = func()
-        if val then critSet = critSet + val end
-    end
-
-    return baseCrit + talentCrit + critDebuff + critSuppression + critSet
+    local SC = ns.AuraTracker.SnapshotCalc
+    return SC.CalcCritChance(playerClass, masterPoisoners)
 end
-
--- ==========================================================
--- CALCULATION: CRIT DAMAGE MULTIPLIER
--- ==========================================================
 
 function SnapshotTracker:GetCritDamage()
-    local critDamageBonus = 0
-    local critDamage = 1.5
-
-    -- Talent-based periodic crit damage bonus (only one per class)
-    for indices, val in pairs(critModDamageBonusTalents[playerClass] or {}) do
-        local talentIndex = indices % 100
-        local tab = (indices - talentIndex) / 100
-        local _, _, _, _, rank = GetTalentInfo(tab, talentIndex)
-        if rank and rank > 0 then
-            critDamageBonus = val * rank
-            break -- only one talent applies per class
-        end
-    end
-
-    -- Buff-based periodic crit damage bonus (only used if no talent provides one)
-    if critDamageBonus == 0 then
-        local classBuffs = critModDamageBonusBuffs[playerClass]
-        if classBuffs then
-            for i = 1, 40 do
-                local name, _, _, _, _, _, _, _, _, _, spellId =
-                    UnitAura("player", i, "HELPFUL")
-                if not name then break end
-                local val = classBuffs[spellId]
-                if val then
-                    critDamageBonus = val
-                    break -- only one buff source applies
-                end
-            end
-        end
-    end
-
-    -- Set-bonus periodic crit damage bonus (fallback)
-    if critDamageBonus == 0 then
-        for _, func in ipairs(critModDamageBonusSetBonuses[playerClass] or {}) do
-            local val = func()
-            if val then critDamageBonus = val end
-        end
-    end
-
-    if critDamageBonus == 0 then
-        return 0
-    end
-
-    -- Buffs that multiply the crit damage value
-    for i = 1, 40 do
-        local name, _, _, _, _, _, _, _, _, _, spellId =
-            UnitAura("player", i, "HELPFUL")
-        if not name then break end
-        local val = critModBuffs[spellId]
-        if not val and critModBuffs[playerClass] then
-            val = critModBuffs[playerClass][spellId]
-        end
-        if val then
-            critDamage = critDamage * (1 + val)
-            break
-        end
-    end
-
-    -- Meta gem crit damage multiplier
-    if INVSLOT_HEAD then
-        local link = GetInventoryItemLink("player", INVSLOT_HEAD)
-        if link then
-            local g1, g2, g3, g4 = string_match(link,
-                "item:%d+:[^:]*:([^:]*):([^:]*):([^:]*):([^:]*)")
-            local gems = { g1, g2, g3, g4 }
-            for _, gem in ipairs(gems) do
-                if gem then
-                    local val = critModMetaGems[gem]
-                    if val then
-                        critDamage = critDamage * (1 + val)
-                        break
-                    end
-                end
-            end
-        end
-    end
-
-    return (critDamage - 1) * critDamageBonus
+    local SC = ns.AuraTracker.SnapshotCalc
+    return SC.CalcCritDamage(playerClass)
 end
 
--- ==========================================================
--- CALCULATION: DAMAGE MODIFIER
--- ==========================================================
-
 function SnapshotTracker:IsTrackingTarget()
-    if not GetNumTrackingTypes or not GetTrackingInfo then
-        return false
-    end
-    for i = 1, GetNumTrackingTypes() do
-        local _, _, active, _, _, spellID = GetTrackingInfo(i)
-        -- Tracking types without spell IDs (e.g. herbs, minerals) come after
-        -- creature-tracking spells; stop once we reach them.
-        if not spellID then break end
-        if active then
-            local creatureType = trackingSpells[spellID]
-            -- Active tracking is not a creature-type spell (e.g. Find Fish)
-            if not creatureType then break end
-            return DelocalizeTracking(UnitCreatureType(TARGET_UNIT)) == creatureType
-        end
-    end
-    return false
+    local SC = ns.AuraTracker.SnapshotCalc
+    return SC.IsTrackingTarget()
 end
 
 function SnapshotTracker:GetDamageMod()
-    local damageMod = select(7, UnitDamage("player")) or 1
-
-    -- Player buff modifiers (class-specific)
-    local classBuffs = damageModBuffs[playerClass]
-    if classBuffs then
-        for i = 1, 40 do
-            local name, _, _, count, _, _, _, _, _, _, spellId =
-                UnitAura("player", i, "HELPFUL")
-            if not name then break end
-            local val = classBuffs[spellId]
-            if val then
-                local stacks = count or 0
-                if stacks == 0 then stacks = 1 end
-                damageMod = damageMod * (1 + val * stacks)
-            end
-        end
-    end
-
-    -- Player debuff modifiers (generic + class-specific)
-    local classDebuffs = type(damageModDebuffs[playerClass]) == "table"
-        and damageModDebuffs[playerClass] or nil
-    for i = 1, 40 do
-        local name, _, _, count, _, _, _, _, _, _, spellId =
-            UnitAura("player", i, "HARMFUL")
-        if not name then break end
-        local val = damageModDebuffs[spellId]
-        if not val and classDebuffs then
-            val = classDebuffs[spellId]
-        end
-        if val then
-            local stacks = count or 0
-            if stacks == 0 then stacks = 1 end
-            damageMod = damageMod * (1 + val * stacks)
-        end
-    end
-
-    -- Talent modifiers
-    for indices, val in pairs(damageModTalents[playerClass] or {}) do
-        local talentIndex = indices % 100
-        local tab = (indices - talentIndex) / 100
-        local _, _, _, _, rank = GetTalentInfo(tab, talentIndex)
-        if rank and rank > 0 then
-            damageMod = damageMod * (1 + val * rank)
-            break
-        end
-    end
-
-    -- Set-bonus modifiers
-    for _, func in ipairs(damageModSetBonuses[playerClass] or {}) do
-        local val = func()
-        if val then damageMod = damageMod * (1 + val) end
-    end
-
-    -- Weapon enchant modifiers
-    local hasEnchant, _, _, enchantID = GetWeaponEnchantInfo()
-    if hasEnchant and enchantID then
-        local classEnchants = damageModWeaponEnchants[playerClass]
-        local val = classEnchants and classEnchants[enchantID]
-        if val then damageMod = damageMod * (1 + val) end
-    end
-
-    -- Execute-range talent modifiers
-    for indices, val in pairs(damageModExecuteTalents[playerClass] or {}) do
-        local talentIndex = indices % 100
-        local tab = (indices - talentIndex) / 100
-        local _, _, _, _, rank = GetTalentInfo(tab, talentIndex)
-        if rank and rank > 0 then
-            local maxHP = UnitHealthMax(TARGET_UNIT)
-            if maxHP and maxHP > 0 and UnitHealth(TARGET_UNIT) / maxHP <= 0.35 then
-                damageMod = damageMod * (1 + val * rank)
-            end
-            break
-        end
-    end
-
-    -- Tracking talent modifiers (Hunter)
-    for indices, val in pairs(damageModTrackingTalents[playerClass] or {}) do
-        local talentIndex = indices % 100
-        local tab = (indices - talentIndex) / 100
-        local _, _, _, _, rank = GetTalentInfo(tab, talentIndex)
-        if rank and rank > 0 then
-            if self:IsTrackingTarget() then
-                damageMod = damageMod * (1 + val * rank)
-            end
-            break
-        end
-    end
-
-    return damageMod
+    local SC = ns.AuraTracker.SnapshotCalc
+    return SC.CalcDamageMod(playerClass)
 end
 
 -- ==========================================================

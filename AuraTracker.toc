@@ -10,6 +10,7 @@ Libraries\Load_Libraries.xml
 Libraries\Ace.xml
 
 Data\Config.lua
+Data\ConfigMethods.lua
 Data\ConfigWeaponEnchant.lua
 Data\ConfigTotem.lua
 Data\ExampleBars.lua
@@ -21,15 +22,20 @@ Display\SkinTabs.lua
 Display\SkinDropdown.lua
 Display\SkinWidgets.lua
 Tracking\Conditionals.lua
+Tracking\ConditionFuncs.lua
 Tracking\ConditionalChecks.lua
+Tracking\ActionEval.lua
 Tracking\ConditionalActions.lua
 
 Tracking\SnapshotData.lua
+Tracking\SnapshotCalc.lua
 Tracking\SnapshotTracker.lua
 Tracking\TrackedItem.lua
+Tracking\StateQuery.lua
 Tracking\TrackedItemUpdates.lua
 Tracking\TrackedItemSpecial.lua
 Display\Icon.lua
+Display\IconState.lua
 Display\IconRender.lua
 Display\IconText.lua
 Display\Bar.lua
@@ -37,6 +43,7 @@ Display\DragDrop.lua
 Display\DragDropHooks.lua
 Core\UpdateEngine.lua
 AuraTracker.lua
+Core\BarFactory.lua
 Core\BarManager.lua
 Core\BarVisibility.lua
 Core\BarImportExport.lua
@@ -47,12 +54,16 @@ Display\MiniTalentWidget.lua
 Display\FramePicker.lua
 Settings\ConditionUI.lua
 Settings\LoadConditionUI.lua
+Settings\LoadConditionBuilders.lua
 Settings\ActionConditionUI.lua
 Settings\IconActionsUI.lua
 Settings\Settings.lua
 Settings\MainFrame.lua
+Settings\MainFrameRows.lua
 Settings\BarOptions.lua
+Settings\BarOptionRows.lua
 Settings\IconEditorUI.lua
 Settings\IconEditorOptions.lua
 Settings\BarSettingsUI.lua
+Settings\BarSettingsGroups.lua
 Settings\SettingsMappings.lua
