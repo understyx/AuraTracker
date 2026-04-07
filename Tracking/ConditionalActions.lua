@@ -1,13 +1,9 @@
 local _, ns = ...
 
 local Conditionals = ns.AuraTracker.Conditionals
+local AE = ns.AuraTracker.ActionEval
 
--- Localize globals needed by action evaluation
-local UnitHealth, UnitHealthMax = UnitHealth, UnitHealthMax
-local UnitPower, UnitPowerMax = UnitPower, UnitPowerMax
-local UnitExists = UnitExists
-local GetNumRaidMembers = GetNumRaidMembers
-local GetNumPartyMembers = GetNumPartyMembers
+-- Localize globals needed by non-evaluation parts of this file
 local GetTime = GetTime
 local GetTalentInfo = GetTalentInfo
 local GetTalentTabInfo = GetTalentTabInfo
@@ -23,27 +19,6 @@ local LSM = LibStub("LibSharedMedia-3.0")
 local math_floor = math.floor
 local string_format = string.format
 local string_gsub = string.gsub
-
-local function CheckUnitPct(unit, getFunc, maxFunc, op, value)
-    if unit == "smart_group" then
-        for _, u in ipairs(Conditionals:GetSmartGroupUnits()) do
-            if UnitExists(u) then
-                local maxVal = maxFunc(u)
-                if maxVal and maxVal > 0 then
-                    local pct = (getFunc(u) / maxVal) * 100
-                    if Conditionals:CompareValue(pct, op, value) then
-                        return true
-                    end
-                end
-            end
-        end
-        return false
-    end
-    local maxVal = maxFunc(unit)
-    if not maxVal or maxVal == 0 then return false end
-    local pct = (getFunc(unit) / maxVal) * 100
-    return Conditionals:CompareValue(pct, op, value)
-end
 
 -- ==========================================================
 -- ACTION CONDITIONALS  (icon-only)
@@ -70,27 +45,7 @@ Conditionals.PowerUnits = {
 --- Check one action condition.
 --- `item` is the TrackedItem for remaining/stacks checks.
 function Conditionals:CheckActionCondition(cond, item)
-    local check = cond.check
-
-    if check == "unit_hp" then
-        return CheckUnitPct(cond.unit or "target", UnitHealth, UnitHealthMax, cond.op, cond.value)
-
-    elseif check == "unit_power" then
-        return CheckUnitPct(cond.unit or "player", UnitPower, UnitPowerMax, cond.op, cond.value)
-
-    elseif check == "remaining" then
-        if not item then return false end
-        local remaining = item:GetRemaining()
-        if remaining <= 0 then return false end
-        return self:CompareValue(remaining, cond.op, cond.value)
-
-    elseif check == "stacks" then
-        if not item then return false end
-        local stacks = item:GetStacks() or 0
-        return self:CompareValue(stacks, cond.op, cond.value)
-    end
-
-    return false
+    return AE.EvalCond(cond, item)
 end
 
 --- Evaluate action conditionals. Returns glow state + triggers sounds on transitions.

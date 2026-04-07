@@ -24,6 +24,7 @@ Display\SkinWidgets.lua
 Tracking\Conditionals.lua
 Tracking\ConditionFuncs.lua
 Tracking\ConditionalChecks.lua
+Tracking\ActionEval.lua
 Tracking\ConditionalActions.lua
 
 Tracking\SnapshotData.lua
@@ -60,7 +61,9 @@ Settings\Settings.lua
 Settings\MainFrame.lua
 Settings\MainFrameRows.lua
 Settings\BarOptions.lua
+Settings\BarOptionRows.lua
 Settings\IconEditorUI.lua
 Settings\IconEditorOptions.lua
 Settings\BarSettingsUI.lua
+Settings\BarSettingsGroups.lua
 Settings\SettingsMappings.lua
