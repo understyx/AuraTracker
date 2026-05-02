@@ -144,6 +144,14 @@ local function ResolveNameAndTexture(self, id, trackType, options)
     self.originalTexture = self.texture
 end
 
+-- Export shared weapon-enchant state for TrackedItemSpecial.lua, which is
+-- a separate file and cannot access these locals directly.
+ns.AuraTracker._WeaponEnchantHelpers = {
+    cache             = weaponEnchantCache,
+    invSlot           = WEAPON_INV_SLOT,
+    DetectFromTooltip = DetectEnchantFromTooltip,
+}
+
 --- Initialises the extra state fields that are specific to each track type.
 --- `id` is passed directly so this helper does not depend on any prior call.
 local function InitTypeState(self, id, trackType, options)

@@ -6,6 +6,11 @@ local GetWeaponEnchantInfo = GetWeaponEnchantInfo
 local GetTotemInfo = GetTotemInfo
 local math_floor = math.floor
 
+local _WEH = ns.AuraTracker._WeaponEnchantHelpers
+local weaponEnchantCache    = _WEH.cache
+local WEAPON_INV_SLOT       = _WEH.invSlot
+local DetectEnchantFromTooltip = _WEH.DetectFromTooltip
+
 -- ==========================================================
 -- WEAPON ENCHANT
 -- ==========================================================
