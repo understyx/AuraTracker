@@ -48,6 +48,27 @@ ns.AuraTracker._ResolveAnchorFrame = ResolveAnchorFrame
 ns.AuraTracker._GetPointScreenXY   = GetPointScreenXY
 
 -- ==========================================================
+-- STYLE HELPERS
+-- ==========================================================
+
+--- Builds a styleOptions table from a bar DB entry for use by Icon:ApplyStyle
+--- and Icon:ApplyCustomTexts.
+local function BuildStyleOptions(db)
+    return {
+        size             = db.iconSize,
+        fontSize         = db.textSize,
+        fontOutline      = db.fontOutline,
+        font             = db.font,
+        snapshotFontSize = db.snapshotFontSize,
+        showSnapshotBG   = db.showSnapshotBG,
+        snapshotBGAlpha  = db.snapshotBGAlpha,
+        textColor        = db.textColor,
+        showCooldownText = db.showCooldownText,
+    }
+end
+ns.AuraTracker.BuildStyleOptions = BuildStyleOptions
+
+-- ==========================================================
 -- CONSTANTS
 -- ==========================================================
 
