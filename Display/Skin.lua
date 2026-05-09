@@ -361,6 +361,7 @@ ns.AuraTracker._Skin = {
     SetFlat        = SetFlat,
     StripTextures  = StripTextures,
     SkinFlatButton = SkinFlatButton,
+    SkinEditBoxFrame = SkinEditBoxFrame,
     skinners       = skinners,
     TAB_FONT       = TAB_FONT,
     TAB_FONTSIZE   = TAB_FONTSIZE,

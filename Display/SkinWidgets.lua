@@ -3,9 +3,11 @@ local _, ns = ...
 -- Widget skinners added to the shared skinners table exported by Skin.lua
 local _Skin       = ns.AuraTracker._Skin
 local C           = _Skin.C
+local flatBackdrop = _Skin.flatBackdrop
 local SetFlat     = _Skin.SetFlat
 local StripTextures = _Skin.StripTextures
 local SkinFlatButton = _Skin.SkinFlatButton
+local SkinEditBoxFrame = _Skin.SkinEditBoxFrame
 local skinners    = _Skin.skinners
 local CreateFrame = CreateFrame
 local select      = select
