@@ -5,6 +5,7 @@ local C = _S.C
 local flatBackdrop = _S.flatBackdrop
 local StripTextures = _S.StripTextures
 local skinners = _S.skinners
+local SetFlat = _S.SetFlat
 local TAB_FONT = _S.TAB_FONT
 local TAB_FONTSIZE = _S.TAB_FONTSIZE
 local CreateFrame = CreateFrame
