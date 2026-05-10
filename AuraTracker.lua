@@ -194,7 +194,10 @@ function AuraTracker:OnPlayerEnteringWorld()
 end
 
 function AuraTracker:OnSpellsChanged()
-    self:RebuildAllBars()
+    -- Opening the Spellbook fires SPELLS_CHANGED frequently; rebuilding all bars
+    -- recreates tracked items and resets active timers. Do a lightweight refresh.
+    UpdateEngine:UpdateAllCooldowns()
+    UpdateEngine:UpdateAllAuras()
 end
 
 function AuraTracker:OnDragStart()
