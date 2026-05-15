@@ -69,14 +69,14 @@ local function CreateBarSettings(barKey, barData)
         -- ======================================================
         barConfig = {
             type        = "group",
-            name        = "Bar Configuration",
+            name        = "Display",
             order       = 1,
             childGroups = "tab",
             args        = {
                 -- ------ General sub-tab ------
                 general = {
                     type  = "group",
-                    name  = "General",
+                    name  = "Display",
                     order = 1,
                     args  = G.BuildBarGeneralArgs(barKey, barData, NotifyChange, RebuildBar, NotifyAndRebuild),
                 },
@@ -84,7 +84,7 @@ local function CreateBarSettings(barKey, barData)
                 -- ------ Load sub-tab ------
                 load = {
                     type  = "group",
-                    name  = "Load",
+                    name  = "Load Conditions",
                     order = 2,
                     args  = loadArgs,
                 },

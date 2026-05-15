@@ -165,20 +165,18 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
     -- Custom ICD options
     if isCustomICD then
         generalArgs.editorCustomICDDuration = {
-            type  = "input",
+            type  = "range",
             name  = "ICD Duration (seconds)",
             desc  = "The internal cooldown duration in seconds that starts when the trigger buff is applied to the player.",
+            min   = 1, max = 300, step = 1,
             order = 2,
             width = "double",
             get   = function()
-                return tostring(data.icdDuration or "")
+                return data.icdDuration or 45
             end,
             set   = function(_, val)
-                local n = tonumber(val)
-                if n and n > 0 then
-                    data.icdDuration = n
-                    NotifyAndRebuild(barKey)
-                end
+                data.icdDuration = val
+                NotifyAndRebuild(barKey)
             end,
         }
     end
@@ -677,36 +675,36 @@ local function InjectIconEditorArgs(args, barKey, barData, spellId, orderBase)
 
     args.iconEditorGeneral = {
         type  = "group",
-        name  = "General",
+        name  = "Display",
         order = 1,
         args  = generalArgs,
     }
     args.iconEditorLoad = {
         type  = "group",
-        name  = "Load",
+        name  = "Load Conditions",
         order = 2,
         args  = loadArgs,
     }
     args.iconEditorAction = {
         type  = "group",
-        name  = "Action",
+        name  = "Conditions & Actions",
         order = 3,
         args  = actionArgs,
+    }
+    args.iconEditorCustomTexts = {
+        type  = "group",
+        name  = "Texts",
+        order = 4,
+        args  = customTextsArgs,
     }
     if hasAuraOptions then
         args.iconEditorAlternative = {
             type  = "group",
-            name  = "Also Track",
-            order = 4,
+            name  = "Alternatives",
+            order = 5,
             args  = altArgs,
         }
     end
-    args.iconEditorCustomTexts = {
-        type  = "group",
-        name  = "Custom Texts",
-        order = 5,
-        args  = customTextsArgs,
-    }
 end
 
 

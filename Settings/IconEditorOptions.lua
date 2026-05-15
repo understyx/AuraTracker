@@ -71,7 +71,7 @@ local function CreateIconListOptions(barKey, barData)
         -- ----------------------------------------------------------
         addHeader = {
             type  = "header",
-            name  = "Add Icon",
+            name  = "Create Trigger",
             order = 1,
         },
         addDesc = {
@@ -104,14 +104,15 @@ local function CreateIconListOptions(barKey, barData)
             set   = function(_, val) editState.addIconId = val end,
         },
         addIcdDuration = {
-            type   = "input",
+            type   = "range",
             name   = "ICD Duration (seconds)",
             desc   = "The internal cooldown duration in seconds that starts when the trigger buff is applied to the player.",
+            min    = 1, max = 300, step = 1,
             order  = 4.5,
             width  = "double",
             hidden = function() return (editState.addTrackType or "cooldown") ~= "custom_icd" end,
-            get    = function() return editState.addIcdDuration or "" end,
-            set    = function(_, val) editState.addIcdDuration = val end,
+            get    = function() return tonumber(editState.addIcdDuration) or 45 end,
+            set    = function(_, val) editState.addIcdDuration = tostring(val) end,
         },
         addIconBtn = {
             type  = "execute",
@@ -163,20 +164,20 @@ local function CreateIconListOptions(barKey, barData)
         -- ----------------------------------------------------------
         -- Tracked Icons list  (orders 10+)
         -- ----------------------------------------------------------
-        listHeader = { type = "header", name = "Tracked Icons", order = 10 },
+        listHeader = { type = "header", name = "Configured Triggers", order = 10 },
     }
 
     if #sortedItems == 0 then
         args.emptyMsg = {
             type  = "description",
-            name  = "No icons tracked yet. Use the |cFFFFFF00Add Icon|r form above, or drag spells from your spellbook onto the bar.",
+            name  = "No triggers configured yet. Use |cFFFFFF00Create Trigger|r above, or drag spells from your spellbook onto the bar.",
             order = 11,
             width = "full",
         }
     else
         args.listHint = {
             type  = "description",
-            name  = "|cFFAAAAFFClick an icon to configure, reorder, or remove it.|r",
+            name  = "|cFFAAAAFFClick a trigger icon to edit its display, load conditions, actions, and texts.|r",
             order = 11,
             width = "full",
         }
@@ -217,7 +218,7 @@ local function CreateIconListOptions(barKey, barData)
     -- InjectIconEditorArgs) become the General/Load/Action/Also Track tabs.
     return {
         type        = "group",
-        name        = "Icons",
+        name        = "Triggers",
         childGroups = "tab",
         args        = args,
     }
