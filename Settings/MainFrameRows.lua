@@ -31,32 +31,55 @@ local function AcquireBarRow()
     state.SetTexColor(bg, state.C_ROW_NORMAL)
     f._bg = bg
 
-    local arrow = f:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
-    arrow:SetPoint("LEFT", f, "LEFT", 4, 0)
+    -- Left-side class colour accent strip (hidden when no class restriction)
+    local badge = f:CreateTexture(nil, "ARTWORK")
+    badge:SetSize(3, state.ROW_H_BAR)
+    badge:SetPoint("LEFT", f, "LEFT", 0, 0)
+    badge:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
+    badge:Hide()
+    f._badge = badge
+
+    -- Expand/collapse arrow – compact font so it doesn't dominate the row
+    local arrow = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    arrow:SetPoint("LEFT", f, "LEFT", 6, 0)
+    arrow:SetWidth(14)
+    arrow:SetJustifyH("CENTER")
     f._arrow = arrow
 
     local name = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     name:SetPoint("LEFT", f, "LEFT", 24, 0)
-    name:SetPoint("RIGHT", f, "RIGHT", -52, 0)
+    name:SetPoint("RIGHT", f, "RIGHT", -50, 0)
     name:SetJustifyH("LEFT")
     name:SetWordWrap(false)
     f._name = name
 
-    -- Class badge (small colored rectangle)
-    local badge = f:CreateTexture(nil, "OVERLAY")
-    badge:SetSize(4, 18)
-    badge:SetPoint("RIGHT", f, "RIGHT", -48, 0)
-    badge:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-    f._badge = badge
+    -- Icon-count badge (dim number shown right of name, left of delete)
+    local count = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    count:SetPoint("RIGHT", f, "RIGHT", -24, 0)
+    count:SetJustifyH("RIGHT")
+    f._count = count
 
-    -- Delete button
+    -- Delete button with red-tinted hover highlight
     local del = CreateFrame("Button", nil, f)
     del:SetSize(20, 20)
-    del:SetPoint("RIGHT", f, "RIGHT", -4, 0)
+    del:SetPoint("RIGHT", f, "RIGHT", -2, 0)
     del:SetNormalFontObject("GameFontNormalSmall")
-    del:SetText("|cFFFF4444X|r")
-    del:SetScript("OnEnter", function() del:SetText("|cFFFF0000X|r") end)
-    del:SetScript("OnLeave", function() del:SetText("|cFFFF4444X|r") end)
+    del:SetText("|cFF884444x|r")
+
+    local delBG = del:CreateTexture(nil, "BACKGROUND")
+    delBG:SetAllPoints()
+    delBG:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
+    delBG:SetVertexColor(0.5, 0.1, 0.1, 0.0)
+    del._bg = delBG
+
+    del:SetScript("OnEnter", function(self)
+        self:SetText("|cFFFF4444x|r")
+        if self._bg then self._bg:SetVertexColor(0.45, 0.08, 0.08, 0.85) end
+    end)
+    del:SetScript("OnLeave", function(self)
+        self:SetText("|cFF884444x|r")
+        if self._bg then self._bg:SetVertexColor(0.5, 0.1, 0.1, 0.0) end
+    end)
     f._del = del
 
     f:SetScript("OnEnter", function(self)
@@ -186,14 +209,14 @@ local function RebuildList()
         local row = AcquireBarRow()
         row._barKey = barKey
 
-        -- Class badge color (must be set before SetRowSelected uses _classColor)
+        -- Class colour accent strip (left edge) and row tint
         local classKey = barData.classRestriction or "NONE"
         if classKey ~= "NONE" then
             local color = RAID_CLASS_COLORS and RAID_CLASS_COLORS[classKey]
             if color then
                 row._classColor = { color.r, color.g, color.b }
-                row._badge:SetVertexColor(color.r, color.g, color.b, 1)
-                row._badge:Hide() -- Note: We are hiding this, because this is just a class colored square currently!
+                row._badge:SetVertexColor(color.r, color.g, color.b, 0.9)
+                row._badge:Show()
             else
                 row._classColor = nil
                 row._badge:Hide()
@@ -205,12 +228,25 @@ local function RebuildList()
 
         SetRowSelected(row, isSel)
 
-        -- Arrow
-        row._arrow:SetText(expanded and "|cFFAAAAAA-|r" or "|cFFAAAAAA+|r")
+        -- Arrow (compact +/-)
+        row._arrow:SetText(expanded and "|cFF888888-|r" or "|cFF888888+|r")
 
         -- Name
         local displayName = SU.GetBarDisplayName(barData, barKey)
         row._name:SetText(displayName)
+
+        -- Icon count badge
+        if row._count then
+            local iconCount = 0
+            if barData.trackedItems then
+                for _ in pairs(barData.trackedItems) do iconCount = iconCount + 1 end
+            end
+            if iconCount > 0 then
+                row._count:SetText("|cFF555555" .. iconCount .. "|r")
+            else
+                row._count:SetText("")
+            end
+        end
 
         -- Delete handler (with confirmation popup)
         local capturedKey  = barKey
