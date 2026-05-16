@@ -210,43 +210,31 @@ function G.BuildBarGeneralArgs(barKey, barData, notifyFn, rebuildFn, notifyAndRe
             end,
         },
         textSize = {
-            type     = "input",
+            type     = "range",
             name     = "Font Size",
-            desc     = "Font size for cooldown timer text (8-20).",
+            desc     = "Font size for cooldown timer text.",
+            min      = 8, max = 20, step = 1,
             order    = 32,
             width    = "double",
-            get      = function() return tostring(barData.textSize or 12) end,
+            get      = function() return barData.textSize or 12 end,
             set      = function(_, val)
-                local n = tonumber(val)
-                if n then
-                    barData.textSize = math_floor(math.max(8, math.min(20, n)))
-                    rebuildFn(barKey)
-                end
-            end,
-            validate = function(_, val)
-                if not tonumber(val) then return "Please enter a number (8-20)." end
-                return true
+                barData.textSize = val
+                rebuildFn(barKey)
             end,
         },
         snapshotTextSize = {
-            type     = "input",
+            type     = "range",
             name     = "Snapshot Font Size",
-            desc     = "Font size for snapshot diff text (8-20). Defaults to 80% of Font Size when unset.",
+            desc     = "Font size for snapshot diff text.",
+            min      = 8, max = 20, step = 1,
             order    = 33,
             width    = "double",
             get      = function()
-                return tostring(barData.snapshotTextSize or math_floor((barData.textSize or 12) * 0.8))
+                return barData.snapshotTextSize or math_floor((barData.textSize or 12) * 0.8)
             end,
             set      = function(_, val)
-                local n = tonumber(val)
-                if n then
-                    barData.snapshotTextSize = math_floor(math.max(8, math.min(20, n)))
-                    rebuildFn(barKey)
-                end
-            end,
-            validate = function(_, val)
-                if not tonumber(val) then return "Please enter a number (8-20)." end
-                return true
+                barData.snapshotTextSize = val
+                rebuildFn(barKey)
             end,
         },
         showSnapshotBG = {

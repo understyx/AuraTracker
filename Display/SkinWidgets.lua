@@ -159,3 +159,27 @@ skinners["MultiLineEditBox"] = function(widget)
         SkinFlatButton(widget.button)
     end
 end
+
+-- ------- ColorPicker Widget ----------
+skinners["ColorPicker"] = function(widget)
+    local frame = widget.frame
+    if not frame or frame.isSkinned then return end
+    frame.isSkinned = true
+
+    -- Flat border around the color swatch
+    if widget.colorSwatch and not frame._colorBorder then
+        local border = CreateFrame("Frame", nil, frame)
+        border:SetPoint("TOPLEFT",     widget.colorSwatch, "TOPLEFT",     -1,  1)
+        border:SetPoint("BOTTOMRIGHT", widget.colorSwatch, "BOTTOMRIGHT",  1, -1)
+        border:SetBackdrop(flatBackdrop)
+        border:SetBackdropColor(0, 0, 0, 0)
+        border:SetBackdropBorderColor(unpack(C.border))
+        border:SetFrameLevel(frame:GetFrameLevel())
+        frame._colorBorder = border
+    end
+
+    -- Style the label text
+    if widget.label then
+        widget.label:SetTextColor(unpack(C.white))
+    end
+end

@@ -123,14 +123,53 @@ local function StyleAsCustomButton(btn, w, h)
     btn:SetSize(w, h)
     btn:SetNormalFontObject("GameFontNormalSmall")
     btn:SetHighlightFontObject("GameFontHighlightSmall")
+
+    -- Clear Blizzard default textures
+    if btn.SetHighlightTexture then btn:SetHighlightTexture("") end
+    if btn.SetPushedTexture    then btn:SetPushedTexture("")    end
+
+    -- Flat background
     local bg = btn:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints()
     bg:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
     bg:SetVertexColor(0.16, 0.16, 0.16, 1.0)
-    btn:SetHighlightTexture("Interface\\ChatFrame\\ChatFrameBackground")
-    btn:GetHighlightTexture():SetVertexColor(1, 1, 1, 0.12)
-    btn:SetPushedTexture("Interface\\ChatFrame\\ChatFrameBackground")
-    btn:GetPushedTexture():SetVertexColor(0.08, 0.08, 0.08, 1.0)
+    btn._bg = bg
+
+    -- Thin 1-px border frame
+    local borderFD = {
+        bgFile   = "Interface\\ChatFrame\\ChatFrameBackground",
+        edgeFile = "Interface\\ChatFrame\\ChatFrameBackground",
+        tile     = false, tileSize = 0, edgeSize = 1,
+        insets   = { left = 0, right = 0, top = 0, bottom = 0 },
+    }
+    local border = CreateFrame("Frame", nil, btn)
+    border:SetPoint("TOPLEFT",     -1,  1)
+    border:SetPoint("BOTTOMRIGHT",  1, -1)
+    border:SetBackdrop(borderFD)
+    border:SetBackdropColor(0, 0, 0, 0)
+    border:SetBackdropBorderColor(0.22, 0.22, 0.22, 1)
+    btn._border = border
+
+    -- Gold font colour
+    if btn:GetFontString() then
+        btn:GetFontString():SetTextColor(0.90, 0.76, 0.10, 1)
+    end
+
+    -- Hover / press effects
+    btn:HookScript("OnEnter", function(self)
+        if self._bg     then self._bg:SetVertexColor(0.26, 0.26, 0.26, 1.0) end
+        if self._border then self._border:SetBackdropBorderColor(0.38, 0.38, 0.38, 1) end
+    end)
+    btn:HookScript("OnLeave", function(self)
+        if self._bg     then self._bg:SetVertexColor(0.16, 0.16, 0.16, 1.0) end
+        if self._border then self._border:SetBackdropBorderColor(0.22, 0.22, 0.22, 1) end
+    end)
+    btn:HookScript("OnMouseDown", function(self)
+        if self._bg then self._bg:SetVertexColor(0.10, 0.10, 0.10, 1.0) end
+    end)
+    btn:HookScript("OnMouseUp", function(self)
+        if self._bg then self._bg:SetVertexColor(0.16, 0.16, 0.16, 1.0) end
+    end)
 end
 
 -- Build a dimmed RGBA color from a class color table {r,g,b} + brightness + alpha
@@ -196,9 +235,12 @@ local function RightPanelShowPlaceholder()
     state.rightGroup:ReleaseChildren()
     state.rightGroup:SetLayout("fill")
     local lbl = AceGUI:Create("Label")
-    lbl:SetText("\n\n\n\n   |cFF888888← Select a bar from the list to configure it.\n\n"
-             .. "   Use the |cFFFFFFFFNew Bar|r button to create your first bar, "
-             .. "or use |cFFFFFFFFEdit Mode|r to drag bars on screen.|r")
+    lbl:SetText("\n\n\n"
+        .. "   |cFF888888Select a bar from the list to edit it.|r\n\n"
+        .. "   |cFF00CCFFNew Bar|r  —  create a new bar\n"
+        .. "   |cFF00CCFFEdit Mode|r  —  drag bars on-screen\n"
+        .. "   |cFF00CCFFPredefined|r  —  start from a preset\n"
+        .. "   |cFF00CCFFImport|r  —  import from a share string\n")
     lbl:SetFullWidth(true)
     state.rightGroup:AddChild(lbl)
 end
@@ -416,6 +458,14 @@ local function BuildMainFrame()
     state.newBarInput = newBarBox
     -- Raise above the scroll-content rows so it draws on top when visible
     newBarBox:SetFrameLevel(newBarBox:GetFrameLevel() + 10)
+
+    -- Apply flat dark skin to the new-bar edit box
+    do
+        local _Skin = ns.AuraTracker and ns.AuraTracker._Skin
+        if _Skin and _Skin.SkinEditBoxFrame then
+            _Skin.SkinEditBoxFrame(newBarBox)
+        end
+    end
 
     -- Toolbar/input separator
     local toolSep = leftPanel:CreateTexture(nil, "BACKGROUND")

@@ -353,6 +353,20 @@ end
 
 
 
+-- ------- SimpleGroup Container ----------
+-- SimpleGroup is used for the main right-panel container.  We keep it
+-- fully transparent so the parent main-frame background shows through,
+-- but we still register a skinner so AceGUI doesn't apply any default
+-- Blizzard styling on top of our dark theme.
+skinners["SimpleGroup"] = function(widget)
+    local frame = widget.frame
+    if not frame then return end
+    -- Wipe any backdrop that AceGUI or Blizzard may have set
+    if frame.SetBackdrop then
+        frame:SetBackdrop(nil)
+    end
+end
+
 -- Export shared skinning primitives so SkinTabs.lua and SkinDropdown.lua
 -- can access them after loading.
 ns.AuraTracker._Skin = {
