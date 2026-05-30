@@ -141,9 +141,12 @@ function UpdateEngine:UpdateAllAuras()
             local item = icon:GetTrackedItem()
             if item then
                 local tt = item:GetTrackType()
-                if tt == Config.TrackType.AURA
-                or tt == Config.TrackType.COOLDOWN_AURA then
+                if tt == Config.TrackType.AURA then
                     item:Update()
+                    local visChanged = icon:Refresh()
+                    needsLayout = needsLayout or visChanged
+                elseif tt == Config.TrackType.COOLDOWN_AURA then
+                    item:Update(gcdStart, gcdDuration, db.ignoreGCD)
                     local visChanged = icon:Refresh()
                     needsLayout = needsLayout or visChanged
                 end
@@ -167,7 +170,11 @@ function UpdateEngine:UpdateAurasForUnit(unit)
                 local tt = item:GetTrackType()
                 if (tt == Config.TrackType.AURA or tt == Config.TrackType.COOLDOWN_AURA)
                 and item.unit == unit then
-                    item:Update()
+                    if tt == Config.TrackType.COOLDOWN_AURA then
+                        item:Update(gcdStart, gcdDuration, db.ignoreGCD)
+                    else
+                        item:Update()
+                    end
                     local visChanged = icon:Refresh()
                     needsLayout = needsLayout or visChanged
                 end

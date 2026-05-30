@@ -287,8 +287,8 @@ Config.ExclusivePresets = {
         label  = "Buff - Attack Power",
         spells = {
             [47436] = true,  -- Battle Shout
-            [48934] = true,  -- Blessing of Might
-            [48934] = true,  -- Greater blessing of Might
+            [48932] = true,  -- Blessing of Might
+            [48934] = true,  -- Greater Blessing of Might
         },
     },
     BUFF_ATTACK_POWER_PCT = {
@@ -310,8 +310,7 @@ Config.ExclusivePresets = {
     BUFF_SANCT = {
         label  = "Buff - Blessing of Sanctuary",
         spells = {
-            [25899] = true,  -- Blessing of Sanctuary
-            [25899] = true,  -- Greater blessing of Sanctuary
+            [25899] = true,  -- Blessing of Sanctuary / Greater Blessing of Sanctuary
         },
     },
     BUFF_HASTE_3PCT = {
